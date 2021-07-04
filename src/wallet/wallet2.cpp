@@ -6533,6 +6533,7 @@ void wallet2::add_unconfirmed_tx(const cryptonote::transaction& tx, uint64_t amo
       continue;
     const auto &txin = boost::get<cryptonote::txin_to_key>(in);
     utd.m_rings.push_back(std::make_pair(txin.k_image, txin.key_offsets));
+    utd.m_key_images.push_back(txin.k_image);
   }
 }
 

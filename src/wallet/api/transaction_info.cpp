@@ -149,4 +149,9 @@ uint64_t TransactionInfoImpl::unlockTime() const
     return m_unlock_time;
 }
 
+const std::vector<std::string> &TransactionInfoImpl::keyImages() const
+{
+    return m_key_images;
+}
+
 } // namespace

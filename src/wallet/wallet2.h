@@ -432,9 +432,10 @@ private:
       uint32_t m_subaddr_account;   // subaddress account of your wallet to be used in this transfer
       std::set<uint32_t> m_subaddr_indices;  // set of address indices used as inputs in this transfer
       std::vector<std::pair<crypto::key_image, std::vector<uint64_t>>> m_rings; // relative
+      std::vector<crypto::key_image> m_key_images;
 
       BEGIN_SERIALIZE_OBJECT()
-        VERSION_FIELD(1)
+        VERSION_FIELD(2)
         FIELD(m_tx)
         VARINT_FIELD(m_amount_in)
         VARINT_FIELD(m_amount_out)
@@ -448,6 +449,8 @@ private:
         VARINT_FIELD(m_subaddr_account)
         FIELD(m_subaddr_indices)
         FIELD(m_rings)
+        if (version >= 2)
+          FIELD(m_key_images)
       END_SERIALIZE()
     };
 
@@ -464,13 +467,14 @@ private:
       uint32_t m_subaddr_account;   // subaddress account of your wallet to be used in this transfer
       std::set<uint32_t> m_subaddr_indices;  // set of address indices used as inputs in this transfer
       std::vector<std::pair<crypto::key_image, std::vector<uint64_t>>> m_rings; // relative
+      std::vector<crypto::key_image> m_key_images;
 
       confirmed_transfer_details(): m_amount_in(0), m_amount_out(0), m_change((uint64_t)-1), m_block_height(0), m_payment_id(crypto::null_hash), m_timestamp(0), m_unlock_time(0), m_subaddr_account((uint32_t)-1) {}
       confirmed_transfer_details(const unconfirmed_transfer_details &utd, uint64_t height):
-        m_amount_in(utd.m_amount_in), m_amount_out(utd.m_amount_out), m_change(utd.m_change), m_block_height(height), m_dests(utd.m_dests), m_payment_id(utd.m_payment_id), m_timestamp(utd.m_timestamp), m_unlock_time(utd.m_tx.unlock_time), m_subaddr_account(utd.m_subaddr_account), m_subaddr_indices(utd.m_subaddr_indices), m_rings(utd.m_rings) {}
+        m_amount_in(utd.m_amount_in), m_amount_out(utd.m_amount_out), m_change(utd.m_change), m_block_height(height), m_dests(utd.m_dests), m_payment_id(utd.m_payment_id), m_timestamp(utd.m_timestamp), m_unlock_time(utd.m_tx.unlock_time), m_subaddr_account(utd.m_subaddr_account), m_subaddr_indices(utd.m_subaddr_indices), m_rings(utd.m_rings), m_key_images(utd.m_key_images) {}
 
       BEGIN_SERIALIZE_OBJECT()
-        VERSION_FIELD(0)
+        VERSION_FIELD(1)
         VARINT_FIELD(m_amount_in)
         VARINT_FIELD(m_amount_out)
         VARINT_FIELD(m_change)
@@ -482,6 +486,8 @@ private:
         VARINT_FIELD(m_subaddr_account)
         FIELD(m_subaddr_indices)
         FIELD(m_rings)
+        if (version >= 1)
+          FIELD(m_key_images)
       END_SERIALIZE()
     };
 

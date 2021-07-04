@@ -62,6 +62,7 @@ public:
     virtual const std::vector<Transfer> &transfers() const override;
     virtual uint64_t confirmations() const override;
     virtual uint64_t unlockTime() const override;
+    virtual const std::vector<std::string> &keyImages() const override;
 
 private:
     int         m_direction;
@@ -81,6 +82,7 @@ private:
     std::vector<Transfer> m_transfers;
     uint64_t    m_confirmations;
     uint64_t    m_unlock_time;
+    std::vector<std::string> m_key_images;
 
     friend class TransactionHistoryImpl;
 

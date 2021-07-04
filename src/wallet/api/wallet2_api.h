@@ -198,6 +198,7 @@ struct TransactionInfo
     virtual std::string paymentId() const = 0;
     //! only applicable for output transactions
     virtual const std::vector<Transfer> & transfers() const = 0;
+    virtual const std::vector<std::string> & keyImages() const = 0;
 };
 /**
  * @brief The TransactionHistory - interface for displaying transaction history
