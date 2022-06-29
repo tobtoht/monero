@@ -125,8 +125,8 @@ namespace hw {
         }
 
         crypto::public_key device_default::get_subaddress_spend_public_key(const cryptonote::account_keys& keys, const cryptonote::subaddress_index &index) {
-            if (index.is_zero())
-              return keys.m_account_address.m_spend_public_key;
+//            if (index.is_zero())
+//              return keys.m_account_address.m_spend_public_key;
 
             // m = Hs(a || index_major || index_minor)
             crypto::secret_key m = get_subaddress_secret_key(keys.m_view_secret_key, index);
@@ -156,11 +156,11 @@ namespace hw {
             for (uint32_t idx = begin; idx < end; ++idx)
             {
                 index.minor = idx;
-                if (index.is_zero())
-                {
-                    pkeys.push_back(keys.m_account_address.m_spend_public_key);
-                    continue;
-                }
+//                if (index.is_zero())
+//                {
+//                    pkeys.push_back(keys.m_account_address.m_spend_public_key);
+//                    continue;
+//                }
                 crypto::secret_key m = get_subaddress_secret_key(keys.m_view_secret_key, index);
 
                 // M = m*G
@@ -179,8 +179,8 @@ namespace hw {
         }
 
         cryptonote::account_public_address device_default::get_subaddress(const cryptonote::account_keys& keys, const cryptonote::subaddress_index &index) {
-            if (index.is_zero())
-              return keys.m_account_address;
+//            if (index.is_zero())
+//              return keys.m_account_address;
 
             crypto::public_key D = get_subaddress_spend_public_key(keys, index);
 

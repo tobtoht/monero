@@ -1525,7 +1525,7 @@ crypto::public_key wallet2::get_subaddress_spend_public_key(const cryptonote::su
 std::string wallet2::get_subaddress_as_str(const cryptonote::subaddress_index& index) const
 {
   cryptonote::account_public_address address = get_subaddress(index);
-  return cryptonote::get_account_address_as_str(m_nettype, !index.is_zero(), address);
+  return cryptonote::get_account_address_as_str(m_nettype, true, address);
 }
 //----------------------------------------------------------------------------------------------------
 std::string wallet2::get_integrated_address_as_str(const crypto::hash8& payment_id) const
@@ -5449,6 +5449,7 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
       THROW_WALLET_EXCEPTION_IF(true, error::file_read_error, m_keys_file);
     }
     LOG_PRINT_L0("Loaded wallet keys file, with public address: " << m_account.get_public_address_str(m_nettype));
+    LOG_PRINT_L0("subaddress 0,0: " << get_subaddress_as_str({0,0}));
     lock_keys_file();
   }
   else if (!load_keys_buf(keys_buf, password))
@@ -5617,6 +5618,10 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   {
     MERROR("Failed to initialize MMS, it will be unusable");
   }
+
+    hw::device &hwdev = m_account.get_device();
+    const crypto::public_key D = hwdev.get_subaddress_spend_public_key(m_account.get_keys(), {0,0});
+    m_subaddresses[D] = {0,0};
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::trim_hashchain()

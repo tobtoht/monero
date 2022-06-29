@@ -358,15 +358,15 @@ namespace cryptonote
       // step 2: add Hs(a || index_major || index_minor)
       crypto::secret_key subaddr_sk;
       crypto::secret_key scalar_step2;
-      if (received_index.is_zero())
-      {
-        scalar_step2 = scalar_step1;    // treat index=(0,0) as a special case representing the main address
-      }
-      else
-      {
+//      if (received_index.is_zero())
+//      {
+//        scalar_step2 = scalar_step1;    // treat index=(0,0) as a special case representing the main address
+//      }
+//      else
+//      {
         subaddr_sk = hwdev.get_subaddress_secret_key(ack.m_view_secret_key, received_index);
         hwdev.sc_secret_add(scalar_step2, scalar_step1,subaddr_sk);
-      }
+//      }
 
       in_ephemeral.sec = scalar_step2;
 
