@@ -35,8 +35,6 @@ set(wallet_sources
   wallet_args.cpp
   ringdb.cpp
   node_rpc_proxy.cpp
-  message_store.cpp
-  message_transporter.cpp
 )
 
 monero_find_all_headers(wallet_private_headers "${CMAKE_CURRENT_SOURCE_DIR}")

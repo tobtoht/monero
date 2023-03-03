@@ -277,7 +277,7 @@ struct options {
   const command_line::arg_descriptor<bool> allow_mismatched_daemon_version = {"allow-mismatched-daemon-version", tools::wallet2::tr("Allow communicating with a daemon that uses a different version"), false};
 };
 
-void do_prepare_file_names(const std::string& file_path, std::string& keys_file, std::string& wallet_file, std::string &mms_file)
+void do_prepare_file_names(const std::string& file_path, std::string& keys_file, std::string& wallet_file)
 {
   keys_file = file_path;
   wallet_file = file_path;
@@ -288,7 +288,6 @@ void do_prepare_file_names(const std::string& file_path, std::string& keys_file,
   {//provided wallet file name
     keys_file += ".keys";
   }
-  mms_file = file_path + ".mms";
 }
 
 uint64_t calculate_fee(uint64_t fee_per_kb, size_t bytes)
@@ -465,7 +464,6 @@ std::unique_ptr<tools::wallet2> make_basic(const boost::program_options::variabl
   }
   boost::filesystem::path ringdb_path = command_line::get_arg(vm, opts.shared_ringdb_dir);
   wallet->set_ring_database(ringdb_path.string());
-  wallet->get_message_store().set_options(vm);
   wallet->device_name(device_name);
   wallet->device_derivation_path(device_derivation_path);
 
@@ -1200,7 +1198,6 @@ wallet2::wallet2(network_type nettype, uint64_t kdf_rounds, bool unattended, std
   m_subaddress_lookahead_major(SUBADDRESS_LOOKAHEAD_MAJOR),
   m_subaddress_lookahead_minor(SUBADDRESS_LOOKAHEAD_MINOR),
   m_original_keys_available(false),
-  m_message_store(http_client_factory->create()),
   m_key_device_type(hw::device::device_type::SOFTWARE),
   m_ring_history_saved(false),
   m_ringdb(),
@@ -1268,7 +1265,6 @@ void wallet2::init_options(boost::program_options::options_description& desc_par
   command_line::add_arg(desc_params, opts.stagenet);
   command_line::add_arg(desc_params, opts.shared_ringdb_dir);
   command_line::add_arg(desc_params, opts.kdf_rounds);
-  mms::message_store::init_options(desc_params);
   command_line::add_arg(desc_params, opts.hw_device);
   command_line::add_arg(desc_params, opts.hw_device_derivation_path);
   command_line::add_arg(desc_params, opts.tx_notify);
@@ -5741,8 +5737,8 @@ void wallet2::write_watch_only_wallet(const std::string& wallet_name, const epee
 //----------------------------------------------------------------------------------------------------
 void wallet2::wallet_exists(const std::string& file_path, bool& keys_file_exists, bool& wallet_file_exists)
 {
-  std::string keys_file, wallet_file, mms_file;
-  do_prepare_file_names(file_path, keys_file, wallet_file, mms_file);
+  std::string keys_file, wallet_file;
+  do_prepare_file_names(file_path, keys_file, wallet_file);
 
   boost::system::error_code ignore;
   keys_file_exists = boost::filesystem::exists(keys_file, ignore);
@@ -5796,7 +5792,7 @@ bool wallet2::parse_payment_id(const std::string& payment_id_str, crypto::hash& 
 //----------------------------------------------------------------------------------------------------
 bool wallet2::prepare_file_names(const std::string& file_path)
 {
-  do_prepare_file_names(file_path, m_keys_file, m_wallet_file, m_mms_file);
+  do_prepare_file_names(file_path, m_keys_file, m_wallet_file);
   return true;
 }
 //----------------------------------------------------------------------------------------------------
@@ -6127,16 +6123,6 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
   {
     MERROR("Failed to save rings, will try again next time");
   }
-  
-  try
-  {
-    if (use_fs)
-      m_message_store.read_from_file(get_multisig_wallet_state(), m_mms_file, m_load_deprecated_formats);
-  }
-  catch (const std::exception &e)
-  {
-    MERROR("Failed to initialize MMS, it will be unusable");
-  }
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::trim_hashchain()
@@ -6232,7 +6218,6 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
   const std::string old_file = m_wallet_file;
   const std::string old_keys_file = m_keys_file;
   const std::string old_address_file = m_wallet_file + ".address.txt";
-  const std::string old_mms_file = m_mms_file;
 
   // save keys to the new file
   // if we here, main wallet file is saved and we only need to save keys and address files
@@ -6262,14 +6247,6 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
     if (!r) {
       LOG_ERROR("error removing file: " << old_keys_file);
     }
-    // remove old message store file
-    if (boost::filesystem::exists(old_mms_file))
-    {
-      r = boost::filesystem::remove(old_mms_file);
-      if (!r) {
-        LOG_ERROR("error removing file: " << old_mms_file);
-      }
-    }
   } else {
     // save to new file
 #ifdef WIN32
@@ -6294,13 +6271,6 @@ void wallet2::store_to(const std::string &path, const epee::wipeable_string &pas
     // here we have "*.new" file, we need to rename it to be without ".new"
     std::error_code e = tools::replace_file(new_file, m_wallet_file);
     THROW_WALLET_EXCEPTION_IF(e, error::file_save_error, m_wallet_file, e);
-  }
-  
-  if (m_message_store.get_active())
-  {
-    // While the "m_message_store" object of course always exist, a file for the message
-    // store should only exist if the MMS is really active
-    m_message_store.write_to_file(get_multisig_wallet_state(), m_mms_file);
   }
 }
 //----------------------------------------------------------------------------------------------------
@@ -14029,29 +13999,6 @@ uint64_t wallet2::get_segregation_fork_height() const
 //----------------------------------------------------------------------------------------------------
 void wallet2::generate_genesis(cryptonote::block& b) const {
   cryptonote::generate_genesis_block(b, get_config(m_nettype).GENESIS_TX, get_config(m_nettype).GENESIS_NONCE);
-}
-//----------------------------------------------------------------------------------------------------
-mms::multisig_wallet_state wallet2::get_multisig_wallet_state() const
-{
-  mms::multisig_wallet_state state;
-  state.nettype = m_nettype;
-  state.multisig = multisig(&state.multisig_is_ready);
-  state.has_multisig_partial_key_images = has_multisig_partial_key_images();
-  state.multisig_rounds_passed = m_multisig_rounds_passed;
-  state.num_transfer_details = m_transfers.size();
-  if (state.multisig)
-  {
-    THROW_WALLET_EXCEPTION_IF(!m_original_keys_available, error::wallet_internal_error, "MMS use not possible because own original Monero address not available");
-    state.address = m_original_address;
-    state.view_secret_key = m_original_view_secret_key;
-  }
-  else
-  {
-    state.address = m_account.get_keys().m_account_address;
-    state.view_secret_key = m_account.get_keys().m_view_secret_key;
-  }
-  state.mms_file=m_mms_file;
-  return state;
 }
 //----------------------------------------------------------------------------------------------------
 wallet_device_callback * wallet2::get_device_callback()
