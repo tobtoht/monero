@@ -1,20 +1,20 @@
 package=openssl
-$(package)_version=1.1.1t
+$(package)_version=3.0.8
 $(package)_download_path=https://www.openssl.org/source
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=8dee9b24bdb1dcbf0c3d1e9b02fb8f6bf22165e807f45adeb7c9677536859d3b
+$(package)_sha256_hash=6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e
 
 define $(package)_set_vars
 $(package)_config_env=AR="$($(package)_ar)" ARFLAGS=$($(package)_arflags) RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
-$(package)_config_env_android=ANDROID_NDK_HOME="$(host_prefix)/native" PATH="$(host_prefix)/native/bin" CC=clang AR=ar RANLIB=ranlib
-$(package)_build_env_android=ANDROID_NDK_HOME="$(host_prefix)/native"
-$(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl
+$(package)_config_env_mingw32=WINDRES=$(host)-windres
+$(package)_config_env_android=ANDROID_NDK_ROOT="$(host_prefix)/native" PATH="$(host_prefix)/native/bin" CC=clang AR=ar RANLIB=ranlib
+$(package)_build_env_android=ANDROID_NDK_ROOT="$(host_prefix)/native"
+$(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl --libdir=$(host_prefix)/lib
 $(package)_config_opts+=no-capieng
 $(package)_config_opts+=no-dso
 $(package)_config_opts+=no-dtls1
 $(package)_config_opts+=no-ec_nistp_64_gcc_128
 $(package)_config_opts+=no-gost
-$(package)_config_opts+=no-heartbeats
 $(package)_config_opts+=no-md2
 $(package)_config_opts+=no-rc5
 $(package)_config_opts+=no-rdrand
@@ -22,8 +22,8 @@ $(package)_config_opts+=no-rfc3779
 $(package)_config_opts+=no-sctp
 $(package)_config_opts+=no-shared
 $(package)_config_opts+=no-ssl-trace
-$(package)_config_opts+=no-ssl2
 $(package)_config_opts+=no-ssl3
+$(package)_config_opts+=no-tests
 $(package)_config_opts+=no-unit-test
 $(package)_config_opts+=no-weak-ssl-ciphers
 $(package)_config_opts+=no-zlib
@@ -49,7 +49,7 @@ $(package)_config_opts_x86_64_freebsd=BSD-x86_64
 endef
 
 define $(package)_preprocess_cmds
-  sed -i.old 's|"engines", "apps", "test", "util", "tools", "fuzz"|"engines", "tools"|' Configure
+  sed -i.old 's|crypto ssl apps util tools fuzz providers doc|crypto ssl util tools providers|' build.info
 endef
 
 define $(package)_config_cmds
