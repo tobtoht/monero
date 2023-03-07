@@ -8,7 +8,7 @@ define $(package)_set_vars
 $(package)_config_env=AR="$($(package)_ar)" ARFLAGS=$($(package)_arflags) RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
 $(package)_config_env_android=ANDROID_NDK_ROOT="$(host_prefix)/native" PATH="$(host_prefix)/native/bin" CC=clang AR=ar RANLIB=ranlib
 $(package)_build_env_android=ANDROID_NDK_ROOT="$(host_prefix)/native"
-$(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl --libdir=$(host_prefix)/lib
+$(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl
 $(package)_config_opts+=no-capieng
 $(package)_config_opts+=no-dso
 $(package)_config_opts+=no-dtls1
@@ -22,6 +22,7 @@ $(package)_config_opts+=no-sctp
 $(package)_config_opts+=no-shared
 $(package)_config_opts+=no-ssl-trace
 $(package)_config_opts+=no-ssl3
+$(package)_config_opts+=no-tests
 $(package)_config_opts+=no-unit-test
 $(package)_config_opts+=no-weak-ssl-ciphers
 $(package)_config_opts+=no-zlib
