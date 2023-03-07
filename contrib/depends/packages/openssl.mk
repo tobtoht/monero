@@ -6,7 +6,6 @@ $(package)_sha256_hash=6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a412
 
 define $(package)_set_vars
 $(package)_config_env=AR="$($(package)_ar)" ARFLAGS=$($(package)_arflags) RANLIB="$($(package)_ranlib)" CC="$($(package)_cc)"
-$(package)_config_env_mingw32=WINDRES=$(host)-windres
 $(package)_config_env_android=ANDROID_NDK_ROOT="$(host_prefix)/native" PATH="$(host_prefix)/native/bin" CC=clang AR=ar RANLIB=ranlib
 $(package)_build_env_android=ANDROID_NDK_ROOT="$(host_prefix)/native"
 $(package)_config_opts=--prefix=$(host_prefix) --openssldir=$(host_prefix)/etc/openssl --libdir=$(host_prefix)/lib
