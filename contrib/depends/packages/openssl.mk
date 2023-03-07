@@ -22,7 +22,6 @@ $(package)_config_opts+=no-sctp
 $(package)_config_opts+=no-shared
 $(package)_config_opts+=no-ssl-trace
 $(package)_config_opts+=no-ssl3
-$(package)_config_opts+=no-tests
 $(package)_config_opts+=no-unit-test
 $(package)_config_opts+=no-weak-ssl-ciphers
 $(package)_config_opts+=no-zlib
