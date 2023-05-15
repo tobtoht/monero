@@ -1,8 +1,8 @@
 package=android_ndk
-$(package)_version=17b
+$(package)_version=18b
 $(package)_download_path=https://dl.google.com/android/repository/
 $(package)_file_name=android-ndk-r$($(package)_version)-linux-x86_64.zip
-$(package)_sha256_hash=5dfbbdc2d3ba859fed90d0e978af87c71a91a5be1f6e1c40ba697503d48ccecd
+$(package)_sha256_hash=4f61cbe4bbf6406aa5ef2ae871def78010eed6271af72de83f8bd0b07a9fd3fd
 
 define $(package)_set_vars
 $(package)_config_opts_arm=--arch arm
