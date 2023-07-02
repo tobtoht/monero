@@ -1,4 +1,4 @@
-package=protobuf3
+package=native_protobuf
 $(package)_version=21.12
 $(package)_version_protobuf_cpp=3.21.12
 $(package)_download_path=https://github.com/protocolbuffers/protobuf/releases/download/v$($(package)_version)/

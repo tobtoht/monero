@@ -25,10 +25,9 @@ miniupnpcstrings.h
 version/
 ClangBuildAnalyzerSession.txt
 
-# gitian
-contrib/gitian/builder/
-contrib/gitian/docker/
-contrib/gitian/sigs/
+# guix
+/guix/
+githash.txt
 
 # Created by https://www.gitignore.io
 
