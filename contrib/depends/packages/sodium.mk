@@ -1,8 +1,8 @@
 package=sodium
-$(package)_version=1.0.18
+$(package)_version=1.0.19
 $(package)_download_path=https://download.libsodium.org/libsodium/releases/
 $(package)_file_name=libsodium-$($(package)_version).tar.gz
-$(package)_sha256_hash=6f504490b342a4f8a4c4a02fc9b866cbef8622d5df4e5452b46be121e46636c1
+$(package)_sha256_hash=b8abea95ea00a22d63b1634c5f2c9c1316715b9cac6ea63168d5e962b89a197b
 $(package)_patches=disable-glibc-getrandom-getentropy.patch fix-whitespace.patch
 
 define $(package)_set_vars
