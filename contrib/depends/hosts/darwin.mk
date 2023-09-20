@@ -7,6 +7,7 @@ CC_target=$(host)
 endif
 darwin_CC=clang -target $(CC_target) -mmacosx-version-min=$(OSX_MIN_VERSION) --sysroot $(host_prefix)/native/SDK/ -mlinker-version=$(LD64_VERSION) -B$(host_prefix)/native/bin/$(host)-
 darwin_CXX=clang++ -target $(CC_target) -mmacosx-version-min=$(OSX_MIN_VERSION) --sysroot $(host_prefix)/native/SDK/ -mlinker-version=$(LD64_VERSION) -stdlib=libc++ -B$(host_prefix)/native/bin/$(host)-
+darwin_AR=$(build_prefix)/bin/$(host)-ar
 
 darwin_CFLAGS=-pipe
 darwin_CXXFLAGS=$(darwin_CFLAGS)
