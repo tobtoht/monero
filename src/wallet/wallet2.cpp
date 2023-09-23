@@ -90,6 +90,7 @@ using namespace epee;
 #include "device/device_cold.hpp"
 #include "device_trezor/device_trezor.hpp"
 #include "net/socks_connect.h"
+#include "polyseed/include/polyseed.h"
 
 extern "C"
 {
@@ -1402,9 +1403,29 @@ bool wallet2::get_seed(epee::wipeable_string& electrum_words, const epee::wipeab
     key = cryptonote::encrypt_key(key, passphrase);
   if (!crypto::ElectrumWords::bytes_to_words(key, electrum_words, seed_language))
   {
-    std::cout << "Failed to create seed from key for language: " << seed_language << std::endl;
+    std::cout << "Failed to create seed from key for language: " << seed_language << ", falling back to English." << std::endl;
+    crypto::ElectrumWords::bytes_to_words(key, electrum_words, "English");
+  }
+
+  return true;
+}
+//----------------------------------------------------------------------------------------------------
+bool wallet2::get_polyseed(epee::wipeable_string& polyseed, epee::wipeable_string& passphrase) const
+{
+  if (!has_polyseed()) {
     return false;
   }
+
+  // TODO: handle corruption
+  polyseed::data data(POLYSEED_COIN);
+  data.load(get_account().get_keys().m_polyseed);
+
+  // TODO:
+  std::string seed;
+  data.encode(polyseed::get_lang_by_name(seed_language), seed);
+  polyseed = seed;
+
+  passphrase = get_account().get_keys().m_passphrase;
 
   return true;
 }
@@ -5189,6 +5210,47 @@ void wallet2::init_type(hw::device::device_type device_type)
   m_multisig_signers.clear();
   m_original_keys_available = false;
   m_key_device_type = device_type;
+}
+
+bool wallet2::has_polyseed() const {
+  return get_account().get_keys().m_polyseed != crypto::null_skey;
+}
+
+/*!
+ * \brief  Generates a polyseed wallet or restores one.
+ * \param  wallet_                 Name of wallet file
+ * \param  password                Password of wallet file
+ * \param  passphrase              Seed offset passphrase
+ * \param  recover                 Whether it is a restore
+ * \param  seed_words              If it is a restore, the polyseed
+ * \param  create_address_file     Whether to create an address file
+ * \return                         The secret key of the generated wallet
+ */
+void wallet2::generate(const std::string& wallet_, const epee::wipeable_string& password,
+                  const polyseed::data &seed, const epee::wipeable_string& passphrase, bool create_address_file)
+{
+  clear();
+  prepare_file_names(wallet_);
+
+  if (!wallet_.empty()) {
+    boost::system::error_code ignored_ec;
+    THROW_WALLET_EXCEPTION_IF(boost::filesystem::exists(m_wallet_file, ignored_ec), error::file_exists, m_wallet_file);
+    THROW_WALLET_EXCEPTION_IF(boost::filesystem::exists(m_keys_file,   ignored_ec), error::file_exists, m_keys_file);
+  }
+
+  m_account.create_from_polyseed(seed, passphrase);
+
+  init_type(hw::device::device_type::SOFTWARE);
+  setup_keys(password);
+
+  m_refresh_from_block_height = get_blockchain_height_by_timestamp(seed.birthday());
+
+  create_keys_file(wallet_, false, password, m_nettype != MAINNET || create_address_file);
+
+  setup_new_blockchain();
+
+  if (!wallet_.empty())
+    store();
 }
 
 /*!
@@ -13889,6 +13951,21 @@ bool wallet2::parse_uri(const std::string &uri, std::string &address, std::strin
 //----------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_blockchain_height_by_date(uint16_t year, uint8_t month, uint8_t day)
 {
+  std::tm date = { 0, 0, 0, 0, 0, 0, 0, 0 };
+  date.tm_year = year - 1900;
+  date.tm_mon  = month - 1;
+  date.tm_mday = day;
+  if (date.tm_mon < 0 || 11 < date.tm_mon || date.tm_mday < 1 || 31 < date.tm_mday)
+  {
+    throw std::runtime_error("month or day out of range");
+  }
+
+  uint64_t timestamp_target = std::mktime(&date);
+
+  return get_blockchain_height_by_timestamp(timestamp_target);
+}
+
+uint64_t wallet2::get_blockchain_height_by_timestamp(uint64_t timestamp_target) {
   uint32_t version;
   if (!check_connection(&version))
   {
@@ -13898,15 +13975,7 @@ uint64_t wallet2::get_blockchain_height_by_date(uint16_t year, uint8_t month, ui
   {
     throw std::runtime_error("this function requires RPC version 1.6 or higher");
   }
-  std::tm date = { 0, 0, 0, 0, 0, 0, 0, 0 };
-  date.tm_year = year - 1900;
-  date.tm_mon  = month - 1;
-  date.tm_mday = day;
-  if (date.tm_mon < 0 || 11 < date.tm_mon || date.tm_mday < 1 || 31 < date.tm_mday)
-  {
-    throw std::runtime_error("month or day out of range");
-  }
-  uint64_t timestamp_target = std::mktime(&date);
+
   std::string err;
   uint64_t height_min = 0;
   uint64_t height_max = get_daemon_blockchain_height(err) - 1;

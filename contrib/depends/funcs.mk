@@ -140,6 +140,7 @@ $(1)_build_env+=$($(1)_build_env_$(host_arch)_$(host_os)) $($(1)_build_env_$(hos
 
 $(1)_config_env+=PKG_CONFIG_LIBDIR=$($($(1)_type)_prefix)/lib/pkgconfig
 $(1)_config_env+=PKG_CONFIG_PATH=$($($(1)_type)_prefix)/share/pkgconfig
+$(1)_config_env+=CMAKE_MODULE_PATH=$($($(1)_type)_prefix)/lib/cmake
 $(1)_config_env+=PATH="$(build_prefix)/bin:$(PATH)"
 $(1)_build_env+=PATH="$(build_prefix)/bin:$(PATH)"
 $(1)_stage_env+=PATH="$(build_prefix)/bin:$(PATH)"
@@ -171,6 +172,29 @@ $(1)_autoconf += CPPFLAGS="$$($(1)_cppflags)"
 endif
 ifneq ($($(1)_ldflags),)
 $(1)_autoconf += LDFLAGS="$$($(1)_ldflags)"
+endif
+
+$(1)_cmake=env CC="$$($(1)_cc)" \
+               CFLAGS="$$($(1)_cppflags) $$($(1)_cflags)" \
+               CXX="$$($(1)_cxx)" \
+               CXXFLAGS="$$($(1)_cppflags) $$($(1)_cxxflags)" \
+               LDFLAGS="$$($(1)_ldflags)" \
+             cmake -DCMAKE_INSTALL_PREFIX:PATH="$$($($(1)_type)_prefix)" $$($(1)_config_opts)
+ifneq ($(host),$(build))
+$(1)_cmake += -DCMAKE_SYSTEM_NAME=$($(host_os)_cmake_system)
+$(1)_cmake += -DCMAKE_SYSTEM_PROCESSOR=$(host_arch)
+$(1)_cmake += -DCMAKE_C_COMPILER_TARGET=$(host)
+$(1)_cmake += -DCMAKE_CXX_COMPILER_TARGET=$(host)
+$(1)_cmake += -DCMAKE_FIND_ROOT_PATH="$(host_prefix)\;$(build_prefix)\;/usr"
+endif
+ifeq ($($(host_os)_cmake_system),Darwin)
+$(1)_cmake += -DCMAKE_SYSROOT=$(OSX_SDK)
+$(1)_cmake += -DCMAKE_OSX_SYSROOT=$(OSX_SDK)
+$(1)_cmake += -DCMAKE_AR="$$($(1)_ar)"
+$(1)_cmake += -DCMAKE_RANLIB="$$($(1)_ranlib)"
+endif
+ifeq ($($(host_os)_cmake_system),FreeBSD)
+$(1)_cmake += -DCMAKE_C_COMPILER=$(build_prefix)/bin/$(freebsd_CC)
 endif
 endef
 

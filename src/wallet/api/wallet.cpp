@@ -658,6 +658,31 @@ bool WalletImpl::recoverFromDevice(const std::string &path, const std::string &p
     return true;
 }
 
+bool WalletImpl::recoverFromPolyseed(const std::string &path, const std::string &password, const std::string &seed,
+                                     const std::string &passphrase, bool use_embedded_restore_height)
+{
+    clearStatus();
+
+    // TODO: check if seed is encrypted
+
+    polyseed::data polyseed(POLYSEED_COIN);
+    try {
+        auto lang = polyseed.decode(seed.data());
+        m_wallet->set_seed_language(lang.name());
+        m_wallet->generate(path, password, polyseed, passphrase);
+    }
+    catch (const std::exception &e) {
+        setStatusError(e.what());
+        return false;
+    }
+
+    if (!use_embedded_restore_height) {
+        setRefreshFromBlockHeight(estimateBlockChainHeight());
+    }
+
+    return true;
+}
+
 Wallet::Device WalletImpl::getDeviceType() const
 {
     return static_cast<Wallet::Device>(m_wallet->get_device_type());
@@ -762,8 +787,76 @@ std::string WalletImpl::seed(const std::string& seed_offset) const
 {
     epee::wipeable_string seed;
     if (m_wallet)
-        m_wallet->get_seed(seed, seed_offset);
+        m_wallet->get_seed(seed, seed_offset, true);
     return std::string(seed.data(), seed.size()); // TODO
+}
+
+bool WalletImpl::getPolyseed(std::string &seed_words, std::string &passphrase) const
+{
+    clearStatus();
+
+    if (!m_wallet) {
+        return false;
+    }
+
+    if (!m_wallet->has_polyseed()) {
+        setStatusError("Wallet does not have polyseed");
+        return false;
+    }
+
+    epee::wipeable_string s;
+    epee::wipeable_string p;
+
+    m_wallet->get_seed(s, p);
+
+    seed_words = std::string(s.data(), s.size());
+    passphrase = std::string(p.data(), p.size());
+
+    return true;
+}
+
+std::vector<std::pair<std::string, std::string>> Wallet::getPolyseedLanguages()
+{
+    std::vector<std::pair<std::string, std::string>> languages;
+
+    auto langs = polyseed::get_langs();
+    for (const auto &lang : langs) {
+        languages.emplace_back(std::pair(lang.name_en(), lang.name()));
+    }
+
+    return languages;
+}
+
+bool Wallet::createPolyseed(std::string &seed_words, std::string &err, const std::string &language)
+{
+    try {
+        polyseed::data polyseed(POLYSEED_COIN);
+        polyseed.create(0);
+        polyseed.encode(polyseed::get_lang_by_name(language), seed_words);
+    }
+    catch (const std::exception &e) {
+        err = e.what();
+        return false;
+    }
+
+    return true;
+}
+
+bool Wallet::createPolyseed(std::array<std::string, 16> &seed_words, std::string &err, const std::string &language) {
+
+    auto lang = polyseed::get_lang_by_name(language);
+    auto sep = lang.separator();
+
+    epee::wipeable_string seed;
+    std::string temp_seed;
+
+    try {
+        polyseed::data polyseed(POLYSEED_COIN);
+        polyseed.create(0);
+
+        polyseed_phrase words;
+        polyseed.split(poly)
+    }
 }
 
 std::string WalletImpl::getSeedLanguage() const

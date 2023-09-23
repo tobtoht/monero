@@ -49,6 +49,7 @@
 #include "common/i18n.h"
 #include "common/password.h"
 #include "crypto/crypto.h"  // for definition of crypto::secret_key
+#include "polyseed/polyseed.hpp"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
@@ -103,6 +104,13 @@ namespace cryptonote
     boost::optional<epee::wipeable_string> new_wallet(const boost::program_options::variables_map& vm,
         const epee::wipeable_string &multisig_keys, const epee::wipeable_string &seed_pass, const std::string &old_language);
     boost::optional<epee::wipeable_string> new_wallet(const boost::program_options::variables_map& vm);
+
+    boost::optional<epee::wipeable_string> new_wallet(const boost::program_options::variables_map& vm, const epee::wipeable_string &polyseed, const epee::wipeable_string &seed_pass);
+
+//    boost::optional<epee::wipeable_string> new_wallet(const boost::program_options::variables_map& vm, const polyseed::data &polyseed, const epee::wipeable_string &passphrase);
+
+    void new_wallet_setup();
+
     boost::optional<epee::wipeable_string> open_wallet(const boost::program_options::variables_map& vm);
     bool close_wallet();
 
@@ -271,7 +279,7 @@ namespace cryptonote
     bool accept_loaded_tx(const tools::wallet2::signed_tx_set &txs);
     bool process_ring_members(const std::vector<tools::wallet2::pending_tx>& ptx_vector, std::ostream& ostr, bool verbose);
     std::string get_prompt() const;
-    bool print_seed(bool encrypted);
+    bool print_seed(bool encrypted, bool force_legacy = false);
     void key_images_sync_intern();
     void on_refresh_finished(uint64_t start_height, uint64_t fetched_blocks, bool is_init, bool received_money);
     std::pair<std::string, std::string> show_outputs_line(const std::vector<uint64_t> &heights, uint64_t blockchain_height, uint64_t highlight_idx = std::numeric_limits<uint64_t>::max()) const;
@@ -300,11 +308,13 @@ namespace cryptonote
     };
     bool get_transfers(std::vector<std::string>& args_, std::vector<transfer_view>& transfers);
 
+    int count_words(const epee::wipeable_string &seed);
+
     /*!
      * \brief Prints the seed with a nice message
      * \param seed seed to print
      */
-    void print_seed(const epee::wipeable_string &seed);
+    void print_seed(const epee::wipeable_string &seed, const epee::wipeable_string &passphrase = "");
 
     /*!
      * \brief Gets the word seed language from the user.
@@ -409,6 +419,7 @@ namespace cryptonote
     std::string m_generate_from_view_key;
     std::string m_generate_from_spend_key;
     std::string m_generate_from_keys;
+    std::string m_generate_from_polyseed;
     std::string m_generate_from_multisig_keys;
     std::string m_generate_from_json;
     std::string m_mnemonic_language;
@@ -417,8 +428,8 @@ namespace cryptonote
     std::string m_restore_date;  // optional - converted to m_restore_height
 
     epee::wipeable_string m_electrum_seed;  // electrum-style seed parameter
+    epee::wipeable_string m_polyseed;
 
-    crypto::secret_key m_recovery_key;  // recovery key (used as random for wallet gen)
     bool m_restore_deterministic_wallet;  // recover flag
     bool m_restore_multisig_wallet;  // recover flag
     bool m_non_deterministic;  // old 2-random generation
