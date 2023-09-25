@@ -49,9 +49,8 @@ target_link_libraries(libwallet_api_tests
     ${Boost_SERIALIZATION_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
+    Boost::locale
     ${Boost_LOCALE_LIBRARY}
-    ${ICU_LIBRARIES}
     ${GTEST_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     ${EXTRA_LIBRARIES})
