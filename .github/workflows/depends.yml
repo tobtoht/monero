@@ -53,7 +53,7 @@ jobs:
             host: "x86_64-apple-darwin"
             packages: "cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools python-dev python3-setuptools-git"
           - name: "Cross-Mac arm64"
-            host: "arm64-apple-darwin"
+            host: "aarch64-apple-darwin"
             packages: "cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools python-dev python3-setuptools-git"
           - name: "x86_64 Freebsd"
             host: "x86_64-unknown-freebsd"
