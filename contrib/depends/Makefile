@@ -137,18 +137,6 @@ $(host_prefix)/share/toolchain.cmake : toolchain.cmake.in $(host_prefix)/.stamp_
 	$(AT)sed -e 's|@HOST@|$(host)|' \
             -e 's|@CC@|$(toolchain_path)$(host_CC)|' \
             -e 's|@CXX@|$(toolchain_path)$(host_CXX)|' \
-            -e 's|@AR@|$(toolchain_path)$(host_AR)|' \
-            -e 's|@RANLIB@|$(toolchain_path)$(host_RANLIB)|' \
-            -e 's|@NM@|$(toolchain_path)$(host_NM)|' \
-            -e 's|@STRIP@|$(toolchain_path)$(host_STRIP)|' \
-            -e 's|@build_os@|$(build_os)|' \
-            -e 's|@host_os@|$(host_os)|' \
-            -e 's|@CFLAGS@|$(strip $(host_CFLAGS) $(host_$(release_type)_CFLAGS))|' \
-            -e 's|@CXXFLAGS@|$(strip $(host_CXXFLAGS) $(host_$(release_type)_CXXFLAGS))|' \
-            -e 's|@CPPFLAGS@|$(strip $(host_CPPFLAGS) $(host_$(release_type)_CPPFLAGS))|' \
-            -e 's|@LDFLAGS@|$(strip $(host_LDFLAGS) $(host_$(release_type)_LDFLAGS))|' \
-            -e 's|@allow_host_packages@|$(ALLOW_HOST_PACKAGES)|' \
-            -e 's|@debug@|$(DEBUG)|' \
             -e 's|@release_type@|$(release_type)|' \
             -e 's|@build_tests@|$(build_tests)|' \
             -e 's|@depends@|$(host_cmake)|' \
