@@ -10,7 +10,9 @@ define $(package)_set_vars
 endef
 
 define $(package)_config_cmds
-  $($(package)_cmake) .
+  printenv && \
+  echo "cmake: $($(package)_cmake)" && \
+  $($(package)_cmake) -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_FIND_DEBUG_MODE=TRUE .
 endef
 
 define $(package)_build_cmds
