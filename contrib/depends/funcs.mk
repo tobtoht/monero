@@ -181,7 +181,7 @@ $(1)_cmake=env CC="$$($(1)_cc)" \
              cmake -DCMAKE_INSTALL_PREFIX:PATH="$$($($(1)_type)_prefix)" $$($(1)_config_opts)
 ifneq ($(host),$(build))
 $(1)_cmake += -DCMAKE_SYSTEM_NAME=$($(host_os)_cmake_system)
-$(1)_cmake += -DCMAKE_SYSTEM_PROCESSOR=$(host_arch)
+#$(1)_cmake += -DCMAKE_SYSTEM_PROCESSOR=$(host_arch)
 $(1)_cmake += -DCMAKE_C_COMPILER_TARGET=$(host)
 $(1)_cmake += -DCMAKE_CXX_COMPILER_TARGET=$(host)
 endif
