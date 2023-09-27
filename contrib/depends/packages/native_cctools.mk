@@ -14,6 +14,10 @@ $(package)_cc=$(host_prefix)/native/bin/clang
 $(package)_cxx=$(host_prefix)/native/bin/clang++
 endef
 
+define $(package)_preprocess_cmds
+  cp -f $(BASEDIR)/config.guess $(BASEDIR)/config.sub cctools
+endef
+
 define $(package)_config_cmds
   $($(package)_autoconf)
 endef
