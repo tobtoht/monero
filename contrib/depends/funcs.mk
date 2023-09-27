@@ -185,11 +185,11 @@ $(1)_cmake += -DCMAKE_SYSTEM_NAME=$($(host_os)_cmake_system)
 $(1)_cmake += -DCMAKE_C_COMPILER_TARGET=arm64-apple-darwin
 $(1)_cmake += -DCMAKE_CXX_COMPILER_TARGET=arm64-apple-darwin
 endif
-#ifneq ($($(host_os)_sdk),)
-#$(1)_cmake += -DCMAKE_SYSROOT=$($(host_os)_sdk)
-#$(1)_cmake += -DCMAKE_OSX_SYSROOT=$($(host_os)_sdk)
+ifneq ($($(host_os)_sdk),)
+$(1)_cmake += -DCMAKE_SYSROOT=$($(host_os)_sdk)
+$(1)_cmake += -DCMAKE_OSX_SYSROOT=$($(host_os)_sdk)
 #$(1)_cmake += -DCMAKE_FIND_ROOT_PATH="$(build_prefix)"
-#endif
+endif
 #ifeq ($($(host_os)_cmake_system),Darwin)
 #$(1)_cmake += -DCMAKE_AR="$$($(1)_ar)"
 #$(1)_cmake += -DCMAKE_RANLIB="$$($(1)_ranlib)"
