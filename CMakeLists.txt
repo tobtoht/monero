@@ -369,6 +369,8 @@ if(NOT MANUAL_SUBMODULES)
     check_submodule(external/trezor-common)
     check_submodule(external/randomx)
     check_submodule(external/supercop)
+    check_submodule(external/polyseed)
+    check_submodule(external/utf8proc)
   endif()
 endif()
 
@@ -455,7 +457,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES ".*BSDI.*")
   set(BSDI TRUE)
 endif()
 
-include_directories(external/rapidjson/include external/easylogging++ src contrib/epee/include external external/supercop/include)
+include_directories(external/rapidjson/include external/easylogging++ src contrib/epee/include external external/supercop/include external/polyseed/include external/utf8proc)
 
 if(APPLE)
   cmake_policy(SET CMP0042 NEW)
@@ -698,7 +700,7 @@ else()
 endif()
 
 # Trezor support check
-include(CheckTrezor)
+#include(CheckTrezor)
 
 if(MSVC)
   add_definitions("/bigobj /MP /W3 /GS- /D_CRT_SECURE_NO_WARNINGS /wd4996 /wd4345 /D_WIN32_WINNT=0x0600 /DWIN32_LEAN_AND_MEAN /DGTEST_HAS_TR1_TUPLE=0 /D__SSE4_1__")
@@ -1136,7 +1138,7 @@ if (HIDAPI_FOUND OR LibUSB_COMPILE_TEST_PASSED)
 endif()
 
 if(NOT OPENBSD)
-  option(USE_READLINE "Build with GNU readline support." ON)
+  option(USE_READLINE "Build with GNU readline support." OFF)
 endif()
 if(USE_READLINE AND NOT DEPENDS)
   find_package(Readline)

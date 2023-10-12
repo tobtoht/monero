@@ -156,6 +156,25 @@ Wallet *WalletManagerImpl::createWalletFromDevice(const std::string &path,
     return wallet;
 }
 
+Wallet *WalletManagerImpl::createWalletFromPolyseed(const std::string &path, const std::string &password, NetworkType nettype,
+                                                    const std::string &mnemonic, const std::string &passphrase,
+                                                    bool newWallet, uint64_t restoreHeight,
+                                                    uint64_t kdf_rounds)
+{
+    WalletImpl * wallet = new WalletImpl(nettype, kdf_rounds);
+
+    wallet->recover(path, password, mnemonic, passphrase);
+
+    if (newWallet) {
+        wallet->setRefreshFromBlockHeight(wallet->estimateBlockChainHeight());
+    }
+    else if (restoreHeight != UINT64_MAX) {
+        wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+
+    return wallet;
+}
+
 bool WalletManagerImpl::closeWallet(Wallet *wallet, bool store)
 {
     WalletImpl * wallet_ = dynamic_cast<WalletImpl*>(wallet);

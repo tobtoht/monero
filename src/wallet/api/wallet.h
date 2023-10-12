@@ -80,9 +80,20 @@ public:
     bool recoverFromDevice(const std::string &path,
                            const std::string &password,
                            const std::string &device_name);
+
+    bool recoverFromPolyseed(const std::string &path,
+                             const std::string &password,
+                             const std::string &seed,
+                             const std::string &passphrase = "",
+                             bool use_embedded_restore_height = false);
+
     Device getDeviceType() const override;
     bool close(bool store = true);
+
     std::string seed(const std::string& seed_offset = "") const override;
+    bool getPolyseed(std::string &seed_words, std::string &passphrase) const;
+    const std::vector<std::pair<std::string, std::string>> getPolyseedLanguages();
+
     std::string getSeedLanguage() const override;
     void setSeedLanguage(const std::string &arg) override;
     // void setListener(Listener *) {}

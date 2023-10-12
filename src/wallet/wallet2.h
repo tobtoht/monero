@@ -70,6 +70,7 @@
 #include "common/password.h"
 #include "node_rpc_proxy.h"
 #include "message_store.h"
+#include "polyseed/polyseed.hpp"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.wallet2"
@@ -846,6 +847,17 @@ private:
       const epee::wipeable_string& multisig_data, bool create_address_file = false);
 
     /*!
+     * \brief Generates a wallet from a polyseed.
+     * @param wallet_              Name of wallet file
+     * @param password             Password of wallet file
+     * @param seed                 Polyseed data
+     * @param passphrase           Optional seed offset passphrase
+     * @param create_address_file  Whether to create an address file
+     */
+    void generate(const std::string& wallet_, const epee::wipeable_string& password,
+      const polyseed::data &seed, const epee::wipeable_string& passphrase = "", bool create_address_file = false);
+
+    /*!
      * \brief Generates a wallet or restores one.
      * \param  wallet_              Name of wallet file
      * \param  password             Password of wallet file
@@ -998,6 +1010,20 @@ private:
      */
     bool is_deterministic() const;
     bool get_seed(epee::wipeable_string& electrum_words, const epee::wipeable_string &passphrase = epee::wipeable_string()) const;
+
+    /*!
+     * \brief get_polyseed  Gets the polyseed (if available) and passphrase (if set) needed to recover the wallet.
+     * @param seed          Polyseed mnemonic phrase
+     * @param passphrase    Seed offset passphrase that was used to restore the wallet
+     * @return              Returns true if the wallet has a polyseed.
+     * Note: both the mnemonic phrase and the passphrase are needed to recover the wallet
+     */
+    bool get_polyseed(epee::wipeable_string& seed, epee::wipeable_string &passphrase) const;
+
+    /*!
+     * \brief Returns true if a polyseed is available for this wallet
+     */
+    bool has_polyseed() const;
 
     /*!
      * \brief Gets the seed language
@@ -1524,6 +1550,7 @@ private:
     bool parse_uri(const std::string &uri, std::string &address, std::string &payment_id, uint64_t &amount, std::string &tx_description, std::string &recipient_name, std::vector<std::string> &unknown_parameters, std::string &error);
 
     uint64_t get_blockchain_height_by_date(uint16_t year, uint8_t month, uint8_t day);    // 1<=month<=12, 1<=day<=31
+    uint64_t get_blockchain_height_by_timestamp(uint64_t timestamp);
 
     bool is_synced();
 

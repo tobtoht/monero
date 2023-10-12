@@ -700,6 +700,9 @@ struct Wallet
     static void warning(const std::string &category, const std::string &str);
     static void error(const std::string &category, const std::string &str);
 
+    static bool createPolyseed(std::string &seed_words, std::string &err, const std::string &language = "English");
+    static bool createPolyseed(std::array<std::string, 16> &seed_words, std::string &err, const std::string &language = "English");
+
    /**
     * @brief StartRefresh - Start/resume refresh thread (refresh every 10 seconds)
     */
@@ -1249,6 +1252,24 @@ struct WalletManager
                                             const std::string &subaddressLookahead = "",
                                             uint64_t kdf_rounds = 1,
                                             WalletListener * listener = nullptr) = 0;
+
+    /*!
+     * \brief creates a wallet from a polyseed mnemonic phrase
+     * @param path                         Name of the wallet file to be created
+     * @param password                     Password of wallet file
+     * @param mnemonic
+     * @param passphrase
+     * @param use_embedded_restore_height  Whether to use the embedded restore height
+     * @return
+     */
+    virtual Wallet * createWalletFromPolyseed(const std::string &path,
+                                              const std::string &password,
+                                              NetworkType nettype,
+                                              const std::string &mnemonic,
+                                              const std::string &passphrase = "",
+                                              uint64_t restoreHeight = 0,
+                                              uint64_t kdf_rounds = 1,
+                                              bool use_embedded_restore_height = true) = 0;
 
     /*!
      * \brief Closes wallet. In case operation succeeded, wallet object deleted. in case operation failed, wallet object not deleted
