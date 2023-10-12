@@ -14,3 +14,9 @@
 	path = external/supercop
 	url = https://github.com/monero-project/supercop
 	branch = monero
+[submodule "external/polyseed"]
+	path = external/polyseed
+	url = https://github.com/tevador/polyseed.git
+[submodule "external/utf8proc"]
+	path = external/utf8proc
+	url = https://github.com/JuliaStrings/utf8proc.git
