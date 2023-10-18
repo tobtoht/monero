@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2023, The Monero Project
+# Copyright (c) 2016-2023, The Monero Project
 #
 # All rights reserved.
 #
@@ -26,64 +26,40 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set(performance_tests_sources
-  main.cpp)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CARGO_CMD cargo build)
+  set(TARGET_DIR "debug")
+else ()
+  set(CARGO_CMD cargo build --release)
+  set(TARGET_DIR "release")
+endif ()
 
-set(performance_tests_headers
-  check_tx_signature.h
-  check_hash.h
-  cn_slow_hash.h
-  construct_tx.h
-  curve_trees.h
-  derive_public_key.h
-  derive_secret_key.h
-  ge_frombytes_vartime.h
-  generate_key_derivation.h
-  generate_key_image.h
-  generate_key_image_helper.h
-  generate_keypair.h
-  grootle.h
-  signature.h
-  is_out_to_acc.h
-  out_can_be_to_acc.h
-  subaddress_expand.h
-  range_proof.h
-  bulletproof.h
-  bulletproof_plus.h
-  crypto_ops.h
-  sc_reduce32.h
-  sc_check.h
-  multiexp.h
-  multi_tx_test_base.h
-  performance_tests.h
-  performance_utils.h
-  single_tx_test_base.h
-  balance_check.h
-  seraphis_tx.h
-  view_scan.h)
+set(MONERO_RUST_CXX "${CMAKE_CURRENT_BINARY_DIR}/monero_rust.cc")
+set(MONERO_RUST_HEADER_DIR "${MONERO_GENERATED_HEADERS_DIR}/rust")
+set(MONERO_RUST_HEADER "${MONERO_RUST_HEADER_DIR}/monero_rust.h")
 
-monero_add_minimal_executable(performance_tests
-  ${performance_tests_sources}
-  ${performance_tests_headers})
-target_link_libraries(performance_tests
-  PRIVATE
-    async
-    wallet
-    cryptonote_core
-    common
-    cncrypto
-    epee
-    monero_rust
-    randomx
-    ringct
-    seraphis_core
-    seraphis_crypto
-    seraphis_impl
-    seraphis_main
-    seraphis_mocks
-    ${Boost_CHRONO_LIBRARY}
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES})
-set_property(TARGET performance_tests
-  PROPERTY
-    FOLDER "tests")
+# Removing OUTPUT files makes sure custom command runs every time
+file(REMOVE_RECURSE "${MONERO_RUST_CXX}")
+file(REMOVE_RECURSE "${MONERO_RUST_HEADER_DIR}")
+file(MAKE_DIRECTORY "${MONERO_RUST_HEADER_DIR}")
+
+add_custom_command(
+  COMMENT "Building monero rust"
+  OUTPUT ${MONERO_RUST_CXX} ${MONERO_RUST_HEADER}
+  COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} ${CARGO_CMD}
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/cxxbridge/monero_rust/src/lib.rs.cc ${MONERO_RUST_CXX}
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/cxxbridge/monero_rust/src/lib.rs.h ${MONERO_RUST_HEADER}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  VERBATIM
+)
+
+set(monero_rust_sources ${MONERO_RUST_CXX})
+
+monero_find_all_headers(monero_rust_headers, "${MONERO_RUST_HEADER}")
+
+monero_add_library(monero_rust
+  ${monero_rust_sources}
+  ${monero_rust_headers})
+
+set(MONERO_RUST_LIB "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/libmonero_rust.a")
+target_link_libraries(monero_rust dl ${MONERO_RUST_LIB})

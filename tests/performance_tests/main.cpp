@@ -46,6 +46,7 @@
 #include "check_tx_signature.h"
 #include "check_hash.h"
 #include "cn_slow_hash.h"
+#include "curve_trees.h"
 #include "derive_public_key.h"
 #include "derive_secret_key.h"
 #include "derive_view_tag.h"
@@ -1113,6 +1114,8 @@ int main(int argc, char** argv)
   TEST_PERFORMANCE3(filter, p, test_multiexp, multiexp_pippenger, 4096, 9);
 #endif
   */
+
+  TEST_PERFORMANCE0(filter, p, test_curve_trees);
 
   std::cout << "Tests finished. Elapsed time: " << timer.elapsed_ms() / 1000 << " sec" << std::endl;
 

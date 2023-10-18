@@ -1,0 +1,15 @@
+[package]
+name = "monero_rust"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+name = "monero_rust"
+crate-type = ["staticlib"]
+
+[dependencies]
+cxx = "1.0"
+curve-trees = { path = "../../external/full-chain-membership-proofs/crypto/curve-trees" }
+
+[build-dependencies]
+cxx-build = "1.0"
