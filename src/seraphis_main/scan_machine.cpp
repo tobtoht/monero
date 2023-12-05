@@ -594,6 +594,19 @@ bool try_advance_state_machine(ScanContextLedger &scan_context_inout,
     ChunkConsumer &chunk_consumer_inout,
     ScanMachineState &state_inout)
 {
+    // TODO NOW: fix unit_test seraphis_enote_scanning.trivial_ledger,
+    //       it fails somewhere around here with SEGFAULT
+    // Trace
+    // tests/unit_tests/seraphis_enote_scanning.cpp trivial_ledger
+    // src/seraphis_impl/scan_process_basic.cpp refresh_enote_store
+    // src/seraphis_impl/scan_process_basic.cpp refresh_enote_store_ledger
+    //
+    //       the cause is assumed to be related to EnoteOriginContextVariant
+    //       maybe related to following warning!?
+    // /home/x/gits/cloned/seraphis_wallet_monero/src/seraphis_main/contextual_enote_record_types.cpp: In member function ‘const EnoteOriginContextVariant& sp::origin_context_ref(const ContextualBasicRecordVariant&)::visitor::operator()(const sp::LegacyContextualBasicEnoteRecordV1&) const’:
+    // /home/x/gits/cloned/seraphis_wallet_monero/src/seraphis_main/contextual_enote_record_types.cpp:96:25: warning: returning reference to temporary [-Wreturn-local-addr]
+    // 96 |         { return record.origin_context; }
+
     // check terminal states
     if (is_terminal_state_with_log(state_inout))
         return false;

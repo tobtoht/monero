@@ -72,6 +72,8 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
     const std::uint64_t block_index,
     const std::uint64_t block_timestamp,
     const rct::key &transaction_id,
+    // TODO:
+    // jberman: "in order for a wallet2 instance to be able to spend pre-RingCT outputs before a fork, I do think we should make the change in the scanner where total_enotes_before_tx is used to instead use the output index by amount though"
     const std::uint64_t total_enotes_before_tx,
     const std::uint64_t enote_index,
     const std::uint64_t unlock_time,
@@ -100,11 +102,15 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
 
     // 2. set the origin context
     contextual_record_out.origin_context =
-        SpEnoteOriginContextV1{
+        // TODO:
+        //  - figure out what to do with enote_ledger_index
+        //  - figure out how to get enote_amount_index
+        LegacyEnoteOriginContext{
                 .block_index        = block_index,
                 .block_timestamp    = block_timestamp,
                 .transaction_id     = transaction_id,
                 .enote_tx_index     = enote_index,
+                .enote_amount_index = 0,
                 .enote_ledger_index = total_enotes_before_tx + enote_index,
                 .origin_status      = origin_status,
                 .memo               = tx_memo
@@ -332,7 +338,7 @@ static std::unordered_set<rct::key> process_chunk_sp_selfsend_pass(
                 // - this will also check if the enote was spent in this chunk, and update 'txs_have_spent_enotes'
                 //   accordingly
                 update_with_new_record_sp(new_enote_record,
-                    origin_context_ref(contextual_basic_record),
+                    *origin_context_ref(contextual_basic_record).try_unwrap<SpEnoteOriginContextV1>(),
                     chunk_contextual_key_images,
                     found_enote_records_inout,
                     found_spent_sp_key_images_inout,
@@ -343,7 +349,7 @@ static std::unordered_set<rct::key> process_chunk_sp_selfsend_pass(
                 //   txs with selfsend outputs, but during seraphis scanning it isn't guaranteed that we will be able
                 //   to check if legacy key images attached to selfsend owned enotes are associated with owned legacy
                 //   enotes; therefore we cache those legacy key images so they can be handled outside this scan process
-                collect_legacy_key_images_from_tx(origin_context_ref(contextual_basic_record).transaction_id,
+                collect_legacy_key_images_from_tx(transaction_id_ref(origin_context_ref(contextual_basic_record)),
                     chunk_contextual_key_images,
                     legacy_key_images_in_sp_selfspends_inout);
             } catch (...) {}
@@ -620,7 +626,7 @@ void process_chunk_intermediate_legacy(const rct::key &legacy_base_spend_pubkey,
 
                 // b. we found an owned enote, so handle it
                 update_with_new_intermediate_record_legacy(new_enote_record,
-                    origin_context_ref(contextual_basic_record),
+                    *origin_context_ref(contextual_basic_record).try_unwrap<SpEnoteOriginContextV1>(),
                     found_enote_records_out);
             } catch (...) {}
         }
@@ -686,7 +692,7 @@ void process_chunk_full_legacy(const rct::key &legacy_base_spend_pubkey,
 
                 // b. we found an owned enote, so handle it
                 update_with_new_record_legacy(new_enote_record,
-                    origin_context_ref(contextual_basic_record),
+                    *origin_context_ref(contextual_basic_record).try_unwrap<SpEnoteOriginContextV1>(),
                     chunk_contextual_key_images,
                     found_enote_records_out,
                     found_spent_key_images_out);
@@ -730,7 +736,7 @@ void process_chunk_intermediate_sp(const rct::key &jamtis_spend_pubkey,
 
                 // b. we found an owned enote, so handle it
                 update_with_new_intermediate_record_sp(new_enote_record,
-                    origin_context_ref(contextual_basic_record),
+                    *origin_context_ref(contextual_basic_record).try_unwrap<SpEnoteOriginContextV1>(),
                     found_enote_records_out);
             } catch (...) {}
         }
@@ -822,7 +828,7 @@ void process_chunk_full_sp(const rct::key &jamtis_spend_pubkey,
                 // - this will also check if the enote was spent in this chunk, and update 'txs_have_spent_enotes'
                 //   accordingly
                 update_with_new_record_sp(new_enote_record,
-                    origin_context_ref(contextual_basic_record),
+                    *origin_context_ref(contextual_basic_record).try_unwrap<SpEnoteOriginContextV1>(),
                     chunk_contextual_key_images,
                     found_enote_records_out,
                     found_spent_sp_key_images_out,

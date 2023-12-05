@@ -86,15 +86,62 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record)
     return record.record.amount;
 }
 //-------------------------------------------------------------------------------------------------------------------
-const SpEnoteOriginContextV1& origin_context_ref(const ContextualBasicRecordVariant &variant)
+const EnoteOriginContextVariant& origin_context_ref(const ContextualBasicRecordVariant &variant)
 {
-    struct visitor final : public tools::variant_static_visitor<const SpEnoteOriginContextV1&>
+    // TODO: figure out how deeply I need to understand how variant and visitor work
+    struct visitor final : public tools::variant_static_visitor<const EnoteOriginContextVariant&>
     {
         using variant_static_visitor::operator();  //for blank overload
-        const SpEnoteOriginContextV1& operator()(const LegacyContextualBasicEnoteRecordV1 &record) const
+        const EnoteOriginContextVariant& operator()(const LegacyContextualBasicEnoteRecordV1 &record) const
         { return record.origin_context; }
-        const SpEnoteOriginContextV1& operator()(const SpContextualBasicEnoteRecordV1 &record) const
+        const EnoteOriginContextVariant& operator()(const SpContextualBasicEnoteRecordV1 &record) const
         { return record.origin_context; }
+    };
+
+    return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
+// TODO:
+//  - more descriptive names, maybe!?
+//  - Not sure these following three functions are really needed,
+//    but I guess it's cleaner than try_unwrap in the cases where they are currently used!?
+const SpEnoteOriginStatus& origin_status_ref(const EnoteOriginContextVariant &variant)
+{
+    struct visitor final : public tools::variant_static_visitor<const SpEnoteOriginStatus&>
+    {
+        using variant_static_visitor::operator();  //for blank overload
+        const SpEnoteOriginStatus& operator()(const LegacyEnoteOriginContext &record) const
+        { return record.origin_status; }
+        const SpEnoteOriginStatus& operator()(const SpEnoteOriginContextV1 &record) const
+        { return record.origin_status; }
+    };
+
+    return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
+const rct::key& transaction_id_ref(const EnoteOriginContextVariant &variant)
+{
+    struct visitor final : public tools::variant_static_visitor<const rct::key&>
+    {
+        using variant_static_visitor::operator();  //for blank overload
+        const rct::key& operator()(const LegacyEnoteOriginContext &record) const
+        { return record.transaction_id; }
+        const rct::key& operator()(const SpEnoteOriginContextV1 &record) const
+        { return record.transaction_id; }
+    };
+
+    return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
+const std::uint64_t& block_index_ref(const EnoteOriginContextVariant &variant)
+{
+    struct visitor final : public tools::variant_static_visitor<const std::uint64_t&>
+    {
+        using variant_static_visitor::operator();  //for blank overload
+        const std::uint64_t& operator()(const LegacyEnoteOriginContext &record) const
+        { return record.block_index; }
+        const std::uint64_t& operator()(const SpEnoteOriginContextV1 &record) const
+        { return record.block_index; }
     };
 
     return variant.visit(visitor{});
