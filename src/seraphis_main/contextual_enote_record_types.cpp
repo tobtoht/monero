@@ -88,7 +88,6 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record)
 //-------------------------------------------------------------------------------------------------------------------
 const EnoteOriginContextVariant& origin_context_ref(const ContextualBasicRecordVariant &variant)
 {
-    // TODO: figure out how deeply I need to understand how variant and visitor work
     struct visitor final : public tools::variant_static_visitor<const EnoteOriginContextVariant&>
     {
         using variant_static_visitor::operator();  //for blank overload
@@ -101,10 +100,6 @@ const EnoteOriginContextVariant& origin_context_ref(const ContextualBasicRecordV
     return variant.visit(visitor{});
 }
 //-------------------------------------------------------------------------------------------------------------------
-// TODO:
-//  - more descriptive names, maybe!?
-//  - Not sure these following three functions are really needed,
-//    but I guess it's cleaner than try_unwrap in the cases where they are currently used!?
 const SpEnoteOriginStatus& origin_status_ref(const EnoteOriginContextVariant &variant)
 {
     struct visitor final : public tools::variant_static_visitor<const SpEnoteOriginStatus&>

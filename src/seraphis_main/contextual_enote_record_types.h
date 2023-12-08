@@ -86,7 +86,6 @@ enum class SpEnoteSpentStatus : unsigned char
     SPENT_ONCHAIN
 };
 
-// QUESTION: Does this belong here into ´Contexts´ block, or down below into ´Legacy´?
 ////
 // LegacyEnoteOriginContext
 // - info related to the transaction where an enote was found
@@ -102,9 +101,8 @@ struct LegacyEnoteOriginContext final
     rct::key transaction_id{rct::zero()};
     /// index of the enote in the tx's output set (-1 if index is unknown)
     std::uint64_t enote_tx_index{static_cast<std::uint16_t>(-1)};
-    // QUESTION: Should a more decriptive name be used, e.g. enote_same_amount_index?
     /// index of the enote in the set [0, number of enotes in the chain with exact same amount) (-1 if index is unknown)
-    std::uint64_t enote_amount_index{static_cast<std::uint64_t>(-1)};
+    std::uint64_t enote_same_amount_ledger_index{static_cast<std::uint64_t>(-1)};
     /// ledger index of the enote (-1 if index is unknown)
     std::uint64_t enote_ledger_index{static_cast<std::uint64_t>(-1)};
     // QUESTION: Is this still needed? I assume all legacy enotes should be on chain, but maybe not!?
@@ -156,6 +154,12 @@ struct SpEnoteSpentContextV1 final
     SpEnoteSpentStatus spent_status{SpEnoteSpentStatus::UNSPENT};
 };
 
+///
+// EnoteOriginContextVariant
+// - variant of all enote origin context types
+///
+using EnoteOriginContextVariant = tools::variant<LegacyEnoteOriginContext, SpEnoteOriginContextV1>;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////// Legacy ////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -174,7 +178,7 @@ struct LegacyContextualBasicEnoteRecordV1 final
     /// basic info about the enote
     LegacyBasicEnoteRecord record;
     /// info about where the enote was found
-    LegacyEnoteOriginContext origin_context;
+    EnoteOriginContextVariant origin_context;
 };
 
 ////
@@ -227,7 +231,7 @@ struct SpContextualBasicEnoteRecordV1 final
     /// basic info about the enote
     SpBasicEnoteRecordV1 record;
     /// info about where the enote was found
-    SpEnoteOriginContextV1 origin_context;
+    EnoteOriginContextVariant origin_context;
 };
 
 ////
@@ -271,19 +275,16 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record);
 //////////////////////////////////////////////// Joint /////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// QUESTION: Is this the way? (creating a new variant for return value)
-//       for now I assume only the ContextualBasicRecordVariant should be changed
-
 ////
-// EnoteOriginContextVariant
-// - variant of all enote origin context types
-//
 // ContextualBasicRecordVariant
 // - variant of all contextual basic enote record types
 //
 // origin_context_ref(): get the record's origin context
+//
+// origin_status_ref(): get the enote's origin status
+// transaction_id_ref(): get the enote's transaction id
+// block_index_ref(): get the enote's block index
 ///
-using EnoteOriginContextVariant = tools::variant<LegacyEnoteOriginContext, SpEnoteOriginContextV1>;
 using ContextualBasicRecordVariant = tools::variant<LegacyContextualBasicEnoteRecordV1, SpContextualBasicEnoteRecordV1>;
 const EnoteOriginContextVariant& origin_context_ref(const ContextualBasicRecordVariant &variant);
 
