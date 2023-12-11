@@ -86,18 +86,14 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record)
     return record.record.amount;
 }
 //-------------------------------------------------------------------------------------------------------------------
-const EnoteOriginContextVariant& origin_context_ref(const ContextualBasicRecordVariant &variant)
+void origin_context_ref(const ContextualBasicRecordVariant &variant, EnoteOriginContextVariant &origin_context_out)
 {
-    struct visitor final : public tools::variant_static_visitor<const EnoteOriginContextVariant&>
-    {
-        using variant_static_visitor::operator();  //for blank overload
-        const EnoteOriginContextVariant& operator()(const LegacyContextualBasicEnoteRecordV1 &record) const
-        { return record.origin_context; }
-        const EnoteOriginContextVariant& operator()(const SpContextualBasicEnoteRecordV1 &record) const
-        { return record.origin_context; }
-    };
-
-    return variant.visit(visitor{});
+    if (variant.is_type<LegacyContextualBasicEnoteRecordV1>())
+        origin_context_out = variant.unwrap<LegacyContextualBasicEnoteRecordV1>().origin_context;
+    else if (variant.is_type<SpContextualBasicEnoteRecordV1>())
+        origin_context_out = variant.unwrap<SpContextualBasicEnoteRecordV1>().origin_context;
+    else
+        ASSERT_MES_AND_THROW("unknown ContextualBasicRecordVariant");
 }
 //-------------------------------------------------------------------------------------------------------------------
 const SpEnoteOriginStatus& origin_status_ref(const EnoteOriginContextVariant &variant)

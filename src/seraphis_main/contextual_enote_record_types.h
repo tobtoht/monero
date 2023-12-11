@@ -105,7 +105,6 @@ struct LegacyEnoteOriginContext final
     std::uint64_t enote_same_amount_ledger_index{static_cast<std::uint64_t>(-1)};
     /// ledger index of the enote (-1 if index is unknown)
     std::uint64_t enote_ledger_index{static_cast<std::uint64_t>(-1)};
-    // QUESTION: Is this still needed? I assume all legacy enotes should be on chain, but maybe not!?
     /// origin status (off-chain by default)
     SpEnoteOriginStatus origin_status{SpEnoteOriginStatus::OFFCHAIN};
 
@@ -166,6 +165,7 @@ using EnoteOriginContextVariant = tools::variant<LegacyEnoteOriginContext, SpEno
 
 // TODO: figure out at which point in time
 //       LegacyEnoteOriginContext will become SpEnoteOriginContextV1
+//       or maybe even more important, when will Basic -> Intermediate -> "Complete"
 //       For now I just change LegacyContextualBasicEnoteRecordV1
 //       Next step: check LegacyContextualIntermediateEnoteRecordV1 & LegacyContextualEnoteRecordV1
 
@@ -286,7 +286,7 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record);
 // block_index_ref(): get the enote's block index
 ///
 using ContextualBasicRecordVariant = tools::variant<LegacyContextualBasicEnoteRecordV1, SpContextualBasicEnoteRecordV1>;
-const EnoteOriginContextVariant& origin_context_ref(const ContextualBasicRecordVariant &variant);
+void origin_context_ref(const ContextualBasicRecordVariant &variant, EnoteOriginContextVariant &origin_context_out);
 
 const SpEnoteOriginStatus& origin_status_ref(const EnoteOriginContextVariant &variant);
 const rct::key& transaction_id_ref(const EnoteOriginContextVariant &variant);
