@@ -276,6 +276,13 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////
+// TODO: maybe another name, e.g. change variant_... with legacy_...
+// variant_to_sp_enote_origin_context(): convert LegacyEnoteOriginContext from variant
+// EnoteOriginContextVariant to SpEnoteOriginContextV1
+////
+SpEnoteOriginContextV1 variant_to_sp_enote_origin_context(EnoteOriginContextVariant &variant);
+
+////
 // ContextualBasicRecordVariant
 // - variant of all contextual basic enote record types
 //

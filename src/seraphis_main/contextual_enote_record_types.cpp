@@ -138,6 +138,27 @@ const std::uint64_t& block_index_ref(const EnoteOriginContextVariant &variant)
     return variant.visit(visitor{});
 }
 //-------------------------------------------------------------------------------------------------------------------
+SpEnoteOriginContextV1 variant_to_sp_enote_origin_context(EnoteOriginContextVariant &variant) {
+    CHECK_AND_ASSERT_THROW_MES(variant.is_type<LegacyEnoteOriginContext>(),
+            "invalid EnoteOriginContextVariant, expected LegacyEnoteOriginContext");
+
+    LegacyEnoteOriginContext origin_context_legacy;
+    SpEnoteOriginContextV1 origin_context_out;
+
+    origin_context_legacy = variant.unwrap<LegacyEnoteOriginContext>(),
+
+    origin_context_out.block_index = origin_context_legacy.block_index;
+    origin_context_out.block_timestamp = origin_context_legacy.block_timestamp;
+    origin_context_out.transaction_id = origin_context_legacy.transaction_id;
+    // TODO NEXT: figure out what to do with origin_context_legacy.enote_same_amount_ledger_index
+    origin_context_out.enote_tx_index = origin_context_legacy.enote_tx_index;
+    origin_context_out.enote_ledger_index = origin_context_legacy.enote_ledger_index;
+    origin_context_out.origin_status = origin_context_legacy.origin_status;
+    origin_context_out.memo = origin_context_legacy.memo;
+
+    return origin_context_out;
+}
+//-------------------------------------------------------------------------------------------------------------------
 rct::xmr_amount amount_ref(const ContextualRecordVariant &variant)
 {
     struct visitor final : public tools::variant_static_visitor<rct::xmr_amount>

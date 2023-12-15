@@ -104,16 +104,17 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
 
     // 2. set the origin context
     contextual_record_out.origin_context =
-        LegacyEnoteOriginContext{
+        // TODO look if there is a smoother way to do this
+        EnoteOriginContextVariant{ LegacyEnoteOriginContext{
                 .block_index                    = block_index,
                 .block_timestamp                = block_timestamp,
                 .transaction_id                 = transaction_id,
                 .enote_tx_index                 = enote_index,
-                .enote_same_amount_ledger_index = 0, // TODO: don't forget to change this
+                .enote_same_amount_ledger_index = 0, // TODO NEXT: don't forget to change this
                 .enote_ledger_index             = total_enotes_before_tx + enote_index,
                 .origin_status                  = origin_status,
                 .memo                           = tx_memo
-            };
+            }};
 
     return true;
 }
@@ -521,7 +522,7 @@ bool try_find_sp_enotes_in_tx(const crypto::x25519_secret_key &xk_find_received,
 
         // c. set the origin context
         temp_contextual_record.origin_context =
-            SpEnoteOriginContextV1{
+            EnoteOriginContextVariant{ SpEnoteOriginContextV1{
                     .block_index        = block_index,
                     .block_timestamp    = block_timestamp,
                     .transaction_id     = transaction_id,
@@ -529,7 +530,7 @@ bool try_find_sp_enotes_in_tx(const crypto::x25519_secret_key &xk_find_received,
                     .enote_ledger_index = total_enotes_before_tx + enote_index,
                     .origin_status      = origin_status,
                     .memo               = tx_supplement.tx_extra
-                };
+                }};
 
         // d. save the contextual basic record
         // note: it is possible for enotes with duplicate onetime addresses to be added here; it is assumed the
@@ -628,10 +629,11 @@ void process_chunk_intermediate_legacy(const rct::key &legacy_base_spend_pubkey,
                     continue;
 
                 // b. we found an owned enote, so handle it
-                EnoteOriginContextVariant origin_context_out;
-                origin_context_ref(contextual_basic_record, origin_context_out);
+                EnoteOriginContextVariant origin_context_variant;
+                origin_context_ref(contextual_basic_record, origin_context_variant);
+
                 update_with_new_intermediate_record_legacy(new_enote_record,
-                    origin_context_out.unwrap<SpEnoteOriginContextV1>(),
+                    variant_to_sp_enote_origin_context(origin_context_variant),
                     found_enote_records_out);
             } catch (...) {}
         }
@@ -696,10 +698,11 @@ void process_chunk_full_legacy(const rct::key &legacy_base_spend_pubkey,
                     continue;
 
                 // b. we found an owned enote, so handle it
-                EnoteOriginContextVariant origin_context_out;
-                origin_context_ref(contextual_basic_record, origin_context_out);
+                EnoteOriginContextVariant origin_context_variant;
+                origin_context_ref(contextual_basic_record, origin_context_variant);
+
                 update_with_new_record_legacy(new_enote_record,
-                    origin_context_out.unwrap<SpEnoteOriginContextV1>(),
+                    variant_to_sp_enote_origin_context(origin_context_variant),
                     chunk_contextual_key_images,
                     found_enote_records_out,
                     found_spent_key_images_out);
