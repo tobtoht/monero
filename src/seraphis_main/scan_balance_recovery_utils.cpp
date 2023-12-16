@@ -521,7 +521,7 @@ bool try_find_sp_enotes_in_tx(const crypto::x25519_secret_key &xk_find_received,
 
         // c. set the origin context
         temp_contextual_record.origin_context =
-             SpEnoteOriginContextV1{
+            SpEnoteOriginContextV1{
                     .block_index        = block_index,
                     .block_timestamp    = block_timestamp,
                     .transaction_id     = transaction_id,
@@ -630,7 +630,6 @@ void process_chunk_intermediate_legacy(const rct::key &legacy_base_spend_pubkey,
                 // b. we found an owned enote, so handle it
                 EnoteOriginContextVariant origin_context_variant;
                 origin_context_ref(contextual_basic_record, origin_context_variant);
-
                 update_with_new_intermediate_record_legacy(new_enote_record,
                     variant_to_sp_enote_origin_context(origin_context_variant),
                     found_enote_records_out);
