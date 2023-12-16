@@ -73,7 +73,7 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
     const std::uint64_t block_timestamp,
     const rct::key &transaction_id,
     const std::uint64_t total_enotes_before_tx,
-    // TODO:
+    // TODO NEXT:
     //  - figure out how to get enote_same_amount_ledger_index
     //    then add this to every function call
 //    const std::uint64_t enote_same_amount_ledger_index,
@@ -104,8 +104,7 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
 
     // 2. set the origin context
     contextual_record_out.origin_context =
-        // TODO look if there is a smoother way to do this
-        EnoteOriginContextVariant{ LegacyEnoteOriginContext{
+        LegacyEnoteOriginContext{
                 .block_index                    = block_index,
                 .block_timestamp                = block_timestamp,
                 .transaction_id                 = transaction_id,
@@ -114,7 +113,7 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
                 .enote_ledger_index             = total_enotes_before_tx + enote_index,
                 .origin_status                  = origin_status,
                 .memo                           = tx_memo
-            }};
+            };
 
     return true;
 }
@@ -522,7 +521,7 @@ bool try_find_sp_enotes_in_tx(const crypto::x25519_secret_key &xk_find_received,
 
         // c. set the origin context
         temp_contextual_record.origin_context =
-            EnoteOriginContextVariant{ SpEnoteOriginContextV1{
+             SpEnoteOriginContextV1{
                     .block_index        = block_index,
                     .block_timestamp    = block_timestamp,
                     .transaction_id     = transaction_id,
@@ -530,7 +529,7 @@ bool try_find_sp_enotes_in_tx(const crypto::x25519_secret_key &xk_find_received,
                     .enote_ledger_index = total_enotes_before_tx + enote_index,
                     .origin_status      = origin_status,
                     .memo               = tx_supplement.tx_extra
-                }};
+                };
 
         // d. save the contextual basic record
         // note: it is possible for enotes with duplicate onetime addresses to be added here; it is assumed the

@@ -163,11 +163,8 @@ using EnoteOriginContextVariant = tools::variant<LegacyEnoteOriginContext, SpEno
 //////////////////////////////////////////////// Legacy ////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: figure out at which point in time
-//       LegacyEnoteOriginContext will become SpEnoteOriginContextV1
-//       or maybe even more important, when will Basic -> Intermediate -> "Complete"
-//       For now I just change LegacyContextualBasicEnoteRecordV1
-//       Next step: check LegacyContextualIntermediateEnoteRecordV1 & LegacyContextualEnoteRecordV1
+// TODO: still not sure how long we need to keep enote_same_amount_ledger_index, but I assume it's needed
+//       for all LegacyContextual*EnoteRecordV1
 
 ////
 // LegacyContextualBasicEnoteRecordV1
