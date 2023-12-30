@@ -153,18 +153,9 @@ struct SpEnoteSpentContextV1 final
     SpEnoteSpentStatus spent_status{SpEnoteSpentStatus::UNSPENT};
 };
 
-///
-// EnoteOriginContextVariant
-// - variant of all enote origin context types
-///
-using EnoteOriginContextVariant = tools::variant<LegacyEnoteOriginContext, SpEnoteOriginContextV1>;
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////// Legacy ////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// TODO: still not sure how long we need to keep enote_same_amount_ledger_index, but I assume it's needed
-//       for all LegacyContextual*EnoteRecordV1
 
 ////
 // LegacyContextualBasicEnoteRecordV1
@@ -276,28 +267,24 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record);
 // ContextualBasicRecordVariant
 // - variant of all contextual basic enote record types
 //
-// origin_context_ref(): get the record's origin context
 // origin_status_ref(): get the enote's origin status
 // transaction_id_ref(): get the enote's transaction id
 // block_index_ref(): get the enote's block index
 ///
 using ContextualBasicRecordVariant = tools::variant<LegacyContextualBasicEnoteRecordV1, SpContextualBasicEnoteRecordV1>;
-void origin_context_ref(const ContextualBasicRecordVariant &variant, EnoteOriginContextVariant &origin_context_out);
-const SpEnoteOriginStatus& origin_status_ref(const EnoteOriginContextVariant &variant);
-const rct::key& transaction_id_ref(const EnoteOriginContextVariant &variant);
-const std::uint64_t& block_index_ref(const EnoteOriginContextVariant &variant);
+const SpEnoteOriginStatus& origin_status_ref(const ContextualBasicRecordVariant &variant);
+const rct::key& transaction_id_ref(const ContextualBasicRecordVariant &variant);
+const std::uint64_t& block_index_ref(const ContextualBasicRecordVariant &variant);
 
 ////
 // ContextualRecordVariant
 // - variant of all contextual full enote record types
 //
 // amount_ref(): get the record's amount
-// origin_context_ref(): get the record's origin context
 // spent_context_ref(): get the record's spent context
 ///
 using ContextualRecordVariant = tools::variant<LegacyContextualEnoteRecordV1, SpContextualEnoteRecordV1>;
 rct::xmr_amount amount_ref(const ContextualRecordVariant &variant);
-void origin_context_ref(const ContextualRecordVariant &variant, EnoteOriginContextVariant &origin_context_out);
 const SpEnoteSpentContextV1& spent_context_ref(const ContextualRecordVariant &variant);
 
 ////
