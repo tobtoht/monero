@@ -175,7 +175,7 @@ struct LegacyContextualBasicEnoteRecordV1 final
     /// basic info about the enote
     LegacyBasicEnoteRecord record;
     /// info about where the enote was found
-    EnoteOriginContextVariant origin_context;
+    LegacyEnoteOriginContext origin_context;
 };
 
 ////
@@ -188,7 +188,7 @@ struct LegacyContextualIntermediateEnoteRecordV1 final
     /// intermediate info about the enote
     LegacyIntermediateEnoteRecord record;
     /// info about where the enote was found
-    SpEnoteOriginContextV1 origin_context;
+    LegacyEnoteOriginContext origin_context;
 };
 
 /// get the record's onetime address
@@ -205,7 +205,7 @@ struct LegacyContextualEnoteRecordV1 final
     /// info about the enote
     LegacyEnoteRecord record;
     /// info about where the enote was found
-    SpEnoteOriginContextV1 origin_context;
+    LegacyEnoteOriginContext origin_context;
     /// info about where the enote was spent
     SpEnoteSpentContextV1 spent_context;
 };
@@ -228,7 +228,7 @@ struct SpContextualBasicEnoteRecordV1 final
     /// basic info about the enote
     SpBasicEnoteRecordV1 record;
     /// info about where the enote was found
-    EnoteOriginContextVariant origin_context;
+    SpEnoteOriginContextV1 origin_context;
 };
 
 ////
@@ -273,25 +273,16 @@ rct::xmr_amount amount_ref(const SpContextualEnoteRecordV1 &record);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ////
-// TODO: maybe another name, e.g. change variant_... with legacy_...
-// variant_to_sp_enote_origin_context(): convert LegacyEnoteOriginContext from variant
-// EnoteOriginContextVariant to SpEnoteOriginContextV1
-////
-SpEnoteOriginContextV1 variant_to_sp_enote_origin_context(EnoteOriginContextVariant &variant);
-
-////
 // ContextualBasicRecordVariant
 // - variant of all contextual basic enote record types
 //
 // origin_context_ref(): get the record's origin context
-//
 // origin_status_ref(): get the enote's origin status
 // transaction_id_ref(): get the enote's transaction id
 // block_index_ref(): get the enote's block index
 ///
 using ContextualBasicRecordVariant = tools::variant<LegacyContextualBasicEnoteRecordV1, SpContextualBasicEnoteRecordV1>;
 void origin_context_ref(const ContextualBasicRecordVariant &variant, EnoteOriginContextVariant &origin_context_out);
-
 const SpEnoteOriginStatus& origin_status_ref(const EnoteOriginContextVariant &variant);
 const rct::key& transaction_id_ref(const EnoteOriginContextVariant &variant);
 const std::uint64_t& block_index_ref(const EnoteOriginContextVariant &variant);
@@ -306,7 +297,7 @@ const std::uint64_t& block_index_ref(const EnoteOriginContextVariant &variant);
 ///
 using ContextualRecordVariant = tools::variant<LegacyContextualEnoteRecordV1, SpContextualEnoteRecordV1>;
 rct::xmr_amount amount_ref(const ContextualRecordVariant &variant);
-const SpEnoteOriginContextV1& origin_context_ref(const ContextualRecordVariant &variant);
+void origin_context_ref(const ContextualRecordVariant &variant, EnoteOriginContextVariant &origin_context_out);
 const SpEnoteSpentContextV1& spent_context_ref(const ContextualRecordVariant &variant);
 
 ////
@@ -328,10 +319,7 @@ struct SpContextualKeyImageSetV1 final
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// check if a context is older than another (returns false if apparently the same age, or younger)
-// TODO: check if is_older_than is needed for LegacyEnoteOriginContext and/or EnoteOriginContextVariant,
-// then implement in src/seraphis_main/contextual_enote_record_types.cpp
-//bool is_older_than(const LegacyEnoteOriginContext &context, const LegacyEnoteOriginContext &other_context);
-//bool is_older_than(const EnoteOriginContextVariant &context, const EnoteOriginContextVariant &other_context);
+bool is_older_than(const LegacyEnoteOriginContext &context, const LegacyEnoteOriginContext &other_context);
 bool is_older_than(const SpEnoteOriginContextV1 &context, const SpEnoteOriginContextV1 &other_context);
 bool is_older_than(const SpEnoteSpentContextV1 &context, const SpEnoteSpentContextV1 &other_context);
 /// check if records have onetime address equivalence

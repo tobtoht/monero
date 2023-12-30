@@ -230,6 +230,19 @@ bool try_get_membership_proof_real_reference_mappings(const std::vector<SpContex
     return true;
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool try_update_enote_origin_context_v1(const LegacyEnoteOriginContext &fresh_origin_context,
+    LegacyEnoteOriginContext &current_origin_context_inout)
+{
+    // 1. fail if the current context is older than the fresh one
+    if (is_older_than(current_origin_context_inout, fresh_origin_context))
+        return false;
+
+    // 2. overwrite with the fresh context (do this even if the fresh one seems to have the same age)
+    current_origin_context_inout = fresh_origin_context;
+
+    return true;
+}
+//-------------------------------------------------------------------------------------------------------------------
 bool try_update_enote_origin_context_v1(const SpEnoteOriginContextV1 &fresh_origin_context,
     SpEnoteOriginContextV1 &current_origin_context_inout)
 {
@@ -304,6 +317,21 @@ bool try_bump_enote_record_origin_status_v1(const SpEnoteSpentStatus spent_statu
     origin_status_inout = implied_origin_status;
 
     return true;
+}
+//-------------------------------------------------------------------------------------------------------------------
+void update_contextual_enote_record_contexts_v1(const LegacyEnoteOriginContext &new_origin_context,
+    const SpEnoteSpentContextV1 &new_spent_context,
+    LegacyEnoteOriginContext &origin_context_inout,
+    SpEnoteSpentContextV1 &spent_context_inout)
+{
+    // 1. update the origin context
+    try_update_enote_origin_context_v1(new_origin_context, origin_context_inout);
+
+    // 2. update the spent context
+    try_update_enote_spent_context_v1(new_spent_context, spent_context_inout);
+
+    // 3. bump the origin status based on the new spent status
+    try_bump_enote_record_origin_status_v1(spent_context_inout.spent_status, origin_context_inout.origin_status);
 }
 //-------------------------------------------------------------------------------------------------------------------
 void update_contextual_enote_record_contexts_v1(const SpEnoteOriginContextV1 &new_origin_context,

@@ -120,7 +120,7 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 static void update_with_new_intermediate_record_legacy(const LegacyIntermediateEnoteRecord &new_enote_record,
-    const SpEnoteOriginContextV1 &new_record_origin_context,
+    const LegacyEnoteOriginContext &new_record_origin_context,
     std::unordered_map<rct::key, LegacyContextualIntermediateEnoteRecordV1> &found_enote_records_inout)
 {
     // 1. add new intermediate legacy record to found enotes (or refresh if already there)
@@ -138,7 +138,7 @@ static void update_with_new_intermediate_record_legacy(const LegacyIntermediateE
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 static void update_with_new_record_legacy(const LegacyEnoteRecord &new_enote_record,
-    const SpEnoteOriginContextV1 &new_record_origin_context,
+    const LegacyEnoteOriginContext &new_record_origin_context,
     const std::list<SpContextualKeyImageSetV1> &chunk_contextual_key_images,
     std::unordered_map<rct::key, LegacyContextualEnoteRecordV1> &found_enote_records_inout,
     std::unordered_map<crypto::key_image, SpEnoteSpentContextV1> &found_spent_key_images_inout)
@@ -628,10 +628,14 @@ void process_chunk_intermediate_legacy(const rct::key &legacy_base_spend_pubkey,
                     continue;
 
                 // b. we found an owned enote, so handle it
+                // TODO NOW : maybe EnoteOriginContextVariant is not needed at all
+//                update_with_new_intermediate_record_legacy(new_enote_record,
+//                    contextual_basic_record.unwrap<LegacyContextualBasicEnoteRecordV1>().origin_context,
+//                    found_enote_records_out);
                 EnoteOriginContextVariant origin_context_variant;
                 origin_context_ref(contextual_basic_record, origin_context_variant);
                 update_with_new_intermediate_record_legacy(new_enote_record,
-                    variant_to_sp_enote_origin_context(origin_context_variant),
+                    origin_context_variant.unwrap<LegacyEnoteOriginContext>(),
                     found_enote_records_out);
             } catch (...) {}
         }
@@ -698,9 +702,8 @@ void process_chunk_full_legacy(const rct::key &legacy_base_spend_pubkey,
                 // b. we found an owned enote, so handle it
                 EnoteOriginContextVariant origin_context_variant;
                 origin_context_ref(contextual_basic_record, origin_context_variant);
-
                 update_with_new_record_legacy(new_enote_record,
-                    variant_to_sp_enote_origin_context(origin_context_variant),
+                    origin_context_variant.unwrap<LegacyEnoteOriginContext>(),
                     chunk_contextual_key_images,
                     found_enote_records_out,
                     found_spent_key_images_out);
