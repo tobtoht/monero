@@ -151,15 +151,13 @@ public:
     * param: memo -
     * param: legacy_key_images_for_block -
     * param: output_enotes -
-    * param: output_enote_same_amount_ledger_indices -
     * return: block index of newly added block
     */
     std::uint64_t add_legacy_coinbase(const rct::key &tx_id,
         const std::uint64_t unlock_time,
         TxExtra memo,
         std::vector<crypto::key_image> legacy_key_images_for_block,
-        std::vector<LegacyEnoteVariant> output_enotes,
-        std::vector<uint64_t> output_enote_same_amount_ledger_indices);
+        std::vector<LegacyEnoteVariant> output_enotes);
     /**
     * brief: try_add_unconfirmed_coinbase_v1 - try to add a mock seraphis coinbase tx to the 'unconfirmed' tx cache
     * param: coinbase_tx_id -
@@ -354,6 +352,11 @@ private:
             std::uint64_t   // block timestamp
         >
     > m_block_infos;
+    /// map of legacy amount counts
+    std::map<
+        rct::xmr_amount,    // amount
+        std::uint64_t       // count
+    > m_legacy_amount_counts;
 };
 
 bool try_add_tx_to_ledger(const SpTxCoinbaseV1 &tx_to_add, MockLedgerContext &ledger_context_inout);

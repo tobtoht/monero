@@ -76,6 +76,22 @@ rct::key amount_commitment_ref(const LegacyEnoteVariant &variant)
     return variant.visit(visitor{});
 }
 //-------------------------------------------------------------------------------------------------------------------
+rct::xmr_amount amount_ref(const LegacyEnoteVariant &variant)
+{
+    struct visitor final : public tools::variant_static_visitor<rct::xmr_amount>
+    {
+        using variant_static_visitor::operator();  //for blank overload
+        rct::xmr_amount operator()(const LegacyEnoteV1 &enote) const { return enote.amount; }
+        rct::xmr_amount operator()(const LegacyEnoteV2 &enote) const { return 0; }
+        rct::xmr_amount operator()(const LegacyEnoteV3 &enote) const { return 0; }
+        rct::xmr_amount operator()(const LegacyEnoteV4 &enote) const { return enote.amount; }
+        rct::xmr_amount operator()(const LegacyEnoteV5 &enote) const { return 0; }
+    };
+
+    return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 LegacyEnoteV1 gen_legacy_enote_v1()
 {
     LegacyEnoteV1 temp;

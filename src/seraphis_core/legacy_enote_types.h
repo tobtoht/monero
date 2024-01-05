@@ -151,10 +151,13 @@ inline std::size_t legacy_enote_v5_size_bytes() { return 2*32 + 8 + sizeof(crypt
 // onetime_address_ref(): get the enote's onetime address
 // amount_commitment_ref(): get the enote's amount commitment (this is a copy because V1 enotes need to
 //                          compute the commitment)
+// amount(): get the enote's amount (returns 0 for enotes without cleartext amount,
+//           this is useful e.g. for m_legacy_amount_counts)
 ///
 using LegacyEnoteVariant = tools::variant<LegacyEnoteV1, LegacyEnoteV2, LegacyEnoteV3, LegacyEnoteV4, LegacyEnoteV5>;
 const rct::key& onetime_address_ref(const LegacyEnoteVariant &variant);
 rct::key amount_commitment_ref(const LegacyEnoteVariant &variant);
+rct::xmr_amount amount_ref(const LegacyEnoteVariant &variant);
 
 /**
 * brief: gen_legacy_enote_v1() - generate a legacy v1 enote (all random)

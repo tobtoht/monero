@@ -97,7 +97,6 @@ void send_legacy_coinbase_amounts_to_user(const std::vector<rct::xmr_amount> &co
 {
     // 1. prepare mock coinbase enotes
     std::vector<LegacyEnoteVariant> coinbase_enotes;
-    std::vector<uint64_t> mock_enote_same_amount_ledger_indices;
     std::vector<rct::key> collected_enote_ephemeral_pubkeys;
     TxExtra tx_extra;
     coinbase_enotes.reserve(coinbase_amounts.size());
@@ -122,8 +121,6 @@ void send_legacy_coinbase_amounts_to_user(const std::vector<rct::xmr_amount> &co
             enote_temp);
 
         coinbase_enotes.emplace_back(enote_temp);
-        // TODO NOW
-        mock_enote_same_amount_ledger_indices.emplace_back(crypto::rand_idx<uint64_t>(static_cast<std::size_t>(1000)));
     }
 
     // 2. set tx extra
@@ -132,7 +129,7 @@ void send_legacy_coinbase_amounts_to_user(const std::vector<rct::xmr_amount> &co
         "send legacy coinbase amounts to user: appending enote ephemeral pubkeys to tx extra failed.");
 
     // 3. commit coinbase enotes as new block
-    ledger_context_inout.add_legacy_coinbase(rct::pkGen(), 0, std::move(tx_extra), {}, std::move(coinbase_enotes), std::move(mock_enote_same_amount_ledger_indices));
+    ledger_context_inout.add_legacy_coinbase(rct::pkGen(), 0, std::move(tx_extra), {}, std::move(coinbase_enotes));
 }
 //-------------------------------------------------------------------------------------------------------------------
 void send_sp_coinbase_amounts_to_user(const std::vector<rct::xmr_amount> &coinbase_amounts,

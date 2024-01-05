@@ -2467,16 +2467,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_1)
                 enote_v3_2,
                 enote_v4_1,
                 enote_v4_2
-            },
-            {
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8
             }
         ));
 
@@ -2569,9 +2559,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_2)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -2605,7 +2592,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_2)
             {
                 key_image
             },
-            {},
             {}
         ));
 
@@ -2655,7 +2641,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_2)
             rct::pkGen(),
             0,
             TxExtra{},
-            {},
             {},
             {}
         ));
@@ -2820,10 +2805,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_3)
             {
                 enote_1,
                 enote_rand
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -2879,9 +2860,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_3)
             {},
             {
                 enote_2
-            },
-            {
-                1
             }
         ));
 
@@ -2993,7 +2971,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_3)
             {
                 key_image_2
             },
-            {},
             {}
         ));
 
@@ -3099,9 +3076,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_3)
             },
             {
                 enote_3
-            },
-            {
-                1
             }
         ));
 
@@ -3163,7 +3137,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_3)
             {
                 key_image_3
             },
-            {},
             {}
         ));
 
@@ -3311,9 +3284,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_4)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -3351,9 +3321,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_4)
             {},
             {
                 enote_2
-            },
-            {
-                1
             }
         ));
 
@@ -3512,9 +3479,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_5)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -3552,9 +3516,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_5)
             {},
             {
                 enote_2
-            },
-            {
-                1
             }
         ));
 
@@ -3589,7 +3550,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_5)
             rct::pkGen(),
             0,
             TxExtra{},
-            {},
             {},
             {}
         ));
@@ -3724,9 +3684,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -3767,9 +3724,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -3890,9 +3844,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -3997,9 +3948,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -4055,7 +4003,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
             {
                 key_image_1
             },
-            {},
             {}
         ));
 
@@ -4229,9 +4176,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_7)
             {},
             {
                 enote_1a
-            },
-            {
-                1
             }
         ));
 
@@ -4272,9 +4216,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_7)
             {},
             {
                 enote_1b
-            },
-            {
-                1
             }
         ));
 
@@ -4404,9 +4345,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_7)
             {},
             {
                 enote_1c
-            },
-            {
-                1
             }
         ));
 
@@ -4418,9 +4356,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_7)
             {},
             {
                 enote_1d
-            },
-            {
-                1
             }
         ));
 
@@ -4476,7 +4411,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_7)
             {
                 key_image
             },
-            {},
             {}
         ));
 
@@ -4696,9 +4630,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_8)
             {},
             {
                 enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -4746,9 +4677,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_8)
             {},
             {
                 enote_2
-            },
-            {
-                1
             }
         ));
 
@@ -4796,9 +4724,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_8)
             {},
             {
                 enote_3
-            },
-            {
-                1
             }
         ));
 
@@ -4844,7 +4769,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_8)
             0,
             TxExtra{},
             {},
-            {},
             {}
         ));
 
@@ -4889,7 +4813,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_8)
             rct::pkGen(),
             0,
             TxExtra{},
-            {},
             {},
             {}
         ));
@@ -5092,9 +5015,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_9)
             {},
             {
                 enote_1a
-            },
-            {
-                1
             }
         ));
 
@@ -5139,7 +5059,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_9)
             rct::pkGen(),
             0,
             TxExtra{},
-            {},
             {},
             {}
         ));
@@ -5188,9 +5107,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_9)
             {},
             {
                 enote_1b
-            },
-            {
-                1
             }
         ));
 
@@ -5235,7 +5151,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_9)
             rct::pkGen(),
             0,
             TxExtra{},
-            {},
             {},
             {}
         ));
@@ -5336,9 +5251,6 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_9)
             },
             {
                 enote_1c
-            },
-            {
-                1
             }
         ));
 
@@ -5734,10 +5646,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
             {
                 legacy_enote_1,
                 legacy_enote_2
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -5818,9 +5726,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
             },
             {
                 legacy_enote_3
-            },
-            {
-                1
             }
         ));
 
@@ -6113,10 +6018,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
             {
                 legacy_enote_4,
                 legacy_enote_5
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -6387,10 +6288,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
             {
                 legacy_enote_4,
                 legacy_enote_5
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -6837,10 +6734,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
             {
                 legacy_enote_1,
                 legacy_enote_2
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -6921,9 +6814,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
             },
             {
                 legacy_enote_3
-            },
-            {
-                1
             }
         ));
 
@@ -7198,9 +7088,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
             },
             {
                 legacy_enote_3
-            },
-            {
-                1
             }
         ));
 
@@ -7843,9 +7730,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_3)
             {},
             {
                 legacy_enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -7972,9 +7856,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_3)
             {},
             {
                 legacy_enote_1
-            },
-            {
-                1
             }
         ));
 
@@ -8413,10 +8294,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_4)
             {
                 legacy_enote_1,
                 legacy_enote_2
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -8497,9 +8374,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_4)
             },
             {
                 legacy_enote_3
-            },
-            {
-                1
             }
         ));
 
@@ -8816,7 +8690,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_4)
             {
                 legacy_key_image_1
             },
-            {},
             {}
         ));
 
@@ -9040,10 +8913,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_5)
             {
                 legacy_enote_1,
                 legacy_enote_2
-            },
-            {
-                1,
-                2
             }
         ));
 
@@ -9096,7 +8965,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_5)
             {
                 legacy_key_image_1
             },
-            {},
             {}
         ));
 
@@ -9329,7 +9197,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_5)
             {
                 legacy_key_image_2
             },
-            {},
             {}
         ));
 

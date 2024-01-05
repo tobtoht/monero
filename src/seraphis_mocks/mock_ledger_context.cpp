@@ -192,9 +192,9 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
     const std::uint64_t unlock_time,
     TxExtra memo,
     std::vector<crypto::key_image> legacy_key_images_for_block,
-    std::vector<LegacyEnoteVariant> output_enotes,
-    std::vector<uint64_t> output_enote_same_amount_ledger_indices)
+    std::vector<LegacyEnoteVariant> output_enotes)
 {
+    std::vector<uint64_t> output_enote_same_amount_ledger_indices;
     /// checks
 
     // a. can only add blocks with a mock legacy coinbase tx prior to first seraphis-enabled block
@@ -232,6 +232,12 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
         m_legacy_enote_references[total_legacy_output_count] = {onetime_address_ref(enote), amount_commitment_ref(enote)};
 
         ++total_legacy_output_count;
+
+        // increment legacy amount count
+        rct::xmr_amount amount = amount_ref(enote);
+        m_legacy_amount_counts[amount] = m_legacy_amount_counts.find(amount) == m_legacy_amount_counts.end() ?
+                                         0 : m_legacy_amount_counts[amount]+1;
+        output_enote_same_amount_ledger_indices.emplace_back(m_legacy_amount_counts[amount]);
     }
 
     // c. add this block's accumulated output count
