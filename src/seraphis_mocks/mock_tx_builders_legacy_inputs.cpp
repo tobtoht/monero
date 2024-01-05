@@ -152,6 +152,7 @@ LegacyRingSignaturePrepV1 gen_mock_legacy_ring_signature_prep_v1(const rct::key 
     const std::size_t num_enotes_to_add{ring_size * 2};
     const std::size_t add_real_at_pos{crypto::rand_idx(num_enotes_to_add)};
     std::vector<LegacyEnoteVariant> mock_enotes;
+    std::vector<uint64_t> mock_enote_same_amount_ledger_indices;
     mock_enotes.reserve(num_enotes_to_add);
 
     for (std::size_t enote_to_add{0}; enote_to_add < num_enotes_to_add; ++enote_to_add)
@@ -165,13 +166,15 @@ LegacyRingSignaturePrepV1 gen_mock_legacy_ring_signature_prep_v1(const rct::key 
         }
 
         mock_enotes.emplace_back(temp);
+        // TODO NOW
+        mock_enote_same_amount_ledger_indices.emplace_back(crypto::rand_idx<uint64_t>(static_cast<std::size_t>(1000)));
     }
 
     // 2. add mock legacy enotes as the outputs of a mock legacy coinbase tx
     const std::uint64_t real_reference_index_in_ledger{
             ledger_context_inout.max_legacy_enote_index() + add_real_at_pos + 1
         };
-    ledger_context_inout.add_legacy_coinbase(rct::pkGen(), 0, TxExtra{}, {}, std::move(mock_enotes));
+    ledger_context_inout.add_legacy_coinbase(rct::pkGen(), 0, TxExtra{}, {}, std::move(mock_enotes), std::move(mock_enote_same_amount_ledger_indices));
 
 
     /// finish making the proof prep

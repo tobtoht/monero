@@ -192,7 +192,8 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
     const std::uint64_t unlock_time,
     TxExtra memo,
     std::vector<crypto::key_image> legacy_key_images_for_block,
-    std::vector<LegacyEnoteVariant> output_enotes)
+    std::vector<LegacyEnoteVariant> output_enotes,
+    std::vector<uint64_t> output_enote_same_amount_ledger_indices)
 {
     /// checks
 
@@ -240,7 +241,7 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
         m_accumulated_sp_output_counts[new_index] = m_sp_squashed_enotes.size();
 
     // d. add this block's tx output contents
-    m_blocks_of_legacy_tx_output_contents[new_index][tx_id] = {unlock_time, std::move(memo), std::move(output_enotes)};
+    m_blocks_of_legacy_tx_output_contents[new_index][tx_id] = {unlock_time, std::move(memo), std::move(output_enotes), std::move(output_enote_same_amount_ledger_indices)};
 
     if (new_index >= m_first_seraphis_allowed_block)
         m_blocks_of_sp_tx_output_contents[new_index];
@@ -785,6 +786,7 @@ void MockLedgerContext::get_onchain_chunk_legacy(const std::uint64_t chunk_start
                             std::get<std::uint64_t>(tx_with_output_contents.second),
                             std::get<TxExtra>(tx_with_output_contents.second),
                             std::get<std::vector<LegacyEnoteVariant>>(tx_with_output_contents.second),
+                            std::get<std::vector<uint64_t>>(tx_with_output_contents.second),
                             SpEnoteOriginStatus::ONCHAIN,
                             hw::get_device("default"),
                             collected_records))
