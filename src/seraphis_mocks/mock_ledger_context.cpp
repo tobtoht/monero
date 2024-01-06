@@ -235,8 +235,7 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
 
         // increment legacy amount count
         rct::xmr_amount amount = amount_ref(enote);
-        m_legacy_amount_counts[amount] = m_legacy_amount_counts.find(amount) == m_legacy_amount_counts.end() ?
-                                         0 : m_legacy_amount_counts[amount]+1;
+        m_legacy_amount_counts[amount]++;
         output_enote_same_amount_ledger_indices.emplace_back(m_legacy_amount_counts[amount]);
     }
 
@@ -448,6 +447,7 @@ std::uint64_t MockLedgerContext::commit_unconfirmed_txs_v1(const rct::key &coinb
                 m_sp_squashed_enotes[total_sp_output_count]);
 
             ++total_sp_output_count;
+            // TODO NOW check if m_legacy_amount_counts should be incremented here
         }
     }
 
@@ -526,6 +526,7 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
         }
     }
 
+    // TODO NOW check if m_legacy_amount_counts needs to be decremented here
     // 2. remove legacy enote references
     if (m_accumulated_legacy_output_counts.size() > 0)
     {
@@ -1026,6 +1027,11 @@ void MockLedgerContext::get_onchain_chunk_sp(const std::uint64_t chunk_start_ind
                 }
             }
         );
+}
+//-------------------------------------------------------------------------------------------------------------------
+std::uint64_t MockLedgerContext::get_legacy_amount_counts(rct::xmr_amount amount)
+{
+    return m_legacy_amount_counts[amount];
 }
 //-------------------------------------------------------------------------------------------------------------------
 

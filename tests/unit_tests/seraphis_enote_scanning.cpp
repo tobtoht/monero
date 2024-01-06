@@ -2470,6 +2470,9 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_1)
             }
         ));
 
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 6); // 2*LegacyEnoteV2 + 2*LegacyEnoteV3, 2*LegacyEnoteV5
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(1) == 2); // 2*LegacyEnoteV1 with cleartext amount 1
+
     refresh_user_enote_store_legacy_full(legacy_keys.Ks,
         legacy_subaddress_map,
         legacy_keys.k_s,

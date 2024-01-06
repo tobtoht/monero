@@ -256,6 +256,13 @@ public:
         scanning::ChunkContext &chunk_context_out,
         scanning::ChunkData &chunk_data_out) const;
 
+    /**
+    * brief: get_legacy_amount_counts - getter for m_legacy_amount_counts
+    * param: amount -
+    * return: number of entoes with same amount -
+    */
+    std::uint64_t get_legacy_amount_counts(rct::xmr_amount amount);
+
 private:
     /// first block where a seraphis tx is allowed (this block and all following must have a seraphis coinbase tx)
     std::uint64_t m_first_seraphis_allowed_block;
