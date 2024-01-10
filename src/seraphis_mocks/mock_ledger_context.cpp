@@ -194,7 +194,6 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
     std::vector<crypto::key_image> legacy_key_images_for_block,
     std::vector<LegacyEnoteVariant> output_enotes)
 {
-    std::vector<uint64_t> output_enote_same_amount_ledger_indices;
     /// checks
 
     // a. can only add blocks with a mock legacy coinbase tx prior to first seraphis-enabled block
@@ -214,6 +213,7 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
 
     /// update state
     const std::uint64_t new_index{this->top_block_index() + 1};
+    std::vector<uint64_t> enote_same_amount_ledger_indices;
 
     // 1. add legacy key images (mockup: force key images into chain as part of coinbase tx)
     for (const crypto::key_image &legacy_key_image : legacy_key_images_for_block)
@@ -236,7 +236,7 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
         // increment legacy amount count
         rct::xmr_amount amount = amount_ref(enote);
         m_legacy_amount_counts[amount]++;
-        output_enote_same_amount_ledger_indices.emplace_back(m_legacy_amount_counts[amount]);
+        enote_same_amount_ledger_indices.emplace_back(m_legacy_amount_counts[amount]);
     }
 
     // c. add this block's accumulated output count
@@ -246,7 +246,10 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
         m_accumulated_sp_output_counts[new_index] = m_sp_squashed_enotes.size();
 
     // d. add this block's tx output contents
-    m_blocks_of_legacy_tx_output_contents[new_index][tx_id] = {unlock_time, std::move(memo), std::move(output_enotes), std::move(output_enote_same_amount_ledger_indices)};
+    m_blocks_of_legacy_tx_output_contents[new_index][tx_id] = {unlock_time,
+                                                               std::move(memo),
+                                                               std::move(output_enotes),
+                                                               std::move(enote_same_amount_ledger_indices)};
 
     if (new_index >= m_first_seraphis_allowed_block)
         m_blocks_of_sp_tx_output_contents[new_index];
@@ -447,7 +450,13 @@ std::uint64_t MockLedgerContext::commit_unconfirmed_txs_v1(const rct::key &coinb
                 m_sp_squashed_enotes[total_sp_output_count]);
 
             ++total_sp_output_count;
-            // TODO NOW check if m_legacy_amount_counts should be incremented here
+
+            // increment legacy amount count
+            if (this->top_block_index() + 1 < m_first_seraphis_only_block)
+            {
+                rct::xmr_amount amount = amount_ref(core_ref(enote));
+                m_legacy_amount_counts[amount]++;
+            }
         }
     }
 
@@ -526,7 +535,39 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
         }
     }
 
-    // TODO NOW check if m_legacy_amount_counts needs to be decremented here
+    // decrement m_legacy_amount_counts for all (pre seraphis_only) blocks that get popped
+    for (uint64_t idx = pop_index;
+         idx < m_first_seraphis_only_block && idx < this->top_block_index() + 1;
+         idx++)
+    {
+        // legacy, txs in block
+        for (auto const &tx_output_contents : m_blocks_of_legacy_tx_output_contents[idx])
+        {
+            // enotes in tx
+            for (LegacyEnoteVariant enote : std::get<std::vector<LegacyEnoteVariant>>(tx_output_contents.second))
+            {
+                rct::xmr_amount amount = amount_ref(enote);
+                if (m_legacy_amount_counts[amount] > 1)
+                    m_legacy_amount_counts[amount]--;
+                else
+                    m_legacy_amount_counts.erase(amount);
+            }
+        }
+        // seraphis, txs in block
+        for (auto const &tx_output_contents : m_blocks_of_sp_tx_output_contents[idx])
+        {
+            // enotes in tx
+            for (SpEnoteVariant enote : std::get<std::vector<SpEnoteVariant>>(tx_output_contents.second))
+            {
+                rct::xmr_amount amount = amount_ref(core_ref(enote));
+                if (m_legacy_amount_counts[amount] > 1)
+                    m_legacy_amount_counts[amount]--;
+                else
+                    m_legacy_amount_counts.erase(amount);
+            }
+        }
+    }
+
     // 2. remove legacy enote references
     if (m_accumulated_legacy_output_counts.size() > 0)
     {
@@ -1031,7 +1072,7 @@ void MockLedgerContext::get_onchain_chunk_sp(const std::uint64_t chunk_start_ind
 //-------------------------------------------------------------------------------------------------------------------
 std::uint64_t MockLedgerContext::get_legacy_amount_counts(rct::xmr_amount amount)
 {
-    return m_legacy_amount_counts[amount];
+    return m_legacy_amount_counts.find(amount) == m_legacy_amount_counts.end() ? 0 : m_legacy_amount_counts[amount];
 }
 //-------------------------------------------------------------------------------------------------------------------
 

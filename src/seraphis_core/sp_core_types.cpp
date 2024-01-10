@@ -88,6 +88,18 @@ rct::key amount_commitment_ref(const SpEnoteCoreVariant &variant)
     return variant.visit(visitor{});
 }
 //-------------------------------------------------------------------------------------------------------------------
+rct::xmr_amount amount_ref(const SpEnoteCoreVariant &variant)
+{
+    struct visitor final : public tools::variant_static_visitor<rct::xmr_amount>
+    {
+        using variant_static_visitor::operator();  //for blank overload
+        rct::xmr_amount operator()(const SpCoinbaseEnoteCore &enote) const { return enote.amount; }
+        rct::xmr_amount operator()(const SpEnoteCore &enote)         const { return 0;            }
+    };
+
+    return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
 void append_to_transcript(const SpEnoteImageCore &container, SpTranscriptBuilder &transcript_inout)
 {
     transcript_inout.append("K_masked", container.masked_address);

@@ -255,11 +255,10 @@ public:
         const crypto::x25519_secret_key &xk_find_received,
         scanning::ChunkContext &chunk_context_out,
         scanning::ChunkData &chunk_data_out) const;
-
     /**
     * brief: get_legacy_amount_counts - getter for m_legacy_amount_counts
     * param: amount -
-    * return: number of entoes with same amount -
+    * return: number of enotes with same amount -
     */
     std::uint64_t get_legacy_amount_counts(rct::xmr_amount amount);
 
