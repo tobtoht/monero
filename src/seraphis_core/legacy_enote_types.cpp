@@ -91,7 +91,6 @@ rct::xmr_amount amount_ref(const LegacyEnoteVariant &variant)
     return variant.visit(visitor{});
 }
 //-------------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------
 LegacyEnoteV1 gen_legacy_enote_v1()
 {
     LegacyEnoteV1 temp;

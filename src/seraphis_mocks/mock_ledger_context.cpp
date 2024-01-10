@@ -213,7 +213,7 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
 
     /// update state
     const std::uint64_t new_index{this->top_block_index() + 1};
-    std::vector<uint64_t> enote_same_amount_ledger_indices;
+    std::vector<std::uint64_t> enote_same_amount_ledger_indices;
 
     // 1. add legacy key images (mockup: force key images into chain as part of coinbase tx)
     for (const crypto::key_image &legacy_key_image : legacy_key_images_for_block)
@@ -834,7 +834,7 @@ void MockLedgerContext::get_onchain_chunk_legacy(const std::uint64_t chunk_start
                             std::get<std::uint64_t>(tx_with_output_contents.second),
                             std::get<TxExtra>(tx_with_output_contents.second),
                             std::get<std::vector<LegacyEnoteVariant>>(tx_with_output_contents.second),
-                            std::get<std::vector<uint64_t>>(tx_with_output_contents.second),
+                            std::get<std::vector<std::uint64_t>>(tx_with_output_contents.second),
                             SpEnoteOriginStatus::ONCHAIN,
                             hw::get_device("default"),
                             collected_records))

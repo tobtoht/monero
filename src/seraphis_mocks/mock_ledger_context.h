@@ -334,7 +334,7 @@ private:
                 std::uint64_t,                    // unlock time
                 TxExtra,                          // tx memo
                 std::vector<LegacyEnoteVariant>,  // output enotes
-                std::vector<uint64_t>             // enote same amount ledger indices
+                std::vector<std::uint64_t>        // enote same amount ledger indices
             >
         >
     > m_blocks_of_legacy_tx_output_contents;
