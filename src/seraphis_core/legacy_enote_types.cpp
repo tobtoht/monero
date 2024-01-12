@@ -51,11 +51,12 @@ const rct::key& onetime_address_ref(const LegacyEnoteVariant &variant)
     struct visitor final : public tools::variant_static_visitor<const rct::key&>
     {
         using variant_static_visitor::operator();  //for blank overload
-        const rct::key& operator()(const LegacyEnoteV1 &enote) const { return enote.onetime_address; }
-        const rct::key& operator()(const LegacyEnoteV2 &enote) const { return enote.onetime_address; }
-        const rct::key& operator()(const LegacyEnoteV3 &enote) const { return enote.onetime_address; }
-        const rct::key& operator()(const LegacyEnoteV4 &enote) const { return enote.onetime_address; }
-        const rct::key& operator()(const LegacyEnoteV5 &enote) const { return enote.onetime_address; }
+        const rct::key& operator()(const LegacyPreRctEnote &enote) const { return enote.onetime_address; }
+        const rct::key& operator()(const LegacyEnoteV1 &enote)     const { return enote.onetime_address; }
+        const rct::key& operator()(const LegacyEnoteV2 &enote)     const { return enote.onetime_address; }
+        const rct::key& operator()(const LegacyEnoteV3 &enote)     const { return enote.onetime_address; }
+        const rct::key& operator()(const LegacyEnoteV4 &enote)     const { return enote.onetime_address; }
+        const rct::key& operator()(const LegacyEnoteV5 &enote)     const { return enote.onetime_address; }
     };
 
     return variant.visit(visitor{});
@@ -66,11 +67,12 @@ rct::key amount_commitment_ref(const LegacyEnoteVariant &variant)
     struct visitor final : public tools::variant_static_visitor<rct::key>
     {
         using variant_static_visitor::operator();  //for blank overload
-        rct::key operator()(const LegacyEnoteV1 &enote) const { return rct::zeroCommit(enote.amount); }
-        rct::key operator()(const LegacyEnoteV2 &enote) const { return enote.amount_commitment; }
-        rct::key operator()(const LegacyEnoteV3 &enote) const { return enote.amount_commitment; }
-        rct::key operator()(const LegacyEnoteV4 &enote) const { return rct::zeroCommit(enote.amount); }
-        rct::key operator()(const LegacyEnoteV5 &enote) const { return enote.amount_commitment; }
+        rct::key operator()(const LegacyPreRctEnote &enote) const { return rct::zeroCommit(enote.amount); }
+        rct::key operator()(const LegacyEnoteV1 &enote)     const { return rct::zeroCommit(enote.amount); }
+        rct::key operator()(const LegacyEnoteV2 &enote)     const { return enote.amount_commitment;       }
+        rct::key operator()(const LegacyEnoteV3 &enote)     const { return enote.amount_commitment;       }
+        rct::key operator()(const LegacyEnoteV4 &enote)     const { return rct::zeroCommit(enote.amount); }
+        rct::key operator()(const LegacyEnoteV5 &enote)     const { return enote.amount_commitment;       }
     };
 
     return variant.visit(visitor{});
@@ -81,14 +83,23 @@ rct::xmr_amount amount_ref(const LegacyEnoteVariant &variant)
     struct visitor final : public tools::variant_static_visitor<rct::xmr_amount>
     {
         using variant_static_visitor::operator();  //for blank overload
-        rct::xmr_amount operator()(const LegacyEnoteV1 &enote) const { return enote.amount; }
-        rct::xmr_amount operator()(const LegacyEnoteV2 &enote) const { return 0;            }
-        rct::xmr_amount operator()(const LegacyEnoteV3 &enote) const { return 0;            }
-        rct::xmr_amount operator()(const LegacyEnoteV4 &enote) const { return enote.amount; }
-        rct::xmr_amount operator()(const LegacyEnoteV5 &enote) const { return 0;            }
+        rct::xmr_amount operator()(const LegacyPreRctEnote &enote) const { return enote.amount; }
+        rct::xmr_amount operator()(const LegacyEnoteV1 &enote)     const { return 0;            }
+        rct::xmr_amount operator()(const LegacyEnoteV2 &enote)     const { return 0;            }
+        rct::xmr_amount operator()(const LegacyEnoteV3 &enote)     const { return 0;            }
+        rct::xmr_amount operator()(const LegacyEnoteV4 &enote)     const { return 0;            }
+        rct::xmr_amount operator()(const LegacyEnoteV5 &enote)     const { return 0;            }
     };
 
     return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
+LegacyPreRctEnote gen_legacy_pre_rct_enote()
+{
+    LegacyPreRctEnote temp;
+    temp.onetime_address = rct::pkGen();
+    temp.amount          = crypto::rand_idx<rct::xmr_amount>(0);
+    return temp;
 }
 //-------------------------------------------------------------------------------------------------------------------
 LegacyEnoteV1 gen_legacy_enote_v1()

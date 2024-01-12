@@ -453,10 +453,7 @@ std::uint64_t MockLedgerContext::commit_unconfirmed_txs_v1(const rct::key &coinb
 
             // increment legacy amount count
             if (this->top_block_index() + 1 < m_first_seraphis_only_block)
-            {
-                rct::xmr_amount amount = amount_ref(core_ref(enote));
-                m_legacy_amount_counts[amount]++;
-            }
+                m_legacy_amount_counts[0]++;
         }
     }
 
@@ -559,7 +556,7 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
             // enotes in tx
             for (SpEnoteVariant enote : std::get<std::vector<SpEnoteVariant>>(tx_output_contents.second))
             {
-                rct::xmr_amount amount = amount_ref(core_ref(enote));
+                rct::xmr_amount amount = 0;
                 if (m_legacy_amount_counts[amount] > 1)
                     m_legacy_amount_counts[amount]--;
                 else

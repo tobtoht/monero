@@ -87,13 +87,10 @@ inline std::size_t sp_enote_core_size_bytes() { return 32*2; }
 // onetime_address_ref(): get the enote's onetime address
 // amount_commitment_ref(): get the enote's amount commitment (this is a copy because coinbase enotes need to
 //                          compute the commitment)
-// amount_ref(): get the enote's amount (returns 0 for enotes without cleartext amount,
-//               this is useful e.g. for m_legacy_amount_counts)
 ///
 using SpEnoteCoreVariant = tools::variant<SpCoinbaseEnoteCore, SpEnoteCore>;
 const rct::key& onetime_address_ref(const SpEnoteCoreVariant &variant);
 rct::key amount_commitment_ref(const SpEnoteCoreVariant &variant);
-rct::xmr_amount amount_ref(const SpEnoteCoreVariant &variant);
 
 ////
 // SpEnoteImageCore

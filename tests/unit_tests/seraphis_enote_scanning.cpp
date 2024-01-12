@@ -2473,8 +2473,7 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_1)
         ));
 
     //                            comments for this check explained: [ <enotes in block 0> ] ... [ <enotes in block min(top_block_index(), m_first_seraphis_only_block-1)> ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 6); // [ 2*LegacyV2 + 2*LegacyV3 + 2*LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(1) == 2); // [ 2*LegacyV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 8); // [ 2*LegacyV1 + 2*LegacyV2 + 2*LegacyV3 + 2*LegacyV5 ]
 
     refresh_user_enote_store_legacy_full(legacy_keys.Ks,
         legacy_subaddress_map,
@@ -5831,7 +5830,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
     send_sp_coinbase_amounts_to_users({{10}, {0, 0, 0}}, {sp_destination, sp_destination_random}, ledger_context);
     // m_legacy_amount_counts should not change, because we reached first_sp_only_block
     ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 3); // [ 2*LegacyV5 ] [ LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 0); // [ ] [ ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -5997,8 +5995,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
 
     //block 0: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}, {0, 0, 0}}, {sp_destination, sp_destination_random}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 3); // [ 3*SpCoinbaseV1 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 4); // [ 4*SpCoinbaseV1 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -6083,8 +6080,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
             }
         ));
 
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 5); // [ 3*SpCoinbaseV1 ] [ 2*LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ SpCoinbaseV1 ] [ ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 6); // [ 4*SpCoinbaseV1 ] [ 2*LegacyV5 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -6261,8 +6257,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
 
     //block 0: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}}, {sp_destination}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 0); // [ ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 1); // [ SpCoinbaseV1 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -6295,7 +6290,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
 
     //block 1: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}}, {sp_destination}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 2); // [ SpCoinbaseV1 ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 2); // [ SpCoinbaseV1 ] [ SpCoinbaseV1 ]
 
     //legacy scan
     refresh_user_enote_store_legacy_full(legacy_keys.Ks,
@@ -6359,8 +6354,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_1)
             }
         ));
 
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 2); // [ ] [ 2*LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ SpCoinbaseV1 ] [ ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 3); // [ SpCoinbaseV1 ] [ 2*LegacyV5 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -6935,8 +6929,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
 
     //block 2: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}, {0, 0, 0}}, {sp_destination, sp_destination_random}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 6); // [ 2*LegacyV5 ] [ LegacyV5 ] [ 3*SpCoinbaseV1 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ ] [ ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 7); // [ 2*LegacyV5 ] [ LegacyV5 ] [ 4*SpCoinbaseV1 ]
 
     //test recovery
     //seraphis scan should throw if this line in mock ledger context is changed to '> 0'
@@ -6980,7 +6973,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
     //block 3: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}}, {sp_destination}, ledger_context);
     // m_legacy_amount_counts should not change, because we reached first_sp_only_block
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ ] [ ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 7); // [ 2*LegacyV5 ] [ LegacyV5 ] [ 4*SpCoinbaseV1 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -7119,8 +7112,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
 
     //block 1: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}, {0, 0, 0}}, {sp_destination, sp_destination_random}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 5); // [ 2*LegacyV5 ] [ 3*SpCoinbaseV1 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 6); // [ 2*LegacyV5 ] [ 4*SpCoinbaseV1 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -7172,8 +7164,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
             }
         ));
 
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 6); // [ 2*LegacyV5 ] [ 3*SpCoinbaseV1 ] [ LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ ] [ SpCoinbaseV1 ] [ ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 7); // [ 2*LegacyV5 ] [ 4*SpCoinbaseV1 ] [ LegacyV5 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -7351,8 +7342,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
 
     //remove blocks 1, 2, 3, 4, 5
     ledger_context.pop_blocks(5);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 2); // [ 2*LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 0); // [ ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 2); // [ 2*LegacyV5 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -7391,7 +7381,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
 
     //block 1: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}}, {sp_destination}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 1); // [ ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 3); // [ 2*LegacyV5 ] [ SpCoinbaseV1 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -7430,7 +7420,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
 
     //block 2: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}}, {sp_destination}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 2); // [ ] [ SpCoinbaseV1 ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 4); // [ 2*LegacyV5 ] [ SpCoinbaseV1 ] [ SpCoinbaseV1 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -7707,8 +7697,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_2)
 
         enote_store_full,
         enote_store_view);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 2); // [ 2*LegacyV5 ] [ ] [ ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 2); // [ ] [ SpCoinbaseV1 ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 4); // [ 2*LegacyV5 ] [ SpCoinbaseV1 ] [ SpCoinbaseV1 ]
 }
 //-------------------------------------------------------------------------------------------------------------------
 TEST(seraphis_enote_scanning, legacy_sp_transition_3)
@@ -7865,8 +7854,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_3)
     //block 1: seraphis amount 10
     send_sp_coinbase_amounts_to_users({{10}, {0, 0, 0}}, {sp_destination, sp_destination_random}, ledger_context);
     // m_legacy_amount_counts should not change, because we reached first_sp_only_block
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 1); // [ LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 0); // [ ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 1); // [ LegacyV5 ]
 
     //test recovery
     legacy_sp_transition_test_recovery_assertions(legacy_keys,
@@ -8252,7 +8240,6 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_3)
         enote_store_full,
         enote_store_view);
     ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 1); // [ LegacyV5 ]
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(10) == 0); // [ ]
 }
 //-------------------------------------------------------------------------------------------------------------------
 TEST(seraphis_enote_scanning, legacy_sp_transition_4)
@@ -9117,7 +9104,7 @@ TEST(seraphis_enote_scanning, legacy_sp_transition_5)
 
     //block 1: seraphis block
     send_sp_coinbase_amounts_to_users({{0}}, {sp_destination_random}, ledger_context);
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0)  == 3); // [ 2*LegacyV5 ] [ SpCoinbaseV1 ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(0) == 3); // [ 2*LegacyV5 ] [ SpCoinbaseV1 ]
 
     //don't scan
 
