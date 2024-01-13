@@ -261,6 +261,11 @@ public:
     * return: number of enotes with same amount -
     */
     std::uint64_t get_legacy_amount_counts(rct::xmr_amount amount);
+    /**
+    * brief: is_empty_legacy_amount_counts
+    * return: true if map is empty -
+    */
+    bool is_empty_legacy_amount_counts();
 
 private:
     /// first block where a seraphis tx is allowed (this block and all following must have a seraphis coinbase tx)

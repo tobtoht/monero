@@ -1072,6 +1072,11 @@ std::uint64_t MockLedgerContext::get_legacy_amount_counts(rct::xmr_amount amount
     return m_legacy_amount_counts.find(amount) == m_legacy_amount_counts.end() ? 0 : m_legacy_amount_counts[amount];
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool MockLedgerContext::is_empty_legacy_amount_counts()
+{
+    return m_legacy_amount_counts.empty();
+}
+//-------------------------------------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------------------------------------
 // free functions

@@ -47,7 +47,7 @@ namespace sp
 {
 
 ////
-// LegacyPreRctEnote
+// LegacyPreRctEnote (coinbase and regular)
 // - onetime address
 // - cleartext amount
 ///
@@ -60,7 +60,7 @@ struct LegacyPreRctEnote final
 };
 
 ////
-// LegacyEnoteV1
+// LegacyEnoteV1 (coinbase-only post-ringct)
 // - onetime address
 // - cleartext amount
 ///
@@ -117,7 +117,7 @@ struct LegacyEnoteV3 final
 inline std::size_t legacy_enote_v3_size_bytes() { return 2*32 + 8; }
 
 ////
-// LegacyEnoteV4
+// LegacyEnoteV4 (coinbase post-view_tag)
 // - onetime address
 // - cleartext amount
 // - view tag
