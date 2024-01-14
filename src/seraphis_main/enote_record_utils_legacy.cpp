@@ -96,12 +96,11 @@ static bool try_check_legacy_view_tag(const LegacyEnoteVariant &enote,
     struct visitor final : public tools::variant_static_visitor<boost::optional<crypto::view_tag>>
     {
         using variant_static_visitor::operator();  //for blank overload
-        boost::optional<crypto::view_tag> operator()(const LegacyPreRctEnote &enote) const { return boost::none;    }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV1 &enote) const     { return boost::none;    }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV2 &enote) const     { return boost::none;    }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV3 &enote) const     { return boost::none;    }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV4 &enote) const     { return enote.view_tag; }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV5 &enote) const     { return enote.view_tag; }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV1 &enote) const { return boost::none;    }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV2 &enote) const { return boost::none;    }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV3 &enote) const { return boost::none;    }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV4 &enote) const { return enote.view_tag; }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV5 &enote) const { return enote.view_tag; }
     };
 
     const boost::optional<crypto::view_tag> enote_view_tag{enote.visit(visitor{})};
@@ -224,13 +223,7 @@ static bool try_get_amount_commitment_information(const LegacyEnoteVariant &enot
     rct::xmr_amount &amount_out,
     crypto::secret_key &amount_blinding_factor_out)
 {
-    if (const LegacyPreRctEnote *enote_ptr = enote.try_unwrap<LegacyPreRctEnote>())
-    {
-        return try_get_amount_commitment_information_v1(enote_ptr->amount,
-            amount_out,
-            amount_blinding_factor_out);
-    }
-    else if (const LegacyEnoteV1 *enote_ptr = enote.try_unwrap<LegacyEnoteV1>())
+    if (const LegacyEnoteV1 *enote_ptr = enote.try_unwrap<LegacyEnoteV1>())
     {
         return try_get_amount_commitment_information_v1(enote_ptr->amount,
             amount_out,
@@ -428,28 +421,6 @@ static bool is_legacy_enote_v5(const cryptonote::transaction &tx, const cryptono
         out.target.type() == typeid(cryptonote::txout_to_tagged_key);
 }
 //-------------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------
-static bool try_out_to_legacy_pre_rct_enote(const cryptonote::transaction &tx,
-    const size_t output_index,
-    sp::LegacyEnoteVariant &enote_out)
-{
-    if (output_index >= tx.vout.size())
-        return false;
-    if (!is_legacy_enote_v1(tx, tx.vout[output_index]))
-        return false;
-
-    sp::LegacyPreRctEnote enote_v1;
-
-    /// Ko
-    crypto::public_key out_pub_key;
-    cryptonote::get_output_public_key(tx.vout[output_index], out_pub_key);
-    enote_v1.onetime_address = rct::pk2rct(out_pub_key);
-    /// a
-    enote_v1.amount = tx.vout[output_index].amount;
-
-    enote_out = std::move(enote_v1);
-    return true;
-}//-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 static bool try_out_to_legacy_enote_v1(const cryptonote::transaction &tx,
     const size_t output_index,
@@ -783,7 +754,6 @@ void legacy_outputs_to_enotes(const cryptonote::transaction &tx, std::vector<Leg
     for (size_t i = 0; i < tx.vout.size(); ++i)
     {
         enotes_out.emplace_back();
-        // TODO : here we need to know if legacy v1 is pre-rct, but this function actually doesn't get called anywhere
         if (!try_out_to_legacy_enote_v1(tx, i, enotes_out.back())
             && !try_out_to_legacy_enote_v2(tx, i, enotes_out.back())
             && !try_out_to_legacy_enote_v3(tx, i, enotes_out.back())

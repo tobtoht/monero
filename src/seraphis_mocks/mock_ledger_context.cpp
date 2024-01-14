@@ -234,7 +234,8 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
         ++total_legacy_output_count;
 
         // increment legacy amount count
-        rct::xmr_amount amount = amount_ref(enote);
+        const LegacyEnoteV1 *tmp_enote = enote.try_unwrap<LegacyEnoteV1>();
+        rct::xmr_amount amount = tmp_enote && tmp_enote->is_pre_rct ? tmp_enote->amount : 0;
         ++m_legacy_amount_counts[amount];
         enote_same_amount_ledger_indices.emplace_back(m_legacy_amount_counts[amount]);
     }
@@ -543,7 +544,8 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
             // enotes in tx
             for (LegacyEnoteVariant enote : std::get<std::vector<LegacyEnoteVariant>>(tx_output_contents.second))
             {
-                rct::xmr_amount amount = amount_ref(enote);
+                const LegacyEnoteV1 *tmp_enote = enote.try_unwrap<LegacyEnoteV1>();
+                rct::xmr_amount amount = tmp_enote && tmp_enote->is_pre_rct ? tmp_enote->amount : 0;
                 if (m_legacy_amount_counts[amount] > 1)
                     --m_legacy_amount_counts[amount];
                 else

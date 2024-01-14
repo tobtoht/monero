@@ -73,7 +73,7 @@ void make_legacy_pre_rct_enote(const rct::key &destination_spendkey,
     const rct::xmr_amount amount,
     const std::uint64_t output_index,
     const crypto::secret_key &enote_ephemeral_privkey,
-    LegacyPreRctEnote &enote_out);
+    LegacyEnoteV1 &enote_out);
 /**
 * brief: make_legacy_enote_v1 - make a v1 legacy enote sending to an address or subaddress
 * param: destination_spendkey - [address: K^s = k^s G] [subaddress: K^{s,i} = (Hn(k^v, i) + k^s) G]

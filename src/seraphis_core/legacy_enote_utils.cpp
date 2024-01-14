@@ -63,7 +63,7 @@ void make_legacy_pre_rct_enote(const rct::key &destination_spendkey,
     const rct::xmr_amount amount,
     const std::uint64_t output_index,
     const crypto::secret_key &enote_ephemeral_privkey,
-    LegacyPreRctEnote &enote_out)
+    LegacyEnoteV1 &enote_out)
 {
     // onetime address: K^o = Hn(r K^v, t) G + K^s
     make_legacy_onetime_address(destination_spendkey,
@@ -75,6 +75,8 @@ void make_legacy_pre_rct_enote(const rct::key &destination_spendkey,
 
     // amount: a
     enote_out.amount = amount;
+
+    enote_out.is_pre_rct = true;
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_legacy_enote_v1(const rct::key &destination_spendkey,
@@ -94,6 +96,8 @@ void make_legacy_enote_v1(const rct::key &destination_spendkey,
 
     // amount: a
     enote_out.amount = amount;
+
+    enote_out.is_pre_rct = false;
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_legacy_enote_v2(const rct::key &destination_spendkey,

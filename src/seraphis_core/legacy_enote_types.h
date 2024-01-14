@@ -47,22 +47,10 @@ namespace sp
 {
 
 ////
-// LegacyPreRctEnote (coinbase and regular)
+// LegacyEnoteV1 (regular & coinbase pre-RingCT, then coinbase-only post-RingCT)
 // - onetime address
 // - cleartext amount
-///
-struct LegacyPreRctEnote final
-{
-    /// Ko
-    rct::key onetime_address;
-    /// a
-    rct::xmr_amount amount;
-};
-
-////
-// LegacyEnoteV1 (coinbase-only post-ringct)
-// - onetime address
-// - cleartext amount
+// - differentitiate pre/post-RingCT
 ///
 struct LegacyEnoteV1 final
 {
@@ -70,6 +58,8 @@ struct LegacyEnoteV1 final
     rct::key onetime_address;
     /// a
     rct::xmr_amount amount;
+
+    bool is_pre_rct;
 };
 
 /// get size in bytes
@@ -164,23 +154,15 @@ inline std::size_t legacy_enote_v5_size_bytes() { return 2*32 + 8 + sizeof(crypt
 // onetime_address_ref(): get the enote's onetime address
 // amount_commitment_ref(): get the enote's amount commitment (this is a copy because V1 enotes need to
 //                          compute the commitment)
-// amount_ref(): get the enote's amount (returns 0 for enotes without cleartext amount,
-//               this is useful e.g. for m_legacy_amount_counts)
 ///
-using LegacyEnoteVariant = tools::variant<LegacyPreRctEnote, LegacyEnoteV1, LegacyEnoteV2,
-                                          LegacyEnoteV3, LegacyEnoteV4, LegacyEnoteV5>;
+using LegacyEnoteVariant = tools::variant<LegacyEnoteV1, LegacyEnoteV2, LegacyEnoteV3, LegacyEnoteV4, LegacyEnoteV5>;
 const rct::key& onetime_address_ref(const LegacyEnoteVariant &variant);
 rct::key amount_commitment_ref(const LegacyEnoteVariant &variant);
-rct::xmr_amount amount_ref(const LegacyEnoteVariant &variant);
 
-/**
-* brief: gen_legacy_pre_rct_enote() - generate a legacy v1 pre-ringct enote (all random)
-*/
-LegacyPreRctEnote gen_legacy_pre_rct_enote();
 /**
 * brief: gen_legacy_enote_v1() - generate a legacy v1 enote (all random)
 */
-LegacyEnoteV1 gen_legacy_enote_v1();
+LegacyEnoteV1 gen_legacy_enote_v1(bool is_pre_rct);
 /**
 * brief: gen_legacy_enote_v2() - generate a legacy v2 enote (all random)
 */

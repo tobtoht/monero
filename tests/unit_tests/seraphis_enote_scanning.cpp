@@ -2322,7 +2322,7 @@ TEST(seraphis_enote_scanning, legacy_pre_rct_1)
 
     /// test
 
-    LegacyPreRctEnote enote_1; //to normal destination
+    LegacyEnoteV1 enote_1; //to normal destination
     const crypto::secret_key enote_ephemeral_privkey_1{make_secret_key()};
     const rct::key enote_ephemeral_pubkey_1{
             rct::scalarmultBase(rct::sk2rct(enote_ephemeral_privkey_1))
@@ -2335,7 +2335,7 @@ TEST(seraphis_enote_scanning, legacy_pre_rct_1)
         enote_ephemeral_privkey_1,
         enote_1));
 
-    LegacyPreRctEnote enote_2; //to subaddress destination
+    LegacyEnoteV1 enote_2; //to subaddress destination
     const crypto::secret_key enote_ephemeral_privkey_2{make_secret_key()};
     const rct::key enote_ephemeral_pubkey_2{
             rct::scalarmultKey(subaddr_spendkey, rct::sk2rct(enote_ephemeral_privkey_2))
@@ -2369,7 +2369,7 @@ TEST(seraphis_enote_scanning, legacy_pre_rct_1)
             }
         ));
 
-    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(1) == 2); // [ 2*LegacyPreRctEnote ]
+    ASSERT_TRUE(ledger_context.get_legacy_amount_counts(1) == 2); // [ 2*LegacyEnoteV1 ]
 
     refresh_user_enote_store_legacy_full(legacy_keys.Ks,
         legacy_subaddress_map,
