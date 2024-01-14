@@ -235,7 +235,7 @@ std::uint64_t MockLedgerContext::add_legacy_coinbase(const rct::key &tx_id,
 
         // increment legacy amount count
         rct::xmr_amount amount = amount_ref(enote);
-        m_legacy_amount_counts[amount]++;
+        ++m_legacy_amount_counts[amount];
         enote_same_amount_ledger_indices.emplace_back(m_legacy_amount_counts[amount]);
     }
 
@@ -452,8 +452,8 @@ std::uint64_t MockLedgerContext::commit_unconfirmed_txs_v1(const rct::key &coinb
             ++total_sp_output_count;
 
             // increment legacy amount count
-            if (this->top_block_index() + 1 < m_first_seraphis_only_block)
-                m_legacy_amount_counts[0]++;
+            if (new_index < m_first_seraphis_only_block)
+                ++m_legacy_amount_counts[0];
         }
     }
 
@@ -532,7 +532,7 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
         }
     }
 
-    // decrement m_legacy_amount_counts for all (pre seraphis_only) blocks that get popped
+    // 2. decrement m_legacy_amount_counts for all (pre seraphis_only) blocks that get popped
     for (uint64_t idx = pop_index;
          idx < m_first_seraphis_only_block && idx < this->top_block_index() + 1;
          idx++)
@@ -545,7 +545,7 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
             {
                 rct::xmr_amount amount = amount_ref(enote);
                 if (m_legacy_amount_counts[amount] > 1)
-                    m_legacy_amount_counts[amount]--;
+                    --m_legacy_amount_counts[amount];
                 else
                     m_legacy_amount_counts.erase(amount);
             }
@@ -558,14 +558,14 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
             {
                 rct::xmr_amount amount = 0;
                 if (m_legacy_amount_counts[amount] > 1)
-                    m_legacy_amount_counts[amount]--;
+                    --m_legacy_amount_counts[amount];
                 else
                     m_legacy_amount_counts.erase(amount);
             }
         }
     }
 
-    // 2. remove legacy enote references
+    // 3. remove legacy enote references
     if (m_accumulated_legacy_output_counts.size() > 0)
     {
         // sanity check
@@ -586,7 +586,7 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
             m_legacy_enote_references.end());
     }
 
-    // 3. remove squashed enotes
+    // 4. remove squashed enotes
     if (m_accumulated_sp_output_counts.size() > 0)
     {
         // sanity check
@@ -606,7 +606,7 @@ std::uint64_t MockLedgerContext::pop_chain_at_index(const std::uint64_t pop_inde
         m_sp_squashed_enotes.erase(m_sp_squashed_enotes.find(first_output_to_remove), m_sp_squashed_enotes.end());
     }
 
-    // 4. clean up block maps
+    // 5. clean up block maps
     erase_ledger_cache_map_from_index(pop_index, m_blocks_of_tx_key_images);
     erase_ledger_cache_map_from_index(pop_index, m_accumulated_legacy_output_counts);
     erase_ledger_cache_map_from_index(pop_index, m_accumulated_sp_output_counts);
