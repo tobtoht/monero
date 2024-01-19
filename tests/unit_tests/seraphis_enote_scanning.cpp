@@ -3990,7 +3990,7 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
 
     ASSERT_TRUE(enote_store_int.legacy_intermediate_records().size() == 1);
     ASSERT_TRUE(
-            enote_store_int.legacy_intermediate_records().begin()->second.origin_context.block_index == 0
+            block_index_ref(enote_store_int.legacy_intermediate_records().begin()->second.origin_context) == 0
         );
     ASSERT_TRUE(get_balance(enote_store_int, {SpEnoteOriginStatus::ONCHAIN},
         {SpEnoteSpentStatus::SPENT_ONCHAIN}) == 1);
@@ -4025,7 +4025,7 @@ TEST(seraphis_enote_scanning, legacy_pre_transition_6)
 
     ASSERT_TRUE(enote_store_int.legacy_intermediate_records().size() == 1);
     ASSERT_TRUE(
-            enote_store_int.legacy_intermediate_records().begin()->second.origin_context.block_index == 0
+            block_index_ref(enote_store_int.legacy_intermediate_records().begin()->second.origin_context) == 0
         );
     ASSERT_TRUE(get_balance(enote_store_int, {SpEnoteOriginStatus::ONCHAIN},
         {SpEnoteSpentStatus::SPENT_ONCHAIN}) == 1);

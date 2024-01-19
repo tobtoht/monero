@@ -351,6 +351,18 @@ bool SpEnoteStore::try_import_legacy_key_image(const crypto::key_image &legacy_k
         events_inout.emplace_back(NewLegacyRecord{legacy_enote_identifier});
 
         // d. set the full record's contexts
+        // TODO : figure out how to do this when Legacy*ContextualEnoteRecord gets initialized
+        if (m_legacy_contextual_enote_records[legacy_enote_identifier].record.enote.is_type<LegacyEnoteV1>() &&
+                m_legacy_contextual_enote_records[legacy_enote_identifier].record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
+        {
+            LegacyEnoteOriginContextV1 new_origin_context;
+            m_legacy_contextual_enote_records[legacy_enote_identifier].origin_context = new_origin_context;
+        }
+        else
+        {
+            LegacyEnoteOriginContextV2 new_origin_context;
+            m_legacy_contextual_enote_records[legacy_enote_identifier].origin_context = new_origin_context;
+        }
         update_contextual_enote_record_contexts_v1(
                 record_ref->second.origin_context,
                 spent_context,
@@ -851,7 +863,7 @@ void SpEnoteStore::clean_maps_for_legacy_ledger_update(const std::uint64_t first
                 return false;
 
             // b. ignore onchain enotes outside of range [first_new_block, end of chain]
-            if (mapped_contextual_enote_record.second.origin_context.block_index < first_new_block)
+            if (block_index_ref(mapped_contextual_enote_record.second.origin_context) < first_new_block)
                 return false;
 
             // c. record the identifier of the enote being removed
