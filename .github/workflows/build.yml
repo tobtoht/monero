@@ -141,18 +141,10 @@ jobs:
   test-ubuntu:
     needs: build-ubuntu
     runs-on: ubuntu-20.04
-    env:
-      CCACHE_TEMPDIR: /tmp/.ccache-temp
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: recursive
-    - name: ccache
-      uses: actions/cache@v3
-      with:
-        path: ~/.ccache
-        key: ccache-${{ runner.os }}-build-ubuntu-latest-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-ubuntu-latest
     - name: remove bundled boost
       run: ${{env.REMOVE_BUNDLED_BOOST}}
     - name: set apt conf
@@ -168,7 +160,6 @@ jobs:
         CTEST_OUTPUT_ON_FAILURE: ON
         DNS_PUBLIC: tcp://9.9.9.9
       run: |
-        ${{env.CCACHE_SETTINGS}}
         ${{env.BUILD_DEFAULT_LINUX}}
         cmake --build build --target test
 
