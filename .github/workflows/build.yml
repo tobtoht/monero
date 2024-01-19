@@ -84,8 +84,6 @@ jobs:
 
   build-ubuntu:
     runs-on: ${{ matrix.os }}
-    env:
-      CCACHE_TEMPDIR: /tmp/.ccache-temp
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-20.04]
@@ -93,11 +91,6 @@ jobs:
     - uses: actions/checkout@v3
       with:
         submodules: recursive
-    - uses: actions/cache@v3
-      with:
-        path: ~/.ccache
-        key: ccache-${{ runner.os }}-build-${{ matrix.os }}-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-${{ matrix.os }}
     - name: remove bundled boost
       run: ${{env.REMOVE_BUNDLED_BOOST}}
     - name: set apt conf
@@ -108,7 +101,6 @@ jobs:
       run: ${{env.APT_INSTALL_LINUX}}
     - name: build
       run: |
-        ${{env.CCACHE_SETTINGS}}
         ${{env.BUILD_DEFAULT_LINUX}}
 
   libwallet-ubuntu:
@@ -122,8 +114,8 @@ jobs:
     - uses: actions/cache@v3
       with:
         path: ~/.ccache
-        key: ccache-${{ runner.os }}-libwallet-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-libwallet-
+        key: ccache-ubuntu-20.04-libwallet-${{ github.sha }}
+        restore-keys: ccache-ubuntu-20.04-libwallet-
     - name: remove bundled boost
       run: ${{env.REMOVE_BUNDLED_BOOST}}
     - name: set apt conf
@@ -151,8 +143,8 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.ccache
-        key: ccache-${{ runner.os }}-build-ubuntu-latest-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-ubuntu-latest
+        key: ccache-ubuntu-20.04-build-ubuntu-latest-${{ github.sha }}
+        restore-keys: ccache-ubuntu-20.04-build-ubuntu-latest
     - name: remove bundled boost
       run: ${{env.REMOVE_BUNDLED_BOOST}}
     - name: set apt conf
