@@ -224,6 +224,9 @@ struct LegacyContextualIntermediateEnoteRecordV1 final
     LegacyIntermediateEnoteRecord record;
     /// info about where the enote was found
     LegacyEnoteOriginContextVariant origin_context;
+
+    LegacyContextualIntermediateEnoteRecordV1();
+//    LegacyContextualIntermediateEnoteRecordV1(LegacyEnoteRecord record);
 };
 
 /// get the record's onetime address
@@ -243,6 +246,9 @@ struct LegacyContextualEnoteRecordV1 final
     LegacyEnoteOriginContextVariant origin_context;
     /// info about where the enote was spent
     SpEnoteSpentContextV1 spent_context;
+
+    LegacyContextualEnoteRecordV1();
+//    LegacyContextualEnoteRecordV1(LegacyEnoteRecord record);
 };
 
 /// get the record's key image

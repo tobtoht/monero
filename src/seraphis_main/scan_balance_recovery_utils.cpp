@@ -146,17 +146,6 @@ static void update_with_new_intermediate_record_legacy(const LegacyIntermediateE
         new_record_identifier);
 
     found_enote_records_inout[new_record_identifier].record = new_enote_record;
-    // TODO : figure out how to do this when Legacy*ContextualEnoteRecord gets initialized
-    if (new_enote_record.enote.is_type<LegacyEnoteV1>() && new_enote_record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
-    {
-        LegacyEnoteOriginContextV1 new_origin_context;
-        found_enote_records_inout[new_record_identifier].origin_context = new_origin_context;
-    }
-    else
-    {
-        LegacyEnoteOriginContextV2 new_origin_context;
-        found_enote_records_inout[new_record_identifier].origin_context = new_origin_context;
-    }
 
     // 2. update the record's origin context
     try_update_enote_origin_context_v1(new_record_origin_context,
@@ -177,17 +166,6 @@ static void update_with_new_record_legacy(const LegacyEnoteRecord &new_enote_rec
         new_record_identifier);
 
     found_enote_records_inout[new_record_identifier].record = new_enote_record;
-    // TODO : figure out how to do this when Legacy*ContextualEnoteRecord gets initialized
-    if (new_enote_record.enote.is_type<LegacyEnoteV1>() && new_enote_record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
-    {
-        LegacyEnoteOriginContextV1 new_origin_context;
-        found_enote_records_inout[new_record_identifier].origin_context = new_origin_context;
-    }
-    else
-    {
-        LegacyEnoteOriginContextV2 new_origin_context;
-        found_enote_records_inout[new_record_identifier].origin_context = new_origin_context;
-    }
 
     // 2. if the enote is spent in this chunk, update its spent context
     const crypto::key_image &new_record_key_image{new_enote_record.key_image};
