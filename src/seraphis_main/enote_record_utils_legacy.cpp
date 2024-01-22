@@ -96,9 +96,9 @@ static bool try_check_legacy_view_tag(const LegacyEnoteVariant &enote,
     struct visitor final : public tools::variant_static_visitor<boost::optional<crypto::view_tag>>
     {
         using variant_static_visitor::operator();  //for blank overload
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV1 &enote) const { return boost::none;    }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV2 &enote) const { return boost::none;    }
-        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV3 &enote) const { return boost::none;    }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV1 &enote) const { return boost::none; }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV2 &enote) const { return boost::none; }
+        boost::optional<crypto::view_tag> operator()(const LegacyEnoteV3 &enote) const { return boost::none; }
         boost::optional<crypto::view_tag> operator()(const LegacyEnoteV4 &enote) const { return enote.view_tag; }
         boost::optional<crypto::view_tag> operator()(const LegacyEnoteV5 &enote) const { return enote.view_tag; }
     };
