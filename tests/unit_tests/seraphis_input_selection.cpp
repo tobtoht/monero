@@ -59,19 +59,10 @@ static void prepare_enote_store(const std::vector<rct::xmr_amount> &legacy_amoun
         temp_record.enote     = temp_enote;
         temp_record.amount    = legacy_amount;
         temp_record.key_image = rct::rct2ki(rct::pkGen());
-        // TODO : I'd like to get rid of everything between
-// <------------------------------------------------------here------------------------------------------------------>
-        LegacyContextualEnoteRecordV1 temp_contextual_record = LegacyContextualEnoteRecordV1();
-        temp_contextual_record.record = temp_record;
 
         enote_store_inout.add_record(
-                temp_contextual_record
+                LegacyContextualEnoteRecordV1(temp_record)
             );
-// <----------------------------------------------------and here---------------------------------------------------->
-        // and instead use this, to get the proper LegacyEnoteOriginContext version:
-//        enote_store_inout.add_record(
-//                LegacyContextualEnoteRecordV1(temp_record)
-//            );
     }
 
     for (const rct::xmr_amount sp_amount : sp_amounts)

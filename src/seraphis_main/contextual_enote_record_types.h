@@ -229,7 +229,7 @@ struct LegacyContextualIntermediateEnoteRecordV1 final
     LegacyEnoteOriginContextVariant origin_context;
 
     LegacyContextualIntermediateEnoteRecordV1();
-//    LegacyContextualIntermediateEnoteRecordV1(LegacyEnoteRecord record);
+    LegacyContextualIntermediateEnoteRecordV1(LegacyIntermediateEnoteRecord record_in);
 };
 
 /// get the record's onetime address
@@ -251,7 +251,7 @@ struct LegacyContextualEnoteRecordV1 final
     SpEnoteSpentContextV1 spent_context;
 
     LegacyContextualEnoteRecordV1();
-//    LegacyContextualEnoteRecordV1(LegacyEnoteRecord record);
+    LegacyContextualEnoteRecordV1(LegacyEnoteRecord record_in);
 };
 
 /// get the record's key image
