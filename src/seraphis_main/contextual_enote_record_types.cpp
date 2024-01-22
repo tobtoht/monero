@@ -165,6 +165,20 @@ void origin_status_ref(const LegacyEnoteOriginContextVariant &variant, SpEnoteOr
         ASSERT_MES_AND_THROW("unknown LegacyEnoteOriginContextVariant");
 }
 //-------------------------------------------------------------------------------------------------------------------
+const std::uint64_t& enote_version_dependent_index_ref(const LegacyEnoteOriginContextVariant &variant)
+{
+    struct visitor final : public tools::variant_static_visitor<const std::uint64_t&>
+    {
+        using variant_static_visitor::operator();  //for blank overload
+        const std::uint64_t& operator()(const LegacyEnoteOriginContextV1 &record) const
+        { return record.enote_same_amount_ledger_index; }
+        const std::uint64_t& operator()(const LegacyEnoteOriginContextV2 &record) const
+        { return record.rct_enote_ledger_index; }
+    };
+
+    return variant.visit(visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
 const rct::key& onetime_address_ref(const LegacyContextualIntermediateEnoteRecordV1 &record)
 {
     return onetime_address_ref(record.record.enote);
@@ -290,30 +304,10 @@ bool is_older_than(const LegacyEnoteOriginContextVariant &context, const LegacyE
     // note: don't assess the tx output index
 
     // 3. enote same amount ledger index
-    // TODO : there is probably a smarter way to do this!?
-    // maybe add a function const std::uint64_t enote_version_dependent_index_ref(const LegacyEnoteOriginContextVariant &variant)
-    const LegacyEnoteOriginContextV1 *tmp_context_v1 = context.try_unwrap<LegacyEnoteOriginContextV1>();
-    const LegacyEnoteOriginContextV1 *tmp_other_context_v1 = other_context.try_unwrap<LegacyEnoteOriginContextV1>();
-    const LegacyEnoteOriginContextV2 *tmp_context_v2 = context.try_unwrap<LegacyEnoteOriginContextV2>();
-    const LegacyEnoteOriginContextV2 *tmp_other_context_v2 = other_context.try_unwrap<LegacyEnoteOriginContextV2>();
-    if (tmp_context_v1 && tmp_other_context_v1)
-    {
-        if (tmp_context_v1->enote_same_amount_ledger_index < tmp_other_context_v1->enote_same_amount_ledger_index)
-            return true;
-        if (tmp_context_v1->enote_same_amount_ledger_index > tmp_other_context_v1->enote_same_amount_ledger_index)
-            return false;
-    }
-    else if (tmp_context_v2 && tmp_other_context_v2)
-    {
-        if (tmp_context_v2->rct_enote_ledger_index < tmp_other_context_v2->rct_enote_ledger_index)
-            return true;
-        if (tmp_context_v2->rct_enote_ledger_index > tmp_other_context_v2->rct_enote_ledger_index)
-            return false;
-    }
-    else
-    {
-        CHECK_AND_ASSERT_THROW_MES(false, "Can only compare variants of the same type.");
-    }
+    if (enote_version_dependent_index_ref(context) < enote_version_dependent_index_ref(other_context))
+        return true;
+    if (enote_version_dependent_index_ref(context) > enote_version_dependent_index_ref(other_context))
+        return false;
 
     // 4. enote ledger index
     if (enote_ledger_index_ref(context) < enote_ledger_index_ref(other_context))

@@ -147,6 +147,8 @@ struct LegacyEnoteOriginContextV2 final
 // transaction_id_ref(): get the enote's transaction id
 // enote_ledger_index_ref(): get the enote's ledger index
 // origin_status_ref(): get the enote's origin status
+// enote_version_dependent_index_ref(): get the enote's
+//      enote_same_amount_ledger_index (V1) or rct_enote_ledger_index (V2)
 ///
 using LegacyEnoteOriginContextVariant = tools::variant<LegacyEnoteOriginContextV1, LegacyEnoteOriginContextV2>;
 const std::uint64_t& block_index_ref(const LegacyEnoteOriginContextVariant &variant);
@@ -155,6 +157,7 @@ const rct::key& transaction_id_ref(const LegacyEnoteOriginContextVariant &varian
 const std::uint64_t& enote_ledger_index_ref(const LegacyEnoteOriginContextVariant &variant);
 const SpEnoteOriginStatus& origin_status_ref(const LegacyEnoteOriginContextVariant &variant);
 void origin_status_ref(const LegacyEnoteOriginContextVariant &variant, SpEnoteOriginStatus &origin_status_out);
+const std::uint64_t& enote_version_dependent_index_ref(const LegacyEnoteOriginContextVariant &variant);
 
 ////
 // SpEnoteOriginContextV1
