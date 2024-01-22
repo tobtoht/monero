@@ -100,7 +100,6 @@ static bool try_view_scan_legacy_enote_v1(const rct::key &legacy_base_spend_pubk
     } catch (...) { return false; }
 
     // 2. set the origin context
-    // TODO : is there a more elegant way to do this!?
     const LegacyEnoteV1 *tmp_enote = legacy_enote.try_unwrap<LegacyEnoteV1>();
     if (tmp_enote && tmp_enote->is_pre_rct)
     {
@@ -145,7 +144,7 @@ static void update_with_new_intermediate_record_legacy(const LegacyIntermediateE
         new_enote_record.amount,
         new_record_identifier);
 
-    found_enote_records_inout[new_record_identifier].record = new_enote_record;
+    found_enote_records_inout.insert({new_record_identifier, new_enote_record});
 
     // 2. update the record's origin context
     try_update_enote_origin_context_v1(new_record_origin_context,
@@ -165,7 +164,7 @@ static void update_with_new_record_legacy(const LegacyEnoteRecord &new_enote_rec
         new_enote_record.amount,
         new_record_identifier);
 
-    found_enote_records_inout[new_record_identifier].record = new_enote_record;
+    found_enote_records_inout.insert({new_record_identifier, new_enote_record});
 
     // 2. if the enote is spent in this chunk, update its spent context
     const crypto::key_image &new_record_key_image{new_enote_record.key_image};

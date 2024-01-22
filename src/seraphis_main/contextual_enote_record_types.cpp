@@ -55,15 +55,16 @@ LegacyContextualIntermediateEnoteRecordV1::LegacyContextualIntermediateEnoteReco
     origin_context = new_origin_context;
 }
 //-------------------------------------------------------------------------------------------------------------------
-//LegacyContextualIntermediateEnoteRecordV1::LegacyContextualIntermediateEnoteRecordV1(LegacyEnoteRecord record)
-//{
-//    LegacyEnoteOriginContextV1 new_origin_context_v1;
-//    LegacyEnoteOriginContextV2 new_origin_context_v2;
-//    if (record.enote.is_type<LegacyEnoteV1>() && record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
-//        origin_context = new_origin_context_v1;
-//    else
-//        origin_context = new_origin_context_v2;
-//}
+LegacyContextualIntermediateEnoteRecordV1::LegacyContextualIntermediateEnoteRecordV1(LegacyIntermediateEnoteRecord record_in)
+    : record{ record_in }
+{
+    LegacyEnoteOriginContextV1 new_origin_context_v1;
+    LegacyEnoteOriginContextV2 new_origin_context_v2;
+    if (record.enote.is_type<LegacyEnoteV1>() && record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
+        origin_context = new_origin_context_v1;
+    else
+        origin_context = new_origin_context_v2;
+}
 //-------------------------------------------------------------------------------------------------------------------
 LegacyContextualEnoteRecordV1::LegacyContextualEnoteRecordV1()
 {
@@ -73,17 +74,15 @@ LegacyContextualEnoteRecordV1::LegacyContextualEnoteRecordV1()
     origin_context = new_origin_context;
 }
 //-------------------------------------------------------------------------------------------------------------------
-// TODO : figure out how to call this in the case where we have a map enote_records<rct::key, LegacyContextualEnoteRecordV1>
-// and we add a new item to the map with enote_records[new_identifier].record = tmp_record
-//LegacyContextualEnoteRecordV1::LegacyContextualEnoteRecordV1(LegacyEnoteRecord record)
-//{
-//    LegacyEnoteOriginContextV1 new_origin_context_v1;
-//    LegacyEnoteOriginContextV2 new_origin_context_v2;
-//    if (record.enote.is_type<LegacyEnoteV1>() && record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
-//        origin_context = new_origin_context_v1;
-//    else
-//        origin_context = new_origin_context_v2;
-//}
+LegacyContextualEnoteRecordV1::LegacyContextualEnoteRecordV1(LegacyEnoteRecord record_in) : record{ record_in }
+{
+    LegacyEnoteOriginContextV1 new_origin_context_v1;
+    LegacyEnoteOriginContextV2 new_origin_context_v2;
+    if (record.enote.is_type<LegacyEnoteV1>() && record.enote.unwrap<LegacyEnoteV1>().is_pre_rct)
+        origin_context = new_origin_context_v1;
+    else
+        origin_context = new_origin_context_v2;
+}
 //-------------------------------------------------------------------------------------------------------------------
 const std::uint64_t& block_index_ref(const LegacyEnoteOriginContextVariant &variant)
 {
