@@ -1,8 +1,8 @@
 package=ncurses
-$(package)_version=6.1
+$(package)_version=6.4
 $(package)_download_path=https://ftp.gnu.org/gnu/ncurses
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
-$(package)_sha256_hash=aa057eeeb4a14d470101eff4597d5833dcef5965331be3528c08d99cebaa0d17
+$(package)_sha256_hash=6931283d9ac87c5073f30b6290c4c75f21632bb4fc3603ac8100812bed248159
 $(package)_patches=fallback.c
 
 define $(package)_set_vars
