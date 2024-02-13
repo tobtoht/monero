@@ -1,8 +1,7 @@
-package=protobuf3
+package=native_protobuf
 $(package)_version=21.12
-$(package)_version_protobuf_cpp=3.21.12
 $(package)_download_path=https://github.com/protocolbuffers/protobuf/releases/download/v$($(package)_version)/
-$(package)_file_name=protobuf-cpp-$($(package)_version_protobuf_cpp).tar.gz
+$(package)_file_name=protobuf-cpp-3.$($(package)_version).tar.gz
 $(package)_sha256_hash=4eab9b524aa5913c6fffb20b2a8abf5ef7f95a80bc0701f3a6dbb4c607f73460
 $(package)_cxxflags=-std=c++11
 
