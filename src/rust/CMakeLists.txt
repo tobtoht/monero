@@ -37,6 +37,7 @@ endif ()
 set(MONERO_RUST_CXX "${CMAKE_CURRENT_BINARY_DIR}/monero_rust.cc")
 set(MONERO_RUST_HEADER_DIR "${MONERO_GENERATED_HEADERS_DIR}/rust")
 set(MONERO_RUST_HEADER "${MONERO_RUST_HEADER_DIR}/monero_rust.h")
+set(CXX_HEADER "${MONERO_RUST_HEADER_DIR}/cxx.h")
 
 # Removing OUTPUT files makes sure custom command runs every time
 file(REMOVE_RECURSE "${MONERO_RUST_CXX}")
@@ -45,17 +46,18 @@ file(MAKE_DIRECTORY "${MONERO_RUST_HEADER_DIR}")
 
 add_custom_command(
   COMMENT "Building monero rust"
-  OUTPUT ${MONERO_RUST_CXX} ${MONERO_RUST_HEADER}
+  OUTPUT ${MONERO_RUST_CXX} ${MONERO_RUST_HEADER} ${CXX_HEADER}
   COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} ${CARGO_CMD}
   COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/cxxbridge/monero_rust/src/lib.rs.cc ${MONERO_RUST_CXX}
   COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/cxxbridge/monero_rust/src/lib.rs.h ${MONERO_RUST_HEADER}
+  COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/cxxbridge/rust/cxx.h ${CXX_HEADER}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   VERBATIM
 )
 
 set(monero_rust_sources ${MONERO_RUST_CXX})
 
-monero_find_all_headers(monero_rust_headers, "${MONERO_RUST_HEADER}")
+monero_find_all_headers(monero_rust_headers "${MONERO_RUST_HEADER_DIR}")
 
 monero_add_library(monero_rust
   ${monero_rust_sources}

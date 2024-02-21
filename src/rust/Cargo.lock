@@ -76,6 +76,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "bulletproof25519"
+version = "0.1.0"
+dependencies = [
+ "crypto-bigint",
+ "dalek-ff-group",
+ "digest 0.10.7",
+ "ff",
+ "generic-array",
+ "group",
+ "lazy_static",
+ "rand_core 0.6.4",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "bulletproofs-plus"
 version = "0.1.0"
 dependencies = [
@@ -116,6 +132,7 @@ name = "ciphersuite"
 version = "0.3.0"
 dependencies = [
  "blake2",
+ "bulletproof25519",
  "crypto-bigint",
  "dalek-ff-group",
  "digest 0.10.7",
@@ -162,6 +179,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "740fe28e594155f10cfc383984cbefd529d7396050557148f79cb0f621204124"
 dependencies = [
  "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -287,6 +305,7 @@ name = "ecip"
 version = "0.1.0"
 dependencies = [
  "ciphersuite",
+ "dalek-ff-group",
  "flexible-transcript",
  "multiexp",
  "pasta_curves",
@@ -331,13 +350,14 @@ checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
 dependencies = [
  "typenum",
  "version_check",
+ "zeroize",
 ]
 
 [[package]]
 name = "getrandom"
-version = "0.2.10"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4136b2a15dd319360be1c07d9933517ccf0be8f16bf62a3bee4f0d618df427"
+checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
  "libc",
@@ -365,6 +385,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
 name = "libc"
 version = "0.2.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -383,6 +409,7 @@ dependencies = [
 name = "monero_rust"
 version = "0.0.0"
 dependencies = [
+ "ciphersuite",
  "curve-trees",
  "cxx",
  "cxx-build",

@@ -10,6 +10,7 @@ crate-type = ["staticlib"]
 [dependencies]
 cxx = "1.0"
 curve-trees = { path = "../../external/full-chain-membership-proofs/crypto/curve-trees" }
+ciphersuite = { path = "../../external/full-chain-membership-proofs/crypto/ciphersuite", features = ["ed25519", "bulletproof25519"] }
 
 [build-dependencies]
 cxx-build = "1.0"

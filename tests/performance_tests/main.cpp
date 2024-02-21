@@ -1115,7 +1115,7 @@ int main(int argc, char** argv)
 #endif
   */
 
-  TEST_PERFORMANCE0(filter, p, test_curve_trees);
+  TEST_PERFORMANCE0(filter, p, test_curve_trees_fcmp);
 
   std::cout << "Tests finished. Elapsed time: " << timer.elapsed_ms() / 1000 << " sec" << std::endl;
 
