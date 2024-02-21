@@ -33,6 +33,8 @@
 //local headers
 #include "crypto/x25519.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/discretized_fee.h"
 #include "seraphis_core/tx_extra.h"
 #include "tx_component_types.h"
@@ -88,6 +90,12 @@ struct SemanticConfigSpRefSetV1 final
     std::size_t bin_radius_max;
     std::size_t num_bin_members_min;
     std::size_t num_bin_members_max;
+};
+
+/// semantic validation config: seraphis reference sets v2
+struct SemanticConfigSpRefSetV2 final
+{
+    // TODO: implement
 };
 
 /**
@@ -299,5 +307,12 @@ bool try_get_sp_membership_proofs_v1_validation_data(const std::vector<const SpM
     const std::vector<const SpEnoteImageCore*> &input_images,
     const TxValidationContext &tx_validation_context,
     std::list<SpMultiexpBuilder> &validation_data_out);
-
+/**
+* brief: validate_sp_membership_proofs_v2 -
+* param: membership_proofs -
+* param: tx_validation_context -
+* outparam: validation_data_out -
+*/
+bool validate_sp_membership_proofs_v2(const std::vector<const SpMembershipProofV2*> &membership_proofs,
+    const TxValidationContext &tx_validation_context);
 } //namespace sp

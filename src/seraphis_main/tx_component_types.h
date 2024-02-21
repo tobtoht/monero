@@ -35,6 +35,8 @@
 #include "crypto/crypto.h"
 #include "crypto/x25519.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/binned_reference_set.h"
 #include "seraphis_core/jamtis_support_types.h"
 #include "seraphis_core/sp_core_types.h"
@@ -158,6 +160,26 @@ std::size_t sp_membership_proof_v1_size_bytes_compact(const std::size_t n,
     const std::size_t num_bin_members);
 std::size_t sp_membership_proof_v1_size_bytes(const SpMembershipProofV1 &proof);
 std::size_t sp_membership_proof_v1_size_bytes_compact(const SpMembershipProofV1 &proof);
+
+////
+// SpMembershipProofV2
+// - full chain membership proof using curve trees
+///
+struct SpMembershipProofV2 final
+{
+    // TODO: use cleaner types
+    rust::Box<monero_rust::curve_trees::BlindedPointAndProof> blinded_point_and_proof;
+};
+inline const boost::string_ref container_name(const SpMembershipProofV2&) { return "SpMembershipProofV2"; }
+void append_to_transcript(const SpMembershipProofV2 &container, SpTranscriptBuilder &transcript_inout);
+
+inline const boost::string_ref container_name(const rust::Box<monero_rust::curve_trees::BlindedPointAndProof>&) { return "RustBoxBlindedPointAndProof"; }
+// TODO: implement
+void append_to_transcript(const rust::Box<monero_rust::curve_trees::BlindedPointAndProof> &container, SpTranscriptBuilder &transcript_inout);
+
+/// get size in bytes
+std::size_t sp_membership_proof_v2_size_bytes(const std::size_t n);
+std::size_t sp_membership_proof_v2_size_bytes(const SpMembershipProofV2 &proof);
 
 ////
 // SpImageProofV1

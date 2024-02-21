@@ -32,8 +32,8 @@
 
 #include "crypto/crypto.h"
 #include "ringct/rctOps.h"
-#include "rust/monero_rust.h"
 #include "rust/cxx.h"
+#include "rust/monero_rust.h"
 
 using namespace monero_rust;
 

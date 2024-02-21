@@ -54,6 +54,7 @@ target_link_libraries(seraphis_mocks
     cryptonote_basic
     device
     epee
+    monero_rust
     ringct
     seraphis_core
     seraphis_crypto

@@ -44,6 +44,8 @@ extern "C"
 #include "misc_log_ex.h"
 #include "ringct/rctOps.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/binned_reference_set.h"
 #include "seraphis_core/binned_reference_set_utils.h"
 #include "seraphis_core/jamtis_enote_utils.h"
@@ -67,6 +69,12 @@ extern "C"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "seraphis"
+
+static rust::Slice<const uint8_t> get_rust_slice(const rct::key &key)
+{
+    static_assert(sizeof(key.bytes) == 32, "unexpected key byte size");
+    return rust::Slice<const uint8_t>{key.bytes, sizeof(key.bytes)};
+}
 
 namespace sp
 {
@@ -687,6 +695,127 @@ void align_v1_membership_proofs_v1(const std::vector<SpEnoteImageV1> &input_imag
         membership_proof_match->masked_address = rct::zero();  //clear so duplicates will error out
         membership_proofs_out.emplace_back(std::move(membership_proof_match->membership_proof));
     }
+}
+//-------------------------------------------------------------------------------------------------------------------
+SpMembershipProofV2 make_v2_membership_proof_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    const SpEnoteCoreVariant &real_reference_enote,
+    const crypto::secret_key &address_mask,
+    const crypto::secret_key &commitment_mask)
+{
+    // make membership proof
+
+    // 1. make the real reference's squashed representation
+    rct::key transformed_address;
+    make_seraphis_squashed_address_key(onetime_address_ref(real_reference_enote),
+        amount_commitment_ref(real_reference_enote),
+        transformed_address);  //H_n(Ko,C) Ko
+
+    rct::key real_Q;
+    rct::addKeys(real_Q, transformed_address, amount_commitment_ref(real_reference_enote));  //Hn(Ko,C) Ko + C
+
+    // 2. recover the blinding factor from t_k and t_c
+    // TODO: just keep the blind saved on the enote proposal
+    crypto::secret_key blind;
+    sc_add(to_bytes(blind), to_bytes(address_mask), to_bytes(commitment_mask));  //t_k + t_c
+    sc_mul(to_bytes(blind), to_bytes(blind), minus_one().bytes);  //-(t_k + t_c)
+
+    // 3. make the proof
+    return SpMembershipProofV2 {
+        .blinded_point_and_proof = monero_rust::curve_trees::prove(curve_trees_generators_and_tree,
+                get_rust_slice(rct::sk2rct(blind)),
+                get_rust_slice(real_Q)
+            )
+    };
+}
+//-------------------------------------------------------------------------------------------------------------------
+std::vector<SpMembershipProofV2> make_v2_membership_proofs_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    std::vector<std::pair<SpEnoteCoreVariant, std::pair<crypto::secret_key, crypto::secret_key>>> real_reference_enotes)
+
+{
+    // make multiple membership proofs
+    // note: this method is only useful if proof preps are pre-sorted, so alignable membership proofs are not needed
+    std::vector<SpMembershipProofV2> membership_proofs_out;
+    membership_proofs_out.reserve(real_reference_enotes.size());
+
+    for (auto &enote : real_reference_enotes)
+    {
+        auto proof = make_v2_membership_proof_v2(curve_trees_generators_and_tree, std::move(enote.first), enote.second.first, enote.second.second);
+        membership_proofs_out.emplace_back(std::move(proof));
+    }
+
+    return membership_proofs_out;
+}
+//-------------------------------------------------------------------------------------------------------------------
+SpAlignableMembershipProofV2 make_v2_alignable_membership_proof_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    SpEnoteCoreVariant real_reference_enote,
+    const crypto::secret_key &address_mask,
+    const crypto::secret_key &commitment_mask)
+{
+    // make alignable membership proof
+
+    // save the masked address so the membership proof can be matched with its input image later
+    rct::key masked_address;
+    make_seraphis_squashed_address_key(onetime_address_ref(real_reference_enote),
+        amount_commitment_ref(real_reference_enote),
+        masked_address);  //H_n(Ko,C) Ko
+
+    mask_key(address_mask,
+        masked_address,
+        masked_address);  //t_k G + H_n(Ko,C) Ko
+
+    // make the membership proof
+    return SpAlignableMembershipProofV2 {
+        .masked_address = std::move(masked_address),
+        .membership_proof = make_v2_membership_proof_v2(curve_trees_generators_and_tree, std::move(real_reference_enote), address_mask, commitment_mask)
+    };
+}
+//-------------------------------------------------------------------------------------------------------------------
+std::vector<SpAlignableMembershipProofV2> make_v2_alignable_membership_proofs_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    std::vector<std::pair<SpEnoteCoreVariant, std::pair<crypto::secret_key, crypto::secret_key>>> real_reference_enotes)
+{
+    // make multiple alignable membership proofs
+    std::vector<SpAlignableMembershipProofV2> alignable_membership_proofs_out;
+    alignable_membership_proofs_out.reserve(real_reference_enotes.size());
+
+    for (auto &enote : real_reference_enotes)
+    {
+        auto alignable_proof = make_v2_alignable_membership_proof_v2(curve_trees_generators_and_tree, enote.first, enote.second.first, enote.second.second);
+        alignable_membership_proofs_out.emplace_back(std::move(alignable_proof));
+    }
+
+    return alignable_membership_proofs_out;
+}
+//-------------------------------------------------------------------------------------------------------------------
+std::vector<SpMembershipProofV2> align_v2_membership_proofs_v2(const std::vector<SpEnoteImageV1> &input_images,
+    std::vector<SpAlignableMembershipProofV2> alignable_membership_proofs)
+{
+    CHECK_AND_ASSERT_THROW_MES(input_images.size() == alignable_membership_proofs.size(),
+        "Mismatch between input image count and alignable membership proof count.");
+
+    std::vector<SpMembershipProofV2> membership_proofs_out;
+    membership_proofs_out.reserve(alignable_membership_proofs.size());
+
+    for (const SpEnoteImageV1 &input_image : input_images)
+    {
+        // find the membership proof that matches with the input image at this index
+        auto membership_proof_match =
+            std::find_if(
+                alignable_membership_proofs.begin(),
+                alignable_membership_proofs.end(),
+                [&masked_address = masked_address_ref(input_image)](const SpAlignableMembershipProofV2 &a) -> bool
+                {
+                    return alignment_check(a, masked_address);
+                }
+            );
+
+        CHECK_AND_ASSERT_THROW_MES(membership_proof_match != alignable_membership_proofs.end(),
+            "Could not find input image to match with an alignable membership proof.");
+
+        membership_proof_match->masked_address = rct::zero();  //clear so duplicates will error out
+        membership_proofs_out.emplace_back(std::move(membership_proof_match->membership_proof));
+    }
+
+    return membership_proofs_out;
 }
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace sp

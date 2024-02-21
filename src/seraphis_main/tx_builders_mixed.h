@@ -41,6 +41,7 @@
 #include "tx_input_selection.h"
 #include "txtype_base.h"
 #include "txtype_squashed_v1.h"
+#include "txtype_squashed_v2.h"
 
 //third party headers
 
@@ -107,6 +108,7 @@ void make_tx_proposal_prefix_v1(const tx_version_t &tx_version,
     const TxExtra &partial_memo,
     rct::key &tx_proposal_prefix_out);
 void make_tx_proposal_prefix_v1(const SpTxSquashedV1 &tx, rct::key &tx_proposal_prefix_out);
+void make_tx_proposal_prefix_v1(const SpTxSquashedV2 &tx, rct::key &tx_proposal_prefix_out);
 /**
 * brief: make_tx_proofs_prefix_v1 - hash of all proofs in a tx (e.g. for use in making a tx id)
 *   - H_32(balance proof, legacy ring signatures, seraphis image proofs, seraphis membership proofs)
@@ -120,6 +122,11 @@ void make_tx_proofs_prefix_v1(const SpBalanceProofV1 &balance_proof,
     const std::vector<LegacyRingSignatureV4> &legacy_ring_signatures,
     const std::vector<SpImageProofV1> &sp_image_proofs,
     const std::vector<SpMembershipProofV1> &sp_membership_proofs,
+    rct::key &tx_proofs_prefix_out);
+void make_tx_proofs_prefix_v1(const SpBalanceProofV1 &balance_proof,
+    const std::vector<LegacyRingSignatureV4> &legacy_ring_signatures,
+    const std::vector<SpImageProofV1> &sp_image_proofs,
+    const std::vector<SpMembershipProofV2> &sp_membership_proofs,
     rct::key &tx_proofs_prefix_out);
 /**
 * brief: make_tx_artifacts_merkle_root_v1 - merkle root of transaction artifacts (input images and proofs)

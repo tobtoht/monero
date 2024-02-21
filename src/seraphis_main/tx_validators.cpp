@@ -35,6 +35,7 @@
 #include "ringct/rctOps.h"
 #include "ringct/rctSigs.h"
 #include "ringct/rctTypes.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/binned_reference_set_utils.h"
 #include "seraphis_core/discretized_fee.h"
 #include "seraphis_core/tx_extra.h"
@@ -615,6 +616,18 @@ bool try_get_sp_membership_proofs_v1_validation_data(const std::vector<const SpM
         sp_membership_proofs[0]->ref_set_decomp_m,
         validation_data_out);
 
+    return true;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool validate_sp_membership_proofs_v2(const std::vector<const SpMembershipProofV2*> &membership_proofs,
+    const TxValidationContext &tx_validation_context)
+{
+    // TODO: batch verification
+    for (auto &sp_membership_proof : membership_proofs)
+    {
+        if (!monero_rust::curve_trees::verify(*tx_validation_context.get_curve_trees_generators_and_tree(), sp_membership_proof->blinded_point_and_proof))
+            return false;
+    }
     return true;
 }
 //-------------------------------------------------------------------------------------------------------------------

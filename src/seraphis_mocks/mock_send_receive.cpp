@@ -48,12 +48,14 @@
 #include "seraphis_core/legacy_core_utils.h"
 #include "seraphis_core/legacy_enote_utils.h"
 #include "seraphis_core/sp_core_types.h"
+#include "seraphis_core/sp_core_enote_utils.h"
 #include "seraphis_impl/scan_context_simple.h"
 #include "seraphis_impl/scan_process_basic.h"
 #include "seraphis_impl/tx_builder_utils.h"
 #include "seraphis_main/contextual_enote_record_utils.h"
 #include "seraphis_main/scan_machine_types.h"
 #include "seraphis_main/tx_builder_types.h"
+#include "seraphis_main/tx_builders_legacy_inputs.h"
 #include "seraphis_main/tx_builders_inputs.h"
 #include "seraphis_main/tx_builders_mixed.h"
 #include "seraphis_main/tx_component_types.h"
@@ -216,6 +218,90 @@ void send_sp_coinbase_amounts_to_users(const std::vector<std::vector<rct::xmr_am
     ledger_context_inout.commit_unconfirmed_txs_v1(coinbase_tx);
 }
 //-------------------------------------------------------------------------------------------------------------------
+void send_sp_coinbase_amounts_to_user_v2(const std::vector<rct::xmr_amount> &coinbase_amounts,
+    const jamtis::JamtisDestinationV1 &user_address,
+    MockLedgerContext &ledger_context_inout)
+{
+    // 1. prepare payment proposals
+    std::vector<jamtis::JamtisPaymentProposalV1> payment_proposals;
+    payment_proposals.reserve(coinbase_amounts.size());
+    rct::xmr_amount block_reward{0};
+
+    for (const rct::xmr_amount coinbase_amount : coinbase_amounts)
+    {
+        // a. make payment proposal
+        convert_outlay_to_payment_proposal(coinbase_amount,
+        user_address,
+        TxExtra{},
+        tools::add_element(payment_proposals));
+
+        // b. accumulate the block reward
+        block_reward += coinbase_amount;
+    }
+
+    // 2. make a coinbase tx
+    SpTxCoinbaseV1 coinbase_tx;
+    make_seraphis_tx_coinbase_v1(SpTxCoinbaseV1::SemanticRulesVersion::MOCK,
+        ledger_context_inout.chain_height() + 1,
+        block_reward,
+        std::move(payment_proposals),
+        {},
+        coinbase_tx);
+
+    // 3. validate the coinbase tx
+    const TxValidationContextMock tx_validation_context{ledger_context_inout};
+    CHECK_AND_ASSERT_THROW_MES(validate_tx(coinbase_tx, tx_validation_context),
+        "send sp coinbase amounts to user (mock): failed to validate coinbase tx.");
+
+    // 4. commit coinbase tx as new block
+    ledger_context_inout.commit_unconfirmed_txs_v2(coinbase_tx);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void send_sp_coinbase_amounts_to_users_v2(const std::vector<std::vector<rct::xmr_amount>> &coinbase_amounts_per_user,
+    const std::vector<jamtis::JamtisDestinationV1> &user_addresses,
+    MockLedgerContext &ledger_context_inout)
+{
+    CHECK_AND_ASSERT_THROW_MES(coinbase_amounts_per_user.size() == user_addresses.size(),
+        "send sp coinbase amounts to users (mock): amount : address mismatch.");
+
+    // 1. prepare payment proposals
+    std::vector<jamtis::JamtisPaymentProposalV1> payment_proposals;
+    payment_proposals.reserve(coinbase_amounts_per_user.size());
+    rct::xmr_amount block_reward{0};
+
+    for (std::size_t user_index{0}; user_index < user_addresses.size(); ++user_index)
+    {
+        for (const rct::xmr_amount user_amount : coinbase_amounts_per_user[user_index])
+        {
+            // a .make payment proposal
+            convert_outlay_to_payment_proposal(user_amount,
+                user_addresses[user_index],
+                TxExtra{},
+                tools::add_element(payment_proposals));
+
+            // b. accumulate the block reward
+            block_reward += user_amount;
+        }
+    }
+
+    // 2. make a coinbase tx
+    SpTxCoinbaseV1 coinbase_tx;
+    make_seraphis_tx_coinbase_v1(SpTxCoinbaseV1::SemanticRulesVersion::MOCK,
+        ledger_context_inout.chain_height() + 1,
+        block_reward,
+        std::move(payment_proposals),
+        {},
+        coinbase_tx);
+
+    // 3. validate the coinbase tx
+    const TxValidationContextMock tx_validation_context{ledger_context_inout};
+    CHECK_AND_ASSERT_THROW_MES(validate_tx(coinbase_tx, tx_validation_context),
+        "send sp coinbase amounts to user (mock): failed to validate coinbase tx.");
+
+    // 4. commit coinbase tx as new block
+    ledger_context_inout.commit_unconfirmed_txs_v2(coinbase_tx);
+}
+//-------------------------------------------------------------------------------------------------------------------
 void construct_tx_for_mock_ledger_v1(const legacy_mock_keys &local_user_legacy_keys,
     const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
     const InputSelectorV1 &local_user_input_selector,
@@ -331,6 +417,169 @@ void construct_tx_for_mock_ledger_v1(const legacy_mock_keys &local_user_legacy_k
         tx_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
+void construct_tx_for_mock_ledger_v2(const legacy_mock_keys &local_user_legacy_keys,
+    const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
+    const InputSelectorV1 &local_user_input_selector,
+    const FeeCalculator &tx_fee_calculator,
+    const rct::xmr_amount fee_per_tx_weight,
+    const std::size_t max_inputs,
+    const std::vector<std::tuple<rct::xmr_amount, jamtis::JamtisDestinationV1, TxExtra>> &outlays,
+    const std::size_t legacy_ring_size,
+    /*const*/ MockLedgerContext &ledger_context, // TODO: use cleaner curve trees data type so this can be const
+    SpTxSquashedV2 &tx_out,
+    std::vector<jamtis::JamtisPaymentProposalSelfSendV1> &selfsend_payments_out,
+    std::vector<jamtis::JamtisPaymentProposalV1> &normal_payments_out)
+{
+    /// build transaction
+
+    // 1. prepare dummy and change addresses
+    jamtis::JamtisDestinationV1 change_address;
+    jamtis::JamtisDestinationV1 dummy_address;
+    make_random_address_for_user(local_user_sp_keys, change_address);
+    make_random_address_for_user(local_user_sp_keys, dummy_address);
+
+    // 2. convert outlays to normal payment proposals
+    std::vector<jamtis::JamtisPaymentProposalV1> normal_payment_proposals;
+    normal_payment_proposals.reserve(outlays.size());
+
+    for (const auto &outlay : outlays)
+    {
+        convert_outlay_to_payment_proposal(std::get<rct::xmr_amount>(outlay),
+            std::get<jamtis::JamtisDestinationV1>(outlay),
+            std::get<TxExtra>(outlay),
+            tools::add_element(normal_payment_proposals));
+    }
+
+    normal_payments_out = normal_payment_proposals;
+
+    // 3. prepare inputs and finalize outputs
+    std::vector<LegacyContextualEnoteRecordV1> legacy_contextual_inputs;
+    std::vector<SpContextualEnoteRecordV1> sp_contextual_inputs;
+    std::vector<jamtis::JamtisPaymentProposalSelfSendV1> selfsend_payment_proposals;  //note: no user-defined selfsends
+    DiscretizedFee discretized_transaction_fee;
+    CHECK_AND_ASSERT_THROW_MES(try_prepare_inputs_and_outputs_for_transfer_v1(change_address,
+            dummy_address,
+            local_user_input_selector,
+            tx_fee_calculator,
+            fee_per_tx_weight,
+            max_inputs,
+            std::move(normal_payment_proposals),
+            std::move(selfsend_payment_proposals),
+            local_user_sp_keys.k_vb,
+            legacy_contextual_inputs,
+            sp_contextual_inputs,
+            normal_payment_proposals,
+            selfsend_payment_proposals,
+            discretized_transaction_fee),
+        "construct tx for mock ledger (v2): preparing inputs and outputs failed.");
+
+    selfsend_payments_out = selfsend_payment_proposals;
+
+    // 4. tx proposal
+    SpTxProposalV1 tx_proposal;
+    make_v1_tx_proposal_v1(legacy_contextual_inputs,
+        sp_contextual_inputs,
+        std::move(normal_payment_proposals),
+        std::move(selfsend_payment_proposals),
+        discretized_transaction_fee,
+        TxExtra{},
+        tx_proposal);
+
+    // TODO: implement SpInputProposalV2 and make_v2_tx_proposal_v2
+    for (SpInputProposalV1 &sp_input_proposal : tx_proposal.sp_input_proposals)
+    {
+        // sp_input_proposal.core.address_mask = rct::rct2sk(rct::skGen()); // t_k
+
+        // t_c = -blind - t_k
+        std::array<unsigned char, 32> blind = monero_rust::curve_trees::make_blind(ledger_context.m_curve_trees_generators_and_tree);
+        rct::key blind_key;
+        memcpy(&blind_key, blind.data(), 32);
+        crypto::secret_key commitment_mask = add_secrets(rct::rct2sk(blind_key), sp_input_proposal.core.address_mask); // t_c = blind + t_k
+        sc_mul(to_bytes(commitment_mask), to_bytes(commitment_mask), minus_one().bytes); // t_c = -blind - t_k
+        sp_input_proposal.core.commitment_mask = std::move(commitment_mask);
+    }
+
+    // 5. tx proposal prefix
+    const tx_version_t tx_version{tx_version_from(SpTxSquashedV2::SemanticRulesVersion::MOCK)};
+
+    rct::key tx_proposal_prefix;
+    get_tx_proposal_prefix_v1(tx_proposal, tx_version, local_user_sp_keys.k_vb, tx_proposal_prefix);
+
+    // 6. get ledger mappings for the input membership proofs
+    // note: do this after making the tx proposal to demo that inputs don't have to be on-chain when proposing a tx
+    std::unordered_map<crypto::key_image, std::uint64_t> legacy_input_ledger_mappings;
+    try_get_membership_proof_real_reference_mappings(legacy_contextual_inputs, legacy_input_ledger_mappings);
+
+    // 7. prepare for legacy ring signatures
+    std::vector<LegacyRingSignaturePrepV1> legacy_ring_signature_preps;
+    make_mock_legacy_ring_signature_preps_for_inputs_v1(tx_proposal_prefix,
+        legacy_input_ledger_mappings,
+        tx_proposal.legacy_input_proposals,
+        legacy_ring_size,
+        ledger_context,
+        legacy_ring_signature_preps);
+    std::sort(legacy_ring_signature_preps.begin(),
+        legacy_ring_signature_preps.end(),
+        tools::compare_func<LegacyRingSignaturePrepV1>(compare_KI));
+
+    // 8. make legacy inputs
+    std::vector<LegacyInputV1> legacy_inputs;
+    make_v1_legacy_inputs_v1(tx_proposal_prefix,
+        tx_proposal.legacy_input_proposals,
+        std::move(legacy_ring_signature_preps),
+        local_user_legacy_keys.k_s,
+        hw::get_device("default"),
+        legacy_inputs);
+    std::sort(legacy_inputs.begin(), legacy_inputs.end(), tools::compare_func<LegacyInputV1>(compare_KI));
+
+    // 9. make seraphis partial inputs
+    std::vector<SpPartialInputV1> sp_partial_inputs;
+
+    make_v1_partial_inputs_v1(tx_proposal.sp_input_proposals,
+        tx_proposal_prefix,
+        local_user_sp_keys.k_m,
+        local_user_sp_keys.k_vb,
+        sp_partial_inputs);
+    std::sort(sp_partial_inputs.begin(), sp_partial_inputs.end(), tools::compare_func<SpPartialInputV1>(compare_KI));
+
+    // 10. prepare partial tx
+    SpPartialTxV1 partial_tx;
+    const rct::key legacy_spend_pubkey{rct::scalarmultBase(rct::sk2rct(local_user_legacy_keys.k_s))};
+
+    // jamtis spend pubkey
+    rct::key jamtis_spend_pubkey;
+    make_seraphis_spendkey(local_user_sp_keys.k_vb, local_user_sp_keys.k_m, jamtis_spend_pubkey);
+
+    make_v1_partial_tx_v1(tx_proposal,
+        legacy_inputs,
+        sp_partial_inputs,
+        tx_version,
+        legacy_spend_pubkey,
+        jamtis_spend_pubkey,
+        local_user_sp_keys.k_vb,
+        partial_tx);
+
+    // 11. prepare for membership proofs
+    std::vector<std::pair<SpEnoteCoreVariant, std::pair<crypto::secret_key, crypto::secret_key>>> real_reference_enotes;
+    real_reference_enotes.reserve(tx_proposal.sp_input_proposals.size());
+    for (const SpInputProposalV1 &input_proposal : tx_proposal.sp_input_proposals)
+    {
+        std::pair<crypto::secret_key, crypto::secret_key> masks = std::make_pair(input_proposal.core.address_mask, input_proposal.core.commitment_mask);
+        real_reference_enotes.emplace_back(std::make_pair(input_proposal.core.enote_core, masks));
+    }
+
+    // 12. seraphis full chain membership proofs
+    std::vector<SpAlignableMembershipProofV2> sp_alignable_membership_proofs =
+        make_v2_alignable_membership_proofs_v2(ledger_context.m_curve_trees_generators_and_tree,
+            std::move(real_reference_enotes));
+
+    // 13. complete tx
+    make_seraphis_tx_squashed_v2(SpTxSquashedV2::SemanticRulesVersion::MOCK,
+        std::move(partial_tx),
+        std::move(sp_alignable_membership_proofs),
+        tx_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
 void construct_tx_for_mock_ledger_v1(const legacy_mock_keys &local_user_legacy_keys,
     const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
     const InputSelectorV1 &local_user_input_selector,
@@ -359,6 +608,34 @@ void construct_tx_for_mock_ledger_v1(const legacy_mock_keys &local_user_legacy_k
         ref_set_decomp_n,
         ref_set_decomp_m,
         bin_config,
+        ledger_context,
+        tx_out,
+        selfsend_payments,
+        normal_payments);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void construct_tx_for_mock_ledger_v2(const legacy_mock_keys &local_user_legacy_keys,
+    const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
+    const InputSelectorV1 &local_user_input_selector,
+    const FeeCalculator &tx_fee_calculator,
+    const rct::xmr_amount fee_per_tx_weight,
+    const std::size_t max_inputs,
+    const std::vector<std::tuple<rct::xmr_amount, jamtis::JamtisDestinationV1, TxExtra>> &outlays,
+    const std::size_t legacy_ring_size,
+    /*const*/ MockLedgerContext &ledger_context, // TODO: use cleaner curve trees data type so this can be const
+    SpTxSquashedV2 &tx_out)
+{
+    std::vector<jamtis::JamtisPaymentProposalSelfSendV1> selfsend_payments;
+    std::vector<jamtis::JamtisPaymentProposalV1> normal_payments;
+
+    construct_tx_for_mock_ledger_v2(local_user_legacy_keys,
+        local_user_sp_keys,
+        local_user_input_selector,
+        tx_fee_calculator,
+        fee_per_tx_weight,
+        max_inputs,
+        outlays,
+        legacy_ring_size,
         ledger_context,
         tx_out,
         selfsend_payments,
@@ -467,6 +744,37 @@ void transfer_funds_single_mock_v1(const legacy_mock_keys &local_user_legacy_key
         single_tx);
 
     // 2, validate and submit to the mock ledger
+    const TxValidationContextMock tx_validation_context{ledger_context_inout};
+    CHECK_AND_ASSERT_THROW_MES(validate_tx(single_tx, tx_validation_context),
+        "transfer funds single mock: validating tx failed.");
+    CHECK_AND_ASSERT_THROW_MES(try_add_tx_to_ledger(single_tx, ledger_context_inout),
+        "transfer funds single mock: adding tx to mock ledger failed.");
+}
+//-------------------------------------------------------------------------------------------------------------------
+void transfer_funds_single_mock_v2(const legacy_mock_keys &local_user_legacy_keys,
+    const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
+    const InputSelectorV1 &local_user_input_selector,
+    const FeeCalculator &tx_fee_calculator,
+    const rct::xmr_amount fee_per_tx_weight,
+    const std::size_t max_inputs,
+    const std::vector<std::tuple<rct::xmr_amount, jamtis::JamtisDestinationV1, TxExtra>> &outlays,
+    const std::size_t legacy_ring_size,
+    MockLedgerContext &ledger_context_inout)
+{
+    // 1. make one tx
+    SpTxSquashedV2 single_tx;
+    construct_tx_for_mock_ledger_v2(local_user_legacy_keys,
+        local_user_sp_keys,
+        local_user_input_selector,
+        tx_fee_calculator,
+        fee_per_tx_weight,
+        max_inputs,
+        outlays,
+        legacy_ring_size,
+        ledger_context_inout,
+        single_tx);
+
+    // 2. validate and submit to the mock ledger
     const TxValidationContextMock tx_validation_context{ledger_context_inout};
     CHECK_AND_ASSERT_THROW_MES(validate_tx(single_tx, tx_validation_context),
         "transfer funds single mock: validating tx failed.");

@@ -46,6 +46,7 @@ namespace sp
 {
     struct SpTxCoinbaseV1;
     struct SpTxSquashedV1;
+    struct SpTxSquashedV2;
     class TxValidationContext;
 }
 
@@ -86,7 +87,9 @@ enum class TxStructureVersionSp : unsigned char
     /// coinbase transaction
     TxTypeSpCoinbaseV1 = 0,
     /// normal transaction: squashed v1
-    TxTypeSpSquashedV1 = 1
+    TxTypeSpSquashedV1 = 1,
+    /// normal transaction: squashed v2
+    TxTypeSpSquashedV2 = 2
 };
 
 /// get the tx version: era | format | semantic rules
@@ -142,5 +145,8 @@ bool validate_txs(const std::vector<const SpTxCoinbaseV1*> &txs, const TxValidat
 /// SpTxSquashedV1
 bool validate_tx(const SpTxSquashedV1 &tx, const TxValidationContext &tx_validation_context);
 bool validate_txs(const std::vector<const SpTxSquashedV1*> &txs, const TxValidationContext &tx_validation_context);
+/// SpTxSquashedV2
+bool validate_tx(const SpTxSquashedV2 &tx, const TxValidationContext &tx_validation_context);
+bool validate_txs(const std::vector<const SpTxSquashedV2*> &txs, const TxValidationContext &tx_validation_context);
 
 } //namespace sp

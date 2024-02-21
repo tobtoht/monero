@@ -289,6 +289,7 @@ namespace config
   const constexpr char HASH_KEY_SERAPHIS_TX_ARTIFACTS_MERKLE_ROOT_V1[] = "sp_tx_artifacts_merkle_root_v1";
   const constexpr char HASH_KEY_SERAPHIS_TRANSACTION_TYPE_COINBASE_V1[] = "sp_txtype_coinbase_v1";
   const constexpr char HASH_KEY_SERAPHIS_TRANSACTION_TYPE_SQUASHED_V1[] = "sp_txtype_squashed_v1";
+  const constexpr char HASH_KEY_SERAPHIS_TRANSACTION_TYPE_SQUASHED_V2[] = "sp_txtype_squashed_v2";
 
   const constexpr char HASH_KEY_SERAPHIS_ADDRESS_OWNERSHIP_PROOF_OFFSET_V1[] = "sp_address_ownership_proof_offset_v1";
   const constexpr char HASH_KEY_SERAPHIS_ENOTE_KEY_IMAGE_PROOF_MESSAGE_V1[] = "sp_enote_key_image_proof_message_v1";

@@ -49,7 +49,8 @@ set(seraphis_main_sources
   tx_validators.cpp
   txtype_base.cpp
   txtype_coinbase_v1.cpp
-  txtype_squashed_v1.cpp)
+  txtype_squashed_v1.cpp
+  txtype_squashed_v2.cpp)
 
 monero_find_all_headers(seraphis_main_headers, "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -64,6 +65,7 @@ target_link_libraries(seraphis_main
     cryptonote_basic
     device
     epee
+    monero_rust
     multisig
     ringct
     seraphis_core

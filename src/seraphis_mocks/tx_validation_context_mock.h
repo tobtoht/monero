@@ -36,6 +36,8 @@
 #include "crypto/crypto.h"
 #include "mock_ledger_context.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_main/tx_validation_context.h"
 
 //third party headers
@@ -101,6 +103,11 @@ public:
         rct::keyV &proof_elements_out) const override
     {
         m_mock_ledger_context.get_reference_set_proof_elements_v2(indices, proof_elements_out);
+    }
+    // TODO: replace with clean getters
+    const rust::box<monero_rust::curve_trees::GeneratorsAndTree>* get_curve_trees_generators_and_tree() const override
+    {
+        return &m_mock_ledger_context.m_curve_trees_generators_and_tree;
     }
 
 //member variables

@@ -34,6 +34,7 @@
 #include "seraphis_main/txtype_base.h"
 #include "seraphis_main/txtype_coinbase_v1.h"
 #include "seraphis_main/txtype_squashed_v1.h"
+#include "seraphis_main/txtype_squashed_v2.h"
 #include "seraphis_mocks/seraphis_mocks.h"
 
 #include "gtest/gtest.h"
@@ -59,6 +60,16 @@ struct SpTxGenData
     std::size_t ref_set_decomp_n{1};
     std::size_t ref_set_decomp_m{1};
     SpBinnedReferenceSetConfigV1 bin_config{0, 0};
+    std::vector<rct::xmr_amount> alternate_input_amounts;  //alternate all-legacy then all-seraphis inputs
+    std::vector<rct::xmr_amount> output_amounts;
+    DiscretizedFee discretized_transaction_fee{discretize_fee(0)};
+    TestType expected_result{TestType::ExpectTrue};
+    bool test_double_spend{false};
+};
+
+struct SpTxGenDataV2
+{
+    std::size_t legacy_ring_size{0};
     std::vector<rct::xmr_amount> alternate_input_amounts;  //alternate all-legacy then all-seraphis inputs
     std::vector<rct::xmr_amount> output_amounts;
     DiscretizedFee discretized_transaction_fee{discretize_fee(0)};
@@ -123,6 +134,54 @@ static void run_mock_tx_test(const std::size_t legacy_ring_size,
     }
 }
 //-------------------------------------------------------------------------------------------------------------------
+static void run_mock_sp_tx_squashed_v2_test(const std::size_t legacy_ring_size,
+    const std::vector<rct::xmr_amount> legacy_input_amounts,
+    const std::vector<rct::xmr_amount> sp_input_amounts,
+    const std::vector<rct::xmr_amount> output_amounts,
+    const DiscretizedFee discretized_transaction_fee,
+    const TestType expected_result,
+    const bool test_double_spend,
+    MockLedgerContext &ledger_context_inout)
+{
+    const TxValidationContextMock tx_validation_context{ledger_context_inout};
+
+    try
+    {
+        // mock params
+        SpTxParamPackV2 tx_params;
+
+        tx_params.legacy_ring_size         = legacy_ring_size;
+        tx_params.num_random_memo_elements = 0;
+
+        // make tx
+        SpTxSquashedV2 tx;
+        make_mock_tx<SpTxSquashedV2>(tx_params,
+            legacy_input_amounts,
+            sp_input_amounts,
+            output_amounts,
+            discretized_transaction_fee,
+            ledger_context_inout,
+            tx);
+
+        // validate tx
+        EXPECT_TRUE(validate_tx(tx, tx_validation_context));
+
+        if (test_double_spend)
+        {
+            // add key images once validated
+            EXPECT_TRUE(try_add_tx_to_ledger(tx, ledger_context_inout));
+
+            // re-validate tx
+            // - should fail now that key images were added to the ledger
+            EXPECT_FALSE(validate_tx(tx, tx_validation_context));
+        }
+    }
+    catch (...)
+    {
+        EXPECT_TRUE(expected_result == TestType::ExpectAnyThrow);
+    }
+}
+//-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 template <typename SpTxType>
 static void run_mock_tx_tests(const std::vector<SpTxGenData> &gen_data)
@@ -145,6 +204,35 @@ static void run_mock_tx_tests(const std::vector<SpTxGenData> &gen_data)
                 gen.ref_set_decomp_n,
                 gen.ref_set_decomp_m,
                 gen.bin_config,
+                legacy_input_amounts,
+                sp_input_amounts,
+                gen.output_amounts,
+                gen.discretized_transaction_fee,
+                gen.expected_result,
+                gen.test_double_spend,
+                ledger_context);
+        }
+    }
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+static void run_mock_sp_tx_squashed_v2_tests(const std::vector<SpTxGenDataV2> &gen_data)
+{
+    MockLedgerContext ledger_context{0, 10000};
+
+    for (const SpTxGenDataV2 &gen : gen_data)
+    {
+        for (std::size_t i{0}; i < 2; ++i)
+        {
+            std::vector<rct::xmr_amount> legacy_input_amounts;
+            std::vector<rct::xmr_amount> sp_input_amounts;
+
+            if (i == 0)
+                legacy_input_amounts = gen.alternate_input_amounts;
+            else
+                sp_input_amounts = gen.alternate_input_amounts;
+
+            run_mock_sp_tx_squashed_v2_test(gen.legacy_ring_size,
                 legacy_input_amounts,
                 sp_input_amounts,
                 gen.output_amounts,
@@ -485,6 +573,141 @@ static std::vector<SpTxGenData> get_mock_tx_gen_data_misc(const bool test_double
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static std::vector<SpTxGenDataV2> get_mock_tx_gen_data_v2_misc(const bool test_double_spend)
+{
+    /// success cases
+    std::vector<SpTxGenDataV2> gen_data;
+    gen_data.reserve(20);
+
+    // 1-in/1-out
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectTrue;
+        temp.alternate_input_amounts.push_back(1);
+        temp.output_amounts.push_back(1);
+        temp.legacy_ring_size = 2;
+        temp.test_double_spend = test_double_spend;
+
+        gen_data.push_back(temp);
+    }
+
+    // 1-in/1-out non-zero fee
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectTrue;
+        temp.alternate_input_amounts.push_back(2);
+        temp.output_amounts.push_back(1);
+        temp.discretized_transaction_fee = discretize_fee(1);
+        temp.legacy_ring_size = 2;
+        temp.test_double_spend = test_double_spend;
+
+        gen_data.push_back(temp);
+    }
+
+    // 1-in/2-out
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectTrue;
+        temp.alternate_input_amounts.push_back(2);
+        temp.output_amounts.push_back(1);
+        temp.output_amounts.push_back(1);
+        temp.legacy_ring_size = 2;
+        temp.test_double_spend = test_double_spend;
+
+        gen_data.push_back(temp);
+    }
+
+    // 2-in/1-out
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectTrue;
+        temp.alternate_input_amounts.push_back(1);
+        temp.alternate_input_amounts.push_back(1);
+        temp.output_amounts.push_back(2);
+        temp.legacy_ring_size = 2;
+        temp.test_double_spend = test_double_spend;
+
+        gen_data.push_back(temp);
+    }
+
+    // 8-in/8-out; legacy ref set 4; seraphis ref set 8
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectTrue;
+        temp.legacy_ring_size = 4;
+        for (std::size_t i{0}; i < 8; ++i)
+        {
+            temp.alternate_input_amounts.push_back(1);
+            temp.output_amounts.push_back(1);
+        }
+        temp.test_double_spend = test_double_spend;
+
+        gen_data.push_back(temp);
+    }
+
+    // 4-in/4-out + amounts 0
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectTrue;
+        temp.legacy_ring_size = 2;
+        for (std::size_t i{0}; i < 4; ++i)
+        {
+            temp.alternate_input_amounts.push_back(0);
+            temp.output_amounts.push_back(0);
+        }
+        temp.test_double_spend = test_double_spend;
+
+        gen_data.push_back(temp);
+    }
+
+    /// failure cases
+
+    // no inputs
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectAnyThrow;
+        temp.output_amounts.push_back(0);
+        temp.legacy_ring_size = 2;
+
+        gen_data.push_back(temp);
+    }
+
+    // no outputs
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectAnyThrow;
+        temp.alternate_input_amounts.push_back(0);
+        temp.legacy_ring_size = 2;
+
+        gen_data.push_back(temp);
+    }
+
+    // no ref set size
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectAnyThrow;
+        temp.alternate_input_amounts.push_back(1);
+        temp.output_amounts.push_back(1);
+        temp.legacy_ring_size = 0;
+
+        gen_data.push_back(temp);
+    }
+
+    // amounts don't balance
+    {
+        SpTxGenDataV2 temp;
+        temp.expected_result = TestType::ExpectAnyThrow;
+        temp.alternate_input_amounts.push_back(2);
+        temp.output_amounts.push_back(1);
+        temp.legacy_ring_size = 2;
+
+        gen_data.push_back(temp);
+    }
+
+    return gen_data;
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 static std::vector<SpTxGenData> get_mock_tx_gen_data_batching()
 {
     /// a batch of 3 tx
@@ -586,5 +809,10 @@ TEST(seraphis_tx, seraphis_squashed_multi_input_type)
         TestType::ExpectTrue,
         true,
         ledger_context);
+}
+//-------------------------------------------------------------------------------------------------------------------
+TEST(seraphis_tx, seraphis_squashed_fcmp)
+{
+    run_mock_sp_tx_squashed_v2_tests(get_mock_tx_gen_data_v2_misc(true));
 }
 //-------------------------------------------------------------------------------------------------------------------

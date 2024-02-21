@@ -83,6 +83,12 @@ void send_sp_coinbase_amounts_to_user(const std::vector<rct::xmr_amount> &coinba
 void send_sp_coinbase_amounts_to_users(const std::vector<std::vector<rct::xmr_amount>> &coinbase_amounts_per_user,
     const std::vector<jamtis::JamtisDestinationV1> &user_addresses,
     MockLedgerContext &ledger_context_inout);
+void send_sp_coinbase_amounts_to_user_v2(const std::vector<rct::xmr_amount> &coinbase_amounts,
+    const jamtis::JamtisDestinationV1 &user_address,
+    MockLedgerContext &ledger_context_inout);
+void send_sp_coinbase_amounts_to_users_v2(const std::vector<std::vector<rct::xmr_amount>> &coinbase_amounts_per_user,
+    const std::vector<jamtis::JamtisDestinationV1> &user_addresses,
+    MockLedgerContext &ledger_context_inout);
 /// create a seraphis transaction
 void construct_tx_for_mock_ledger_v1(const legacy_mock_keys &local_user_legacy_keys,
     const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
@@ -146,6 +152,15 @@ void transfer_funds_single_mock_v1(const legacy_mock_keys &local_user_legacy_key
     const std::size_t ref_set_decomp_n,
     const std::size_t ref_set_decomp_m,
     const SpBinnedReferenceSetConfigV1 &bin_config,
+    MockLedgerContext &ledger_context_inout);
+void transfer_funds_single_mock_v2(const legacy_mock_keys &local_user_legacy_keys,
+    const jamtis::mocks::jamtis_mock_keys &local_user_sp_keys,
+    const InputSelectorV1 &local_user_input_selector,
+    const FeeCalculator &tx_fee_calculator,
+    const rct::xmr_amount fee_per_tx_weight,
+    const std::size_t max_inputs,
+    const std::vector<std::tuple<rct::xmr_amount, jamtis::JamtisDestinationV1, TxExtra>> &outlays,
+    const std::size_t legacy_ring_size,
     MockLedgerContext &ledger_context_inout);
 /// refresh an enote store
 void refresh_user_enote_store_legacy_intermediate(const rct::key &legacy_base_spend_pubkey,

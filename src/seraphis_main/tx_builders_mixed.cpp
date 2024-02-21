@@ -38,6 +38,8 @@
 #include "misc_log_ex.h"
 #include "ringct/rctOps.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/binned_reference_set_utils.h"
 #include "seraphis_core/jamtis_core_utils.h"
 #include "seraphis_core/jamtis_support_types.h"
@@ -58,6 +60,7 @@
 #include "tx_validators.h"
 #include "txtype_base.h"
 #include "txtype_squashed_v1.h"
+#include "txtype_squashed_v2.h"
 
 //third party headers
 #include "boost/multiprecision/cpp_int.hpp"
@@ -139,6 +142,11 @@ public:
             else
                 proof_elements_out.emplace_back(rct::key{});
         }
+    }
+
+    rust::box<monero_rust::curve_trees::GeneratorsAndTree>* get_curve_trees_generators_and_tree() const override
+    {
+        return nullptr;
     }
 
 //member variables
@@ -703,6 +711,18 @@ void make_tx_proposal_prefix_v1(const SpTxSquashedV1 &tx, rct::key &tx_proposal_
         tx_proposal_prefix_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
+void make_tx_proposal_prefix_v1(const SpTxSquashedV2 &tx, rct::key &tx_proposal_prefix_out)
+{
+    // get proposal prefix
+    make_tx_proposal_prefix_v1(tx_version_from(tx.tx_semantic_rules_version),
+        tx.legacy_input_images,
+        tx.sp_input_images,
+        tx.outputs,
+        tx.tx_fee,
+        tx.tx_supplement,
+        tx_proposal_prefix_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
 void make_tx_proofs_prefix_v1(const SpBalanceProofV1 &balance_proof,
     const std::vector<LegacyRingSignatureV4> &legacy_ring_signatures,
     const std::vector<SpImageProofV1> &sp_image_proofs,
@@ -719,6 +739,33 @@ void make_tx_proofs_prefix_v1(const SpBalanceProofV1 &balance_proof,
                 sp_image_proofs.size() * sp_image_proof_v1_size_bytes() +
                 (sp_membership_proofs.size()
                     ? sp_membership_proofs.size() * sp_membership_proof_v1_size_bytes(sp_membership_proofs[0])
+                    : 0)
+        };
+    transcript.append("balance_proof", balance_proof);
+    transcript.append("legacy_ring_signatures", legacy_ring_signatures);
+    transcript.append("sp_image_proofs", sp_image_proofs);
+    transcript.append("sp_membership_proofs", sp_membership_proofs);
+
+    sp_hash_to_32(transcript.data(), transcript.size(), tx_proofs_prefix_out.bytes);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_tx_proofs_prefix_v1(const SpBalanceProofV1 &balance_proof,
+    const std::vector<LegacyRingSignatureV4> &legacy_ring_signatures,
+    const std::vector<SpImageProofV1> &sp_image_proofs,
+    const std::vector<SpMembershipProofV2> &sp_membership_proofs,
+    rct::key &tx_proofs_prefix_out)
+{
+    // H_32(balance proof, legacy ring signatures, seraphis image proofs, seraphis membership proofs)
+    SpFSTranscript transcript{
+            config::HASH_KEY_SERAPHIS_TX_PROOFS_PREFIX_V1,
+            sp_balance_proof_v1_size_bytes(balance_proof) +
+                (legacy_ring_signatures.size()
+                    ? legacy_ring_signatures.size() * legacy_ring_signature_v4_size_bytes(legacy_ring_signatures[0])
+                    : 0) +
+                sp_image_proofs.size() * sp_image_proof_v1_size_bytes() +
+                (sp_membership_proofs.size()
+                    // TODO: implement sp_membership_proof_v2_size_bytes
+                    ? sp_membership_proofs.size() * 32 /*sp_membership_proof_v2_size_bytes(sp_membership_proofs[0])*/
                     : 0)
         };
     transcript.append("balance_proof", balance_proof);

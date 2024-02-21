@@ -35,6 +35,8 @@
 #include "crypto/x25519.h"
 #include "enote_record_types.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/binned_reference_set.h"
 #include "seraphis_core/sp_core_types.h"
 #include "tx_builder_types.h"
@@ -286,5 +288,39 @@ void make_v1_alignable_membership_proofs_v1(std::vector<SpMembershipProofPrepV1>
 void align_v1_membership_proofs_v1(const std::vector<SpEnoteImageV1> &input_images,
     std::vector<SpAlignableMembershipProofV1> membership_proofs_alignable,
     std::vector<SpMembershipProofV1> &membership_proofs_out);
+/**
+* brief: make_v2_membership_proof_v2 - make a full chain membership proof in the squashed enote model
+* param: curve_trees_generators_and_tree -
+* param: referenced_enotes_squashed -
+* outparam: membership_proof_out -
+*/
+SpMembershipProofV2 make_v2_membership_proof_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    const SpEnoteCoreVariant &real_reference_enote,
+    const crypto::secret_key &address_mask,
+    const crypto::secret_key &commitment_mask);
+// TODO: define a cleaner struct instead of nested pairs
+std::vector<SpMembershipProofV2> make_v2_membership_proofs_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    std::vector<std::pair<SpEnoteCoreVariant, std::pair<crypto::secret_key, crypto::secret_key>>> real_reference_enotes);
+
+/**
+* brief: make_v2_alignable_membership_proof_v2 - make an alignable membership proof (alignable means it can be aligned
+*   with the corresponding enote image at a later time)
+* param: membership_proof_prep -
+* outparam: alignable_membership_proof_out -
+*/
+SpAlignableMembershipProofV2 make_v2_alignable_membership_proof_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    SpEnoteCoreVariant real_reference_enote,
+    const crypto::secret_key &address_mask,
+    const crypto::secret_key &commitment_mask);
+std::vector<SpAlignableMembershipProofV2> make_v2_alignable_membership_proofs_v2(rust::box<monero_rust::curve_trees::GeneratorsAndTree> &curve_trees_generators_and_tree,
+    std::vector<std::pair<SpEnoteCoreVariant, std::pair<crypto::secret_key, crypto::secret_key>>> real_reference_enotes);
+/**
+* brief: align_v2_membership_proofs_v2 - rearrange seraphis membership proofs so they line up with a set of input images
+* param: input_images -
+* param: membership_proofs_alignable -
+* outparam: membership_proofs_out -
+*/
+std::vector<SpMembershipProofV2> align_v2_membership_proofs_v2(const std::vector<SpEnoteImageV1> &input_images,
+    std::vector<SpAlignableMembershipProofV2> alignable_membership_proofs);
 
 } //namespace sp

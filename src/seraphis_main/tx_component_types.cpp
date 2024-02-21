@@ -211,6 +211,28 @@ std::size_t sp_membership_proof_v1_size_bytes_compact(const SpMembershipProofV1 
         proof.binned_reference_set.bin_config.num_bin_members);
 }
 //-------------------------------------------------------------------------------------------------------------------
+void append_to_transcript(const SpMembershipProofV2 &container, SpTranscriptBuilder &transcript_inout)
+{
+    transcript_inout.append("blinded_point_and_proof", container.blinded_point_and_proof);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void append_to_transcript(const rust::Box<monero_rust::curve_trees::BlindedPointAndProof> &container, SpTranscriptBuilder &transcript_inout)
+{
+    // TODO: implement
+}
+//-------------------------------------------------------------------------------------------------------------------
+std::size_t sp_membership_proof_v2_size_bytes(const std::size_t n)
+{
+    // TODO: implement
+    return 0;
+}
+//-------------------------------------------------------------------------------------------------------------------
+std::size_t sp_membership_proof_v2_size_bytes(const SpMembershipProofV1 &proof)
+{
+    // TODO: implement
+    return 0;
+}
+//-------------------------------------------------------------------------------------------------------------------
 void append_to_transcript(const SpImageProofV1 &container, SpTranscriptBuilder &transcript_inout)
 {
     transcript_inout.append("composition_proof", container.composition_proof);

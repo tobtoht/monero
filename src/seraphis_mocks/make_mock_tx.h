@@ -47,6 +47,7 @@ namespace sp
     struct DiscretizedFee;
     struct SpTxCoinbaseV1;
     struct SpTxSquashedV1;
+    struct SpTxSquashedV2;
     class TxValidationContext;
 namespace mocks
 {
@@ -91,6 +92,15 @@ struct SpTxParamPackV1
     std::size_t num_random_memo_elements{0};
     SpBinnedReferenceSetConfigV1 bin_config{0, 0};
 };
+////
+/// SpTxParamPackV2 - parameter pack (for unit tests/mockups/etc.)
+///
+struct SpTxParamPackV2
+{
+    // TODO: implement fcmp config opts
+    std::size_t legacy_ring_size{0};
+    std::size_t num_random_memo_elements{0};
+};
 /// make an SpTxCoinbaseV1 transaction
 template <>
 void make_mock_tx<SpTxCoinbaseV1>(const SpTxParamPackV1 &params,
@@ -109,6 +119,15 @@ void make_mock_tx<SpTxSquashedV1>(const SpTxParamPackV1 &params,
     const DiscretizedFee discretized_transaction_fee,
     MockLedgerContext &ledger_context_inout,
     SpTxSquashedV1 &tx_out);
+/// make an SpTxSquashedV2 transaction
+template <>
+void make_mock_tx<SpTxSquashedV2>(const SpTxParamPackV2 &params,
+    const std::vector<rct::xmr_amount> &legacy_in_amounts,
+    const std::vector<rct::xmr_amount> &sp_in_amounts,
+    const std::vector<rct::xmr_amount> &out_amounts,
+    const DiscretizedFee discretized_transaction_fee,
+    MockLedgerContext &ledger_context_inout,
+    SpTxSquashedV2 &tx_out);
 
 } //namespace mocks
 } //namespace sp

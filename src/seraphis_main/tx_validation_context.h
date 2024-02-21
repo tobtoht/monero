@@ -33,6 +33,8 @@
 //local headers
 #include "crypto/crypto.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 
 //third party headers
 
@@ -84,6 +86,11 @@ public:
     */
     virtual void get_reference_set_proof_elements_v2(const std::vector<std::uint64_t> &indices,
         rct::keyV &proof_elements_out) const = 0;
+    // TODO: implement clean getters on curve trees state
+    /**
+    * brief: get_curve_trees_generators_and_tree -
+    */
+    virtual const rust::box<monero_rust::curve_trees::GeneratorsAndTree>* get_curve_trees_generators_and_tree() const = 0;
 };
 
 } //namespace sp

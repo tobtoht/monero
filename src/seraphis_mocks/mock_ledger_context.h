@@ -41,6 +41,8 @@
 #include "cryptonote_basic/subaddress_index.h"
 #include "ringct/rctOps.h"
 #include "ringct/rctTypes.h"
+#include "rust/cxx.h"
+#include "rust/monero_rust.h"
 #include "seraphis_core/legacy_enote_types.h"
 #include "seraphis_crypto/sp_crypto_utils.h"
 #include "seraphis_main/scan_core_types.h"
@@ -63,6 +65,7 @@ namespace mocks
 }
     struct SpTxCoinbaseV1;
     struct SpTxSquashedV1;
+    struct SpTxSquashedV2;
 }
 
 namespace sp
@@ -178,6 +181,7 @@ public:
     * return: true if adding succeeded
     */
     bool try_add_unconfirmed_tx_v1(const SpTxSquashedV1 &tx);
+    bool try_add_unconfirmed_tx_v2(const SpTxSquashedV2 &tx);
     /**
     * brief: commit_unconfirmed_cache_v1 - move all unconfirmed txs onto the chain in a new block, with new mock coinbase tx
     *   - clears the unconfirmed tx cache
@@ -193,6 +197,10 @@ public:
         const rct::key &mock_coinbase_input_context,
         SpTxSupplementV1 mock_coinbase_tx_supplement,
         std::vector<SpEnoteVariant> mock_coinbase_output_enotes);
+    std::uint64_t commit_unconfirmed_txs_v2(const rct::key &coinbase_tx_id,
+        const rct::key &mock_coinbase_input_context,
+        SpTxSupplementV1 mock_coinbase_tx_supplement,
+        std::vector<SpEnoteVariant> mock_coinbase_output_enotes);
     /**
     * brief: commit_unconfirmed_cache_v1 - move all unconfirmed txs onto the chain in a new block, with new
     *      coinbase tx
@@ -204,6 +212,7 @@ public:
     * return: block index of newly added block
     */
     std::uint64_t commit_unconfirmed_txs_v1(const SpTxCoinbaseV1 &coinbase_tx);
+    std::uint64_t commit_unconfirmed_txs_v2(const SpTxCoinbaseV1 &coinbase_tx);
     /**
     * brief: pop_chain_at_index - remove all blocks >= the specified block index from the chain
     * param: pop_index - first block to pop from the chain
@@ -256,6 +265,8 @@ public:
         scanning::ChunkContext &chunk_context_out,
         scanning::ChunkData &chunk_data_out) const;
 
+    // TODO: make clean getters, don't expose the type
+    rust::box<monero_rust::curve_trees::GeneratorsAndTree> m_curve_trees_generators_and_tree = monero_rust::curve_trees::init();
 private:
     /// first block where a seraphis tx is allowed (this block and all following must have a seraphis coinbase tx)
     std::uint64_t m_first_seraphis_allowed_block;
@@ -355,6 +366,7 @@ private:
 
 bool try_add_tx_to_ledger(const SpTxCoinbaseV1 &tx_to_add, MockLedgerContext &ledger_context_inout);
 bool try_add_tx_to_ledger(const SpTxSquashedV1 &tx_to_add, MockLedgerContext &ledger_context_inout);
+bool try_add_tx_to_ledger(const SpTxSquashedV2 &tx_to_add, MockLedgerContext &ledger_context_inout);
 
 } //namespace mocks
 } //namespace sp

@@ -103,6 +103,16 @@ bool alignment_check(const SpAlignableMembershipProofV1 &proof, const rct::key &
     return proof.masked_address == masked_address;
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool alignment_check(const SpAlignableMembershipProofV2 &a, const SpAlignableMembershipProofV2 &b)
+{
+    return a.masked_address == b.masked_address;
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool alignment_check(const SpAlignableMembershipProofV2 &proof, const rct::key &masked_address)
+{
+    return proof.masked_address == masked_address;
+}
+//-------------------------------------------------------------------------------------------------------------------
 void get_enote_image_v1(const SpInputProposalV1 &proposal, SpEnoteImageV1 &image_out)
 {
     get_enote_image_core(proposal.core, image_out.core);

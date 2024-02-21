@@ -151,6 +151,20 @@ struct SpAlignableMembershipProofV1 final
 };
 
 ////
+// SpAlignableMembershipProofV2
+// - the masked address can be used to match this membership proof with the corresponding input image
+//   - note: matching can fail if a masked address is reused in a tx, but that is almost definitely an implementation
+//     error!
+///
+struct SpAlignableMembershipProofV2 final
+{
+    /// masked address used in the membership proof (for matching with corresponding input image)
+    rct::key masked_address;
+    /// the membership proof
+    SpMembershipProofV2 membership_proof;
+};
+
+////
 // SpCoinbaseTxProposalV1
 // - the proposed block height, reward, outputs, and miscellaneous memos
 ///
@@ -255,6 +269,8 @@ bool compare_KI(const SpPartialInputV1 &a, const SpPartialInputV1 &b);
 /// alignment checks for aligning seraphis membership proofs: test if masked addresses are equal
 bool alignment_check(const SpAlignableMembershipProofV1 &a, const SpAlignableMembershipProofV1 &b);
 bool alignment_check(const SpAlignableMembershipProofV1 &proof, const rct::key &masked_address);
+bool alignment_check(const SpAlignableMembershipProofV2 &a, const SpAlignableMembershipProofV2 &b);
+bool alignment_check(const SpAlignableMembershipProofV2 &proof, const rct::key &masked_address);
 
 /**
 * brief: get_enote_image_v1 - get the input proposal's enote image in the squashed enote model
