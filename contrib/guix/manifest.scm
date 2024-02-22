@@ -90,7 +90,7 @@ chain for " target " development."))
       (home-page (package-home-page xgcc))
       (license (package-license xgcc)))))
 
-(define base-gcc gcc-10)
+(define base-gcc gcc-12)
 (define base-linux-kernel-headers linux-libre-headers-6.1)
 
 (define* (make-monero-cross-toolchain  target
@@ -250,8 +250,8 @@ chain for " target " development."))
         gettext-minimal
         cmake-minimal
         ;; Native GCC 10 toolchain
-        gcc-toolchain-10
-        (list gcc-toolchain-10 "static")
+        gcc-toolchain-12
+        (list gcc-toolchain-12 "static")
         ;; Scripting
         perl
         python-minimal
