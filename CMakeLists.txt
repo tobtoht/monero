@@ -373,6 +373,18 @@ if(NOT MANUAL_SUBMODULES)
     check_submodule(external/randomx)
     check_submodule(external/supercop)
     check_submodule(external/mx25519)
+
+    # TODO: remove check_submodule_commit
+    function (check_submodule_commit relative_path commit)
+      execute_process(COMMAND git rev-parse "HEAD" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${relative_path} OUTPUT_VARIABLE localHead)
+      string(COMPARE EQUAL "${localHead}" "${commit}\n" upToDate)
+      if (upToDate)
+        message(STATUS "Submodule '${relative_path}' is up-to-date")
+      else()
+        message(FATAL_ERROR "Submodule '${relative_path}' is not up-to-date. Please update all submodules with\ngit submodule update --init --force\nor run cmake with -DMANUAL_SUBMODULES=1\n")
+      endif()
+    endfunction ()
+    check_submodule_commit(external/full-chain-membership-proofs 40ebc979c54f3007740e42764301d18c0d561125)
   endif()
 endif()
 

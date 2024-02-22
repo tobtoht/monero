@@ -15,12 +15,13 @@ mod ffi {
     #[namespace = "monero_rust::curve_trees"]
     extern "Rust" {
         type GeneratorsAndTree;
+        // TODO: don't pass blinded point back
         type BlindedPointAndProof;
 
         fn init() -> Box<GeneratorsAndTree>;
         fn add_squashed_enote_to_tree(state: &mut Box<GeneratorsAndTree>, squashed_enote: &[u8]);
         fn make_blind(generators_and_tree: &mut Box<GeneratorsAndTree>) -> [u8; 32];
-        // TODO: use consistent type for blind
+        // TODO: pass blinded point in to prove
         fn prove(generators_and_tree: &Box<GeneratorsAndTree>, blind: &[u8], squashed_enote: &[u8]) -> Box<BlindedPointAndProof>;
         fn verify(generators_and_tree: &Box<GeneratorsAndTree>, proof_res: &Box<BlindedPointAndProof>) -> bool;
     }
@@ -34,6 +35,10 @@ pub struct BlindedPointAndProof {
 }
 
 pub fn init() -> Box<GeneratorsAndTree> {
+    // TODO: share C1 H generator with Seraphis (required)
+    // TODO: use constant generators, don't randomly generate each init (required)
+    // TODO: share bulletproof generators with Seraphis (perf optimization)
+    // TODO: share C1 G generator with Seraphis (cleanliness)
     Box::new(GeneratorsAndTree(ed25519_init()))
 }
 

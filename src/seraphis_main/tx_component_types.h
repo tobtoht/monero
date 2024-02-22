@@ -168,6 +168,9 @@ std::size_t sp_membership_proof_v1_size_bytes_compact(const SpMembershipProofV1 
 struct SpMembershipProofV2 final
 {
     // TODO: use cleaner types
+    // TODO: the blinded point should be equal to SpMembershipProofV1 image_offset.
+    // It should be recalculated on verification (Q" = K" + C") and shouldn't
+    // be included along with the membership proof
     rust::Box<monero_rust::curve_trees::BlindedPointAndProof> blinded_point_and_proof;
 };
 inline const boost::string_ref container_name(const SpMembershipProofV2&) { return "SpMembershipProofV2"; }
