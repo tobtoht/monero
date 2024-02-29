@@ -48,9 +48,12 @@ set(seraphis_core_sources
 
 monero_find_all_headers(seraphis_core_headers, "${CMAKE_CURRENT_SOURCE_DIR}")
 
-monero_add_library(seraphis_core
-  ${seraphis_core_sources}
-  ${seraphis_core_headers})
+monero_add_library_with_deps(
+  NAME seraphis_core
+  DEPENDS rust_cxx
+  SOURCES
+    ${seraphis_core_sources}
+    ${seraphis_core_headers})
 
 target_link_libraries(seraphis_core
   PUBLIC
