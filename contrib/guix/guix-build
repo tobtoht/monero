@@ -363,6 +363,19 @@ EOF
             exit 0
         fi
 
+        # Fetch cargo dependencies
+        time-machine environment --manifest="${PWD}/contrib/guix/cargo.scm" \
+                                 --container \
+                                 --pure \
+                                 --network \
+                                 --no-cwd \
+                                 --user="user" \
+                                 --share="$PWD"=/monero \
+                                 -- bash -c "cd /monero/src/fcmp_pp/fcmp_pp_rust &&
+                                            cargo fetch &&
+                                            rm -rf /monero/cargo &&
+                                            mv /home/user/.cargo /monero/cargo"
+
         # Run the build script 'contrib/guix/libexec/build.sh' in the build
         # container specified by 'contrib/guix/manifest.scm'.
         #
@@ -434,6 +447,7 @@ EOF
                                  --pure \
                                  --no-cwd \
                                  --share="$PWD"=/monero \
+                                 --share="$PWD/cargo"=/home/user/.cargo \
                                  --share="$DISTSRC_BASE"=/distsrc-base \
                                  --share="$OUTDIR_BASE"=/outdir-base \
                                  --share="$LOGDIR_BASE"=/logdir-base \

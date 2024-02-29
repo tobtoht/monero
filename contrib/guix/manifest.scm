@@ -19,6 +19,7 @@
              (gnu packages perl)
              (gnu packages pkg-config)
              ((gnu packages python) #:select (python-minimal))
+             (gnu packages rust)
              ((gnu packages tls) #:select (openssl))
              ((gnu packages version-control) #:select (git-minimal))
              (guix build-system gnu)
@@ -251,6 +252,8 @@ chain for " target " development."))
         gperf
         gettext-minimal
         cmake-minimal
+        rust
+        `(,rust "cargo")
         ;; Scripting
         perl
         python-minimal
