@@ -55,6 +55,8 @@ add_custom_command(
   VERBATIM
 )
 
+add_custom_target(rust_cxx ALL DEPENDS ${CXX_HEADER})
+
 set(monero_rust_sources ${MONERO_RUST_CXX})
 
 monero_find_all_headers(monero_rust_headers "${MONERO_RUST_HEADER_DIR}")

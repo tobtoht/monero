@@ -20,4 +20,3 @@
 [submodule "external/full-chain-membership-proofs"]
 	path = external/full-chain-membership-proofs
 	url = https://github.com/j-berman/full-chain-membership-proofs.git
-	branch = cpp-compat-ed25519

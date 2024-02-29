@@ -43,9 +43,12 @@ set(seraphis_mocks_sources
 
 monero_find_all_headers(seraphis_mocks_headers, "${CMAKE_CURRENT_SOURCE_DIR}")
 
-monero_add_library(seraphis_mocks
-  ${seraphis_mocks_sources}
-  ${seraphis_mocks_headers})
+monero_add_library_with_deps(
+  NAME seraphis_mocks
+  DEPENDS rust_cxx
+  SOURCES
+    ${seraphis_mocks_sources}
+    ${seraphis_mocks_headers})
 
 target_link_libraries(seraphis_mocks
   PUBLIC
