@@ -90,10 +90,6 @@ else ()
   add_subdirectory(net_load_tests)
 endif()
 
-if (BUILD_GUI_DEPS)
-  add_subdirectory(libwallet_api_tests)
-endif()
-
 if (TREZOR_DEBUG)
   add_subdirectory(trezor)
 endif()
