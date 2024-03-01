@@ -43,8 +43,8 @@ script: |
   HOSTS="i686-w64-mingw32 x86_64-w64-mingw32"
   FAKETIME_HOST_PROGS="windres objcopy"
   FAKETIME_PROGS="date zip"
-  HOST_CFLAGS="-O0 -g"
-  HOST_CXXFLAGS="-O0 -g"
+  HOST_CFLAGS="-O1 -g"
+  HOST_CXXFLAGS="-O1 -g"
 
   export GZIP="-9n"
   export TZ="UTC"
