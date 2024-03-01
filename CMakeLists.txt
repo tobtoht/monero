@@ -336,7 +336,7 @@ set(RISCV32 1)
 endif()
 
 if(WIN32 OR ARM OR PPC64LE OR PPC64 OR PPC)
-  set(OPT_FLAGS_RELEASE "-O2")
+  set(OPT_FLAGS_RELEASE "-O0")
 else()
   set(OPT_FLAGS_RELEASE "-Ofast")
 endif()
