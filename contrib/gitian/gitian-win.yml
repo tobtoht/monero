@@ -2,7 +2,7 @@
 name: "monero-win-0.18"
 enable_cache: true
 suites:
-- "bionic"
+- "mantic"
 architectures:
 - "amd64"
 packages:
@@ -19,7 +19,7 @@ packages:
 - "g++-mingw-w64"
 - "zip"
 - "ca-certificates"
-- "python"
+- "python3"
 - "cmake"
 alternatives:
 -
