@@ -1,8 +1,9 @@
 ---
 name: "monero-win-0.18"
 enable_cache: true
+distro: "debian"
 suites:
-- "mantic"
+- "bookworm"
 architectures:
 - "amd64"
 packages:

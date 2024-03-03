@@ -36,7 +36,7 @@ def setup():
         subprocess.check_call(['rm', 'monero', '-fR'])
     subprocess.check_call(['git', 'clone', args.url, 'monero'])
     os.chdir('..')
-    make_image_prog = ['bin/make-base-vm', '--suite', 'mantic', '--arch', 'amd64']
+    make_image_prog = ['bin/make-base-vm', '--distro', 'debian', '--suite', 'bookworm', '--arch', 'amd64']
     if args.docker:
         try:
             subprocess.check_output(['docker', '--help'])
