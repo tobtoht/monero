@@ -285,7 +285,7 @@ fi
 ###########################
 
 # CFLAGS
-HOST_CFLAGS="-O2"
+HOST_CFLAGS="-O2 -s"
 HOST_CFLAGS+=$(find /gnu/store -maxdepth 1 -mindepth 1 -type d -exec echo -n " -ffile-prefix-map={}=/usr" \;)
 case "$HOST" in
     *linux-gnu*)  HOST_CFLAGS+=" -ffile-prefix-map=${PWD}=." ;;
