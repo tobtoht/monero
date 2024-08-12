@@ -224,18 +224,26 @@ case "$HOST" in
     *mingw*)  HOST_LDFLAGS="-Wl,--no-insert-timestamp" ;;
 esac
 
-mkdir -p "${OUTDIR}"
-
-# Log the depends build ids
-make -C contrib/depends --no-print-directory HOST="$HOST" print-final_build_id_long | tr ':' '\n' > ${LOGDIR}/depends-hashes.txt
-
-HOST_CFLAGS="-O2"
+# CFLAGS
+HOST_CFLAGS="-O2 -s"
 HOST_CFLAGS+=$(find /gnu/store -maxdepth 1 -mindepth 1 -type d -exec echo -n " -ffile-prefix-map={}=/usr" \;)
 case "$HOST" in
     *linux-gnu*)  HOST_CFLAGS+=" -ffile-prefix-map=${PWD}=." ;;
     *darwin*) unset HOST_CFLAGS ;;
     *android*) unset HOST_CFLAGS ;;
 esac
+
+# CXXFLAGS
+HOST_CXXFLAGS="$HOST_CFLAGS"
+
+case "$HOST" in
+    arm-linux-gnueabihf) HOST_CXXFLAGS+=" -Wno-psabi" ;;
+esac
+
+mkdir -p "${OUTDIR}"
+
+# Log the depends build ids
+make -C contrib/depends --no-print-directory HOST="$HOST" print-final_build_id_long | tr ':' '\n' > ${LOGDIR}/depends-hashes.txt
 
 # Build the depends tree, overriding variables that assume multilib gcc
 make -C contrib/depends --jobs="$JOBS" HOST="$HOST" \
@@ -253,7 +261,7 @@ make -C contrib/depends --jobs="$JOBS" HOST="$HOST" \
                                    x86_64_linux_STRIP=x86_64-linux-gnu-strip \
                                    linux_LDFLAGS="-Wl,--dynamic-linker=$glibc_dynamic_linker" \
                                    linux_CFLAGS="${HOST_CFLAGS}" \
-                                   linux_CXXFLAGS="${HOST_CFLAGS}"
+                                   linux_CXXFLAGS="${HOST_CXXFLAGS}"
 
 # Log the depends package hashes
 DEPENDS_PACKAGES="$(make -C contrib/depends --no-print-directory HOST="$HOST" print-all_packages)"
@@ -294,22 +302,6 @@ fi
 ###########################
 # Binary Tarball Building #
 ###########################
-
-# CFLAGS
-HOST_CFLAGS="-O2"
-HOST_CFLAGS+=$(find /gnu/store -maxdepth 1 -mindepth 1 -type d -exec echo -n " -ffile-prefix-map={}=/usr" \;)
-case "$HOST" in
-    *linux-gnu*)  HOST_CFLAGS+=" -ffile-prefix-map=${PWD}=." ;;
-    *darwin*) unset HOST_CFLAGS ;;
-    *android*) unset HOST_CFLAGS ;;
-esac
-
-# CXXFLAGS
-HOST_CXXFLAGS="$HOST_CFLAGS"
-
-case "$HOST" in
-    arm-linux-gnueabihf) HOST_CXXFLAGS+=" -Wno-psabi" ;;
-esac
 
 export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
 export USE_DEVICE_TREZOR_MANDATORY=1
