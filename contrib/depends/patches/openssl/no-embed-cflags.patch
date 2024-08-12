@@ -1,0 +1,13 @@
+diff --git a/util/mkbuildinf.pl b/util/mkbuildinf.pl
+index 1c273872be..c241210544 100755
+--- a/util/mkbuildinf.pl
++++ b/util/mkbuildinf.pl
+@@ -10,7 +10,7 @@ use strict;
+ use warnings;
+ 
+ my ($cflags, $platform) = @ARGV;
+-$cflags = "compiler: $cflags";
++$cflags = "";
+ 
+ my $date = gmtime($ENV{'SOURCE_DATE_EPOCH'} || time()) . " UTC";
+ 

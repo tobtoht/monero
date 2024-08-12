@@ -3,6 +3,7 @@ $(package)_version=3.0.13
 $(package)_download_path=https://www.openssl.org/source
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
 $(package)_sha256_hash=88525753f79d3bec27d2fa7c66aa0b92b3aa9498dafd93d7cfa4b3780cdae313
+$(package)_patches=no-embed-cflags.patch
 
 # The bundled ranlib in Android NDK 18b inserts timestamps by default.
 # To prevent reproducibility issues, we must enable [D]eterministic mode.
@@ -51,6 +52,7 @@ $(package)_config_opts_x86_64_freebsd=BSD-x86_64
 endef
 
 define $(package)_preprocess_cmds
+  patch -p1 < $($(package)_patch_dir)/no-embed-cflags.patch &&\
   sed -i.old 's|crypto ssl apps util tools fuzz providers doc|crypto ssl util tools providers|' build.info
 endef
 

@@ -229,6 +229,14 @@ mkdir -p "${OUTDIR}"
 # Log the depends build ids
 make -C contrib/depends --no-print-directory HOST="$HOST" print-final_build_id_long | tr ':' '\n' > ${LOGDIR}/depends-hashes.txt
 
+HOST_CFLAGS="-O2"
+HOST_CFLAGS+=$(find /gnu/store -maxdepth 1 -mindepth 1 -type d -exec echo -n " -ffile-prefix-map={}=/usr" \;)
+case "$HOST" in
+    *linux-gnu*)  HOST_CFLAGS+=" -ffile-prefix-map=${PWD}=." ;;
+    *darwin*) unset HOST_CFLAGS ;;
+    *android*) unset HOST_CFLAGS ;;
+esac
+
 # Build the depends tree, overriding variables that assume multilib gcc
 make -C contrib/depends --jobs="$JOBS" HOST="$HOST" \
                                    ${V:+V=1} \
@@ -242,7 +250,10 @@ make -C contrib/depends --jobs="$JOBS" HOST="$HOST" \
                                    x86_64_linux_AR=x86_64-linux-gnu-gcc-ar \
                                    x86_64_linux_RANLIB=x86_64-linux-gnu-gcc-ranlib \
                                    x86_64_linux_NM=x86_64-linux-gnu-gcc-nm \
-                                   x86_64_linux_STRIP=x86_64-linux-gnu-strip
+                                   x86_64_linux_STRIP=x86_64-linux-gnu-strip \
+                                   linux_LDFLAGS="-Wl,--dynamic-linker=$glibc_dynamic_linker" \
+                                   linux_CFLAGS="${HOST_CFLAGS}" \
+                                   linux_CXXFLAGS="${HOST_CFLAGS}"
 
 # Log the depends package hashes
 DEPENDS_PACKAGES="$(make -C contrib/depends --no-print-directory HOST="$HOST" print-all_packages)"
