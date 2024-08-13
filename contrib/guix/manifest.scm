@@ -154,7 +154,8 @@ chain for " target " development."))
 
 (define-public linux-base-gcc
   (package
-    (inherit base-gcc)
+    (inherit (package-with-extra-patches base-gcc
+               (search-our-patches "gcc-remap-guix-store.patch")))
     (arguments
       (substitute-keyword-arguments (package-arguments base-gcc)
         ((#:configure-flags flags)
