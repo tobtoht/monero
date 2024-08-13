@@ -112,16 +112,13 @@ desirable for building Monero release binaries."
     (search-our-patches "gcc-remap-guix-store.patch"
                         "gcc-fix-win32-vsnprintf.patch")))
 
-(define (winpthreads-patches mingw-w64-x86_64-winpthreads)
-  (package-with-extra-patches mingw-w64-x86_64-winpthreads
-    (search-our-patches "winpthreads-remap-guix-store.patch")))
-
 (define (make-mingw-pthreads-cross-toolchain target)
   "Create a cross-compilation toolchain package for TARGET"
   (let* ((xbinutils (cross-binutils target))
-         (pthreads-xlibc (winpthreads-patches (cond ((string-prefix? "i686-" target)
+         (pthreads-xlibc (package-with-extra-patches (cond ((string-prefix? "i686-" target)
                                                        mingw-w64-i686-winpthreads)
-                                                 (else mingw-w64-x86_64-winpthreads))))
+                                                 (else mingw-w64-x86_64-winpthreads))
+                           (search-our-patches "winpthreads-remap-guix-store.patch")))
          (pthreads-xgcc (cross-gcc target
                                     #:xgcc (gcc-mingw-patches mingw-w64-base-gcc)
                                     #:xbinutils xbinutils
