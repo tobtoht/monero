@@ -262,6 +262,7 @@ chain for " target " development."))
            ;; Windows
            (list
              gcc-toolchain-12
+             (list gcc-toolchain-12 "static")
              (make-mingw-pthreads-cross-toolchain target)))
           ((string-contains target "-linux-gnu")
            (list
