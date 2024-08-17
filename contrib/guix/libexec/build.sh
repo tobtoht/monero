@@ -49,17 +49,40 @@ DISTNAME="monero-${HOST}-${VERSION}"
 # Use a fixed timestamp for depends builds so hashes match across commits that don't make changes to the build system
 export SOURCE_DATE_EPOCH=1397818193
 
+# Given a package name and an output name, return the path of that output in our
+# current guix environment
+store_path() {
+    grep --extended-regexp "/[^-]{32}-${1}-[^-]+${2:+-${2}}" "${GUIX_ENVIRONMENT}/manifest" \
+        | head --lines=1 \
+        | sed --expression='s|\x29*$||' \
+              --expression='s|^[[:space:]]*"||' \
+              --expression='s|"[[:space:]]*$||'
+}
+
 #####################
 #    Rust Setup     #
 #####################
 
 cd rust
 
-# TODO: generate for target
 cp ../contrib/guix/libexec/config.toml .
 
-# TODO: crti.o not found, don't hardcode this
-export CROSS_LIBRARY_PATH="/gnu/store/f8x57r7v1lw5v9c8hnbhdv24m466970y-glibc-cross-aarch64-linux-gnu-2.27/lib"
+rust_target=$(
+    case "$HOST" in
+        x86_64-linux-gnu)      echo x86_64-unknown-linux-gnu ;;
+        aarch64-linux-gnu)     echo aarch64-unknown-linux-gnu ;;
+        arm-linux-gnueabihf)   echo armv7-unknown-linux-gnueabihf ;;
+        riscv64-linux-gnu)     echo riscv64gc-unknown-linux-gnu ;;
+        i686-linux-gnu)        echo i686-unknown-linux-gnu ;;
+        x86_64-w64-mingw32)    echo x86_64-pc-windows-gnu ;;
+        *)                     echo "$HOST" ;;
+    esac
+)
+
+sed -i "s/TARGET/${rust_target}/g" config.toml
+
+# crti.o not found
+export CROSS_LIBRARY_PATH="$(store_path "glibc-cross-${HOST}")/lib"
 
 # TODO: do we really need to build a new rustc here?
 # TODO: fetch deps in cargo container
@@ -85,17 +108,6 @@ printenv | sort | grep -v '^\(BASE_CACHE=\|DISTNAME=\|DISTSRC=\|OUTDIR=\|LOGDIR=
 # The depends folder also serves as a base-prefix for depends packages for
 # $HOSTs after successfully building.
 BASEPREFIX="${PWD}/contrib/depends"
-
-# Given a package name and an output name, return the path of that output in our
-# current guix environment
-store_path() {
-    grep --extended-regexp "/[^-]{32}-${1}-[^-]+${2:+-${2}}" "${GUIX_ENVIRONMENT}/manifest" \
-        | head --lines=1 \
-        | sed --expression='s|\x29*$||' \
-              --expression='s|^[[:space:]]*"||' \
-              --expression='s|"[[:space:]]*$||'
-}
-
 
 # Set environment variables to point the NATIVE toolchain to the right
 # includes/libs

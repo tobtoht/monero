@@ -363,6 +363,8 @@ EOF
             exit 0
         fi
 
+        # TODO: use depends to fetch and clean rustc source
+
         # Fetch cargo dependencies
         time-machine environment --manifest="${PWD}/contrib/guix/cargo.scm" \
                                  --container \
@@ -371,16 +373,7 @@ EOF
                                  --no-cwd \
                                  --user="user" \
                                  --share="$PWD"=/monero \
-                                 -- bash -c "cd /monero/src/fcmp_pp/fcmp_pp_rust &&
-                                            cargo fetch &&
-                                            cd /monero &&
-                                            rm -rf /monero/rust &&
-                                            rustc -vV &&
-                                            git clone https://github.com/rust-lang/rust &&
-                                            cd rust &&
-                                            git checkout 7cf61ebde7b22796c69757901dd346d0fe70bd97 &&
-                                            rm -rf /monero/cargo &&
-                                            mv /home/user/.cargo /monero/cargo"
+                                 -- bash -c "cd /monero && bash contrib/guix/libexec/cargo.sh"
 
         # Run the build script 'contrib/guix/libexec/build.sh' in the build
         # container specified by 'contrib/guix/manifest.scm'.
@@ -453,7 +446,6 @@ EOF
         time-machine environment --manifest="${PWD}/contrib/guix/manifest.scm" \
                                  --container \
                                  --pure \
-                                 --network \
                                  --no-cwd \
                                  --share="$PWD"=/monero \
                                  --share="$PWD/cargo"=/home/user/.cargo \

@@ -27,6 +27,7 @@
              (guix download)
              (guix gexp)
              (guix git-download)
+             (gnu packages linux)
              ((guix licenses) #:prefix license:)
              (guix packages)
              (gnu packages text-editors)
@@ -264,6 +265,7 @@ chain for " target " development."))
         ;; TODO: remove this
         nano
         nss-certs
+        strace
     )
   (let ((target (getenv "HOST")))
     (cond ((string-suffix? "-mingw32" target)
