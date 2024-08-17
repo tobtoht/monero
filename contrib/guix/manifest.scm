@@ -29,6 +29,8 @@
              (guix git-download)
              ((guix licenses) #:prefix license:)
              (guix packages)
+             (gnu packages text-editors)
+             (gnu packages certs)
              ((guix utils) #:select (substitute-keyword-arguments)))
 
 (define-syntax-rule (search-our-patches file-name ...)
@@ -259,6 +261,9 @@ chain for " target " development."))
         python-minimal
         ;; Git
         git-minimal
+        ;; TODO: remove this
+        nano
+        nss-certs
     )
   (let ((target (getenv "HOST")))
     (cond ((string-suffix? "-mingw32" target)
@@ -269,6 +274,7 @@ chain for " target " development."))
              (make-mingw-pthreads-cross-toolchain target)))
           ((string-contains target "-linux-gnu")
            (list
+             clang-toolchain-17
              gcc-toolchain-12
              (list gcc-toolchain-12 "static")
              (make-monero-cross-toolchain target)))

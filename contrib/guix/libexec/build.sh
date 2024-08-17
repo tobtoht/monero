@@ -50,6 +50,30 @@ DISTNAME="monero-${HOST}-${VERSION}"
 export SOURCE_DATE_EPOCH=1397818193
 
 #####################
+#    Rust Setup     #
+#####################
+
+cd rust
+
+# TODO: generate for target
+cp ../contrib/guix/libexec/config.toml .
+
+# TODO: crti.o not found, don't hardcode this
+export CROSS_LIBRARY_PATH="/gnu/store/f8x57r7v1lw5v9c8hnbhdv24m466970y-glibc-cross-aarch64-linux-gnu-2.27/lib"
+
+# TODO: do we really need to build a new rustc here?
+# TODO: fetch deps in cargo container
+python3 ./x.py -j16 build library/std
+
+# TODO: don't build docs and other stuff we're not going to use
+python3 ./x.py install
+
+# TODO: move to environment setup
+export RUSTC="/usr/local/bin/rustc"
+
+cd ..
+
+#####################
 # Environment Setup #
 #####################
 

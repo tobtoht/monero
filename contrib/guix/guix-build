@@ -373,6 +373,12 @@ EOF
                                  --share="$PWD"=/monero \
                                  -- bash -c "cd /monero/src/fcmp_pp/fcmp_pp_rust &&
                                             cargo fetch &&
+                                            cd /monero &&
+                                            rm -rf /monero/rust &&
+                                            rustc -vV &&
+                                            git clone https://github.com/rust-lang/rust &&
+                                            cd rust &&
+                                            git checkout 7cf61ebde7b22796c69757901dd346d0fe70bd97 &&
                                             rm -rf /monero/cargo &&
                                             mv /home/user/.cargo /monero/cargo"
 
@@ -441,10 +447,13 @@ EOF
         #    Please read the README.md in the same directory as this file for
         #    more information.
         #
+        # TODO: don't pass --network
+        #
         # shellcheck disable=SC2086,SC2031
         time-machine environment --manifest="${PWD}/contrib/guix/manifest.scm" \
                                  --container \
                                  --pure \
+                                 --network \
                                  --no-cwd \
                                  --share="$PWD"=/monero \
                                  --share="$PWD/cargo"=/home/user/.cargo \
