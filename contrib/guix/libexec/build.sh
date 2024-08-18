@@ -84,12 +84,29 @@ sed -i "s/TARGET/${rust_target}/g" config.toml
 # crti.o not found
 export CROSS_LIBRARY_PATH="$(store_path "glibc-cross-${HOST}")/lib"
 
-# TODO: do we really need to build a new rustc here?
-# TODO: fetch deps in cargo container
-python3 ./x.py -j16 build library/std
+case "$HOST" in
+    *mingw*)
+        # TODO: clean up this mess
+        unset LIBRARY_PATH
+        unset CPATH
+        unset C_INCLUDE_PATH
+        unset CPLUS_INCLUDE_PATH
+        unset OBJC_INCLUDE_PATH
+        unset OBJCPLUS_INCLUDE_PATH
 
-# TODO: don't build docs and other stuff we're not going to use
-python3 ./x.py install
+        export LIBRARY_PATH="$(store_path "clang-toolchain")/lib"
+        export C_INCLUDE_PATH="$(store_path "linux-libre-headers")/lib"
+        export CPLUS_INCLUDE_PATH="$(store_path "linux-libre-headers")/lib"
+
+        [ -e /lib ] || ln -s --no-dereference "$(store_path "mingw-w64-x86_64-winpthreads")/lib" /lib
+    ;;
+esac
+
+## TODO: do we really need to build a new rustc here?
+#python3 ./x.py -j16 build library/std
+
+## TODO: don't build docs and other stuff we're not going to use
+python3 ./x.py -j16 install
 
 # TODO: move to environment setup
 export RUSTC="/usr/local/bin/rustc"
@@ -135,6 +152,8 @@ prepend_to_search_env_var() {
 # includes/libs for $HOST
 case "$HOST" in
     *mingw*)
+        export LD_LIBRARY_PATH="${NATIVE_GCC}/lib"
+
         # Determine output paths to use in CROSS_* environment variables
         case "$HOST" in
             i686-*)    CROSS_GLIBC="$(store_path "mingw-w64-i686-winpthreads")" ;;

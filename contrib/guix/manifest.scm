@@ -271,6 +271,7 @@ chain for " target " development."))
     (cond ((string-suffix? "-mingw32" target)
            ;; Windows
            (list
+             clang-toolchain-17
              gcc-toolchain-12
              (list gcc-toolchain-12 "static")
              (make-mingw-pthreads-cross-toolchain target)))
