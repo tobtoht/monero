@@ -246,6 +246,7 @@ chain for " target " development."))
         p7zip
         zip
         unzip
+        zlib
         ;; Build tools
         gnu-make
         libtool
@@ -288,6 +289,7 @@ chain for " target " development."))
              clang-toolchain-11 binutils))
           ((string-contains target "android")
             (list
+              clang-toolchain-17
               gcc-toolchain-12
               (list gcc-toolchain-12 "static")))
           ((string-contains target "darwin")

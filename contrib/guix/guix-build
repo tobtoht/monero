@@ -366,14 +366,14 @@ EOF
         # TODO: use depends to fetch and clean rustc source
 
         # Fetch cargo dependencies
-        time-machine environment --manifest="${PWD}/contrib/guix/cargo.scm" \
-                                 --container \
-                                 --pure \
-                                 --network \
-                                 --no-cwd \
-                                 --user="user" \
-                                 --share="$PWD"=/monero \
-                                 -- bash -c "cd /monero && bash contrib/guix/libexec/cargo.sh"
+#        time-machine environment --manifest="${PWD}/contrib/guix/cargo.scm" \
+#                                 --container \
+#                                 --pure \
+#                                 --network \
+#                                 --no-cwd \
+#                                 --user="user" \
+#                                 --share="$PWD"=/monero \
+#                                 -- bash -c "cd /monero && bash contrib/guix/libexec/cargo.sh"
 
         # Run the build script 'contrib/guix/libexec/build.sh' in the build
         # container specified by 'contrib/guix/manifest.scm'.
@@ -440,15 +440,12 @@ EOF
         #    Please read the README.md in the same directory as this file for
         #    more information.
         #
-        # TODO: don't pass --network
-        #
         # shellcheck disable=SC2086,SC2031
         time-machine environment --manifest="${PWD}/contrib/guix/manifest.scm" \
                                  --container \
                                  --pure \
                                  --no-cwd \
                                  --share="$PWD"=/monero \
-                                 --share="$PWD/cargo"=/home/user/.cargo \
                                  --share="$DISTSRC_BASE"=/distsrc-base \
                                  --share="$OUTDIR_BASE"=/outdir-base \
                                  --share="$LOGDIR_BASE"=/logdir-base \

@@ -1,3 +1,4 @@
+native_packages:=rustc fcmp_pp_rust_deps
 packages:=boost openssl zeromq expat unbound sodium
 
 hardware_packages := hidapi protobuf libusb

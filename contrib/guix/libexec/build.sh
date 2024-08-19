@@ -63,11 +63,7 @@ store_path() {
 #    Rust Setup     #
 #####################
 
-cd rust
-
-cp ../contrib/guix/libexec/config.toml .
-
-rust_target=$(
+RUST_TARGET=$(
     case "$HOST" in
         x86_64-linux-gnu)      echo x86_64-unknown-linux-gnu ;;
         aarch64-linux-gnu)     echo aarch64-unknown-linux-gnu ;;
@@ -79,39 +75,7 @@ rust_target=$(
     esac
 )
 
-sed -i "s/TARGET/${rust_target}/g" config.toml
-
-# crti.o not found
-export CROSS_LIBRARY_PATH="$(store_path "glibc-cross-${HOST}")/lib"
-
-case "$HOST" in
-    *mingw*)
-        # TODO: clean up this mess
-        unset LIBRARY_PATH
-        unset CPATH
-        unset C_INCLUDE_PATH
-        unset CPLUS_INCLUDE_PATH
-        unset OBJC_INCLUDE_PATH
-        unset OBJCPLUS_INCLUDE_PATH
-
-        export LIBRARY_PATH="$(store_path "clang-toolchain")/lib"
-        export C_INCLUDE_PATH="$(store_path "linux-libre-headers")/lib"
-        export CPLUS_INCLUDE_PATH="$(store_path "linux-libre-headers")/lib"
-
-        [ -e /lib ] || ln -s --no-dereference "$(store_path "mingw-w64-x86_64-winpthreads")/lib" /lib
-    ;;
-esac
-
-## TODO: do we really need to build a new rustc here?
-#python3 ./x.py -j16 build library/std
-
-## TODO: don't build docs and other stuff we're not going to use
-python3 ./x.py -j16 install
-
-# TODO: move to environment setup
-export RUSTC="/usr/local/bin/rustc"
-
-cd ..
+export RUST_TARGET
 
 #####################
 # Environment Setup #
@@ -138,7 +102,7 @@ unset CPLUS_INCLUDE_PATH
 unset OBJC_INCLUDE_PATH
 unset OBJCPLUS_INCLUDE_PATH
 
-export LIBRARY_PATH="${NATIVE_GCC}/lib:${NATIVE_GCC}/lib64:${NATIVE_GCC_STATIC}/lib:${NATIVE_GCC_STATIC}/lib64"
+export LIBRARY_PATH="${NATIVE_GCC}/lib:${NATIVE_GCC}/lib64:${NATIVE_GCC_STATIC}/lib:${NATIVE_GCC_STATIC}/lib64:$(store_path "zlib")/lib"
 export C_INCLUDE_PATH="${NATIVE_GCC}/include"
 export CPLUS_INCLUDE_PATH="${NATIVE_GCC}/include/c++:${NATIVE_GCC}/include"
 export OBJC_INCLUDE_PATH="${NATIVE_GCC}/include"
@@ -203,6 +167,7 @@ case "$HOST" in
         exit 1 ;;
 esac
 
+export LD_LIBRARY_PATH="$(store_path xz)/lib:${NATIVE_GCC}/lib:$(store_path zlib)/lib"
 
 # Sanity check CROSS_*_PATH directories
 IFS=':' read -ra PATHS <<< "${CROSS_C_INCLUDE_PATH}:${CROSS_CPLUS_INCLUDE_PATH}:${CROSS_LIBRARY_PATH}"
@@ -375,6 +340,10 @@ mkdir -p "$DISTSRC"
     # binary tarballs.
     INSTALLPATH="${DISTSRC}/installed/${DISTNAME}"
     mkdir -p "${INSTALLPATH}"
+
+    mkdir -p /home/user/.cargo
+    cp contrib/guix/libexec/cargo.config /home/user/.cargo/config
+    sed -i "s/TARGET/${HOST}/g" /home/user/.cargo/config
 
     # Configure this DISTSRC for $HOST
     # shellcheck disable=SC2086

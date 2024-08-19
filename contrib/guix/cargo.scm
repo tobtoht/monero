@@ -2,9 +2,7 @@
              (gnu packages bash)
              ((gnu packages certs) #:select (nss-certs))
              (gnu packages rust)
-             (gnu packages wget)
              (gnu packages compression)
-             ((gnu packages version-control) #:select (git-minimal))
              ((gnu packages tls) #:select (openssl)))
 
 (packages->manifest
@@ -12,11 +10,9 @@
     (list
       bash
       coreutils-minimal
+      findutils ;; find
       nss-certs
       openssl
-      rust
-      git-minimal
-      wget
       tar
       gzip
       (list rust "cargo"))))
