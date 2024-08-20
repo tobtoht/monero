@@ -11,7 +11,16 @@ endef
 define $(package)_config_cmds
 endef
 
+# Remove blobs from source
+# TODO: script here could be less messy
+
 define $(package)_preprocess_cmds
+  rm -rf src/llvm-project && \
+  find . -type f -regex ".*\.\(a\|dll\|exe\|lib\)$$$$" -delete && \
+  find . -type f -name ".cargo-checksum.json" -print0 | xargs -0 -I% sh -c 'echo "{\"files\":{}}" > "%"' && \
+  find . -type f -name "Cargo.lock" -delete && \
+  sed -i 's/args.append("--frozen")/pass/g' src/bootstrap/bootstrap.py && \
+  sed -i 's/cargo.arg("--frozen");//g' src/bootstrap/src/core/builder.rs && \
   cp $($(package)_patch_dir)/config.toml . && \
   sed -i "s/TARGET/${RUST_TARGET}/g" config.toml && \
   sed -i "s#PREFIX#$($(package)_staging_prefix_dir)#g" config.toml

@@ -71,6 +71,7 @@ RUST_TARGET=$(
         riscv64-linux-gnu)     echo riscv64gc-unknown-linux-gnu ;;
         i686-linux-gnu)        echo i686-unknown-linux-gnu ;;
         x86_64-w64-mingw32)    echo x86_64-pc-windows-gnu ;;
+        i686-w64-mingw32)      echo i686-pc-windows-gnu ;;
         *)                     echo "$HOST" ;;
     esac
 )
