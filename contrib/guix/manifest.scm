@@ -155,6 +155,8 @@ chain for " target " development."))
           `(append ,flags
             ;; https://gcc.gnu.org/install/configure.html
             (list "--enable-threads=posix",
+                  "--disable-sjlj-exceptions", ;; https://github.com/rust-lang/rust/issues/12859#issuecomment-185081071
+                  "--with-dwarf2",             ;; idem
                   building-on)))))))
 
 (define-public linux-base-gcc
