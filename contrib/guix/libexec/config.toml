@@ -9,6 +9,8 @@ target = [ "x86_64-unknown-linux-gnu", "TARGET"]
 cargo = "/home/user/.guix-profile/bin/cargo"
 rustc = "/home/user/.guix-profile/bin/rustc"
 
+compiler-docs = false
+
 optimized-compiler-builtins = false
 
 docs = false

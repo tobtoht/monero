@@ -30,6 +30,7 @@
              (gnu packages linux)
              ((guix licenses) #:prefix license:)
              (guix packages)
+             (gnu packages texinfo)
              (gnu packages text-editors)
              (gnu packages certs)
              ((guix utils) #:select (substitute-keyword-arguments)))
@@ -269,6 +270,7 @@ chain for " target " development."))
         nano
         nss-certs
         strace
+        texinfo ;; native_binutils
     )
   (let ((target (getenv "HOST")))
     (cond ((string-suffix? "-mingw32" target)
@@ -288,7 +290,7 @@ chain for " target " development."))
            (list
              gcc-toolchain-12
              (list gcc-toolchain-12 "static")
-             clang-toolchain-11 binutils))
+             clang-toolchain-17 binutils))
           ((string-contains target "android")
             (list
               clang-toolchain-17
@@ -296,8 +298,10 @@ chain for " target " development."))
               (list gcc-toolchain-12 "static")))
           ((string-contains target "darwin")
            (list
-             gcc-toolchain-10
-             (list gcc-toolchain-10 "static")
-             clang-toolchain-11
+             gcc-toolchain-11
+             (list gcc-toolchain-12 "static")
+             lld-17
+             (make-lld-wrapper lld-17 #:lld-as-ld? #t)
+             clang-toolchain-17
              binutils))
           (else '())))))
