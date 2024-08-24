@@ -72,6 +72,7 @@ RUST_TARGET=$(
         i686-linux-gnu)        echo i686-unknown-linux-gnu ;;
         x86_64-w64-mingw32)    echo x86_64-pc-windows-gnu ;;
         i686-w64-mingw32)      echo i686-pc-windows-gnu ;;
+        arm-linux-android)     echo armv7-linux-androideabi ;;
         *)                     echo "$HOST" ;;
     esac
 )
@@ -328,7 +329,7 @@ export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
 export USE_DEVICE_TREZOR_MANDATORY=1
 
 # Make $HOST-specific native binaries from depends available in $PATH
-export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
+export PATH="${BASEPREFIX}/${HOST}/native/toolchain/bin:${BASEPREFIX}/${HOST}/native/bin:${PATH}"
 mkdir -p "$DISTSRC"
 (
     cd "$DISTSRC"

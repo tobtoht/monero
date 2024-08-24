@@ -72,6 +72,7 @@ $(host_arch)_$(host_os)_prefix=$(BASEDIR)/$(host)
 $(host_arch)_$(host_os)_host=$(host)
 host_prefix=$($(host_arch)_$(host_os)_prefix)
 build_prefix=$(host_prefix)/native
+toolchain_prefix=$(build_prefix)/toolchain
 
 AT_$(V):=
 AT_:=@

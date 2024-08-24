@@ -5,11 +5,16 @@ $(package)_file_name=rustc-$($(package)_version)-src.tar.gz
 $(package)_sha256_hash=ee106e4c569f52dba3b5b282b105820f86bd8f6b3d09c06b8dce82fb1bb3a4a1
 $(package)_patches=config.toml
 $(package)_freebsd_dependencies=freebsd_base native_binutils
+$(package)_android_dependencies=android_ndk
 
 define $(package)_set_vars
 $(package)_stage_env_freebsd=AR_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-ar
 $(package)_stage_env_freebsd+=CC_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-clang
 $(package)_stage_env_freebsd+=CXX_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-clang++
+$(package)_stage_env_aarch64_android=CC_aarch64_linux_android="$(host_toolchain)clang"
+$(package)_stage_env_aarch64_android+=CXX_aarch64_linux_android="$(host_toolchain)clang++"
+$(package)_stage_env_arm_android=CC_armv7_linux_androideabi="$(host_toolchain)clang"
+$(package)_stage_env_arm_android+=CXX_armv7_linux_androideabi="$(host_toolchain)clang++"
 endef
 
 define $(package)_config_cmds
