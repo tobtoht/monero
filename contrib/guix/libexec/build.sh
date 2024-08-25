@@ -72,7 +72,7 @@ RUST_TARGET=$(
         i686-linux-gnu)        echo i686-unknown-linux-gnu ;;
         x86_64-w64-mingw32)    echo x86_64-pc-windows-gnu ;;
         i686-w64-mingw32)      echo i686-pc-windows-gnu ;;
-        arm-linux-android)     echo armv7-linux-androideabi ;;
+        arm-linux-androideabi) echo armv7-linux-androideabi ;;
         *)                     echo "$HOST" ;;
     esac
 )
