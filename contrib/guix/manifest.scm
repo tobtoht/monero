@@ -300,8 +300,7 @@ chain for " target " development."))
            (list
              gcc-toolchain-11
              (list gcc-toolchain-12 "static")
-             lld-17
-             (make-lld-wrapper lld-17 #:lld-as-ld? #t)
              clang-toolchain-17
-             binutils))
+             lld-17
+             (make-lld-wrapper lld-17 #:lld-as-ld? #t)))
           (else '())))))

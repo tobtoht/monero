@@ -1,15 +1,24 @@
-OSX_MIN_VERSION=10.13
+OSX_MIN_VERSION=11
 OSX_SDK_VERSION=11.0
 XCODE_VERSION=12.2
 XCODE_BUILD_ID=12B45b
-LD64_VERSION=609
+LD64_VERSION=711
 
 OSX_SDK=$(host_prefix)/native/SDK
 
-darwin_native_toolchain=darwin_sdk native_cctools
+darwin_native_toolchain=darwin_sdk
 
 clang_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang")
 clangxx_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang++")
+llvm_config_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-config")
+
+darwin_AR=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-ar")
+darwin_DSYMUTIL=$(shell $(SHELL) $(.SHELLFLAGS) "command -v dsymutil")
+darwin_NM=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-nm")
+darwin_OBJDUMP=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-objdump")
+darwin_RANLIB=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-ranlib")
+darwin_STRIP=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-strip")
+darwin_LIBTOOL=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-libtool-darwin")
 
 # Flag explanations:
 #
@@ -37,23 +46,23 @@ clangxx_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang++")
 darwin_CC=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
               -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
               -u LIBRARY_PATH \
-            $(clang_prog) --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
-              -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
-              -isysroot$(OSX_SDK) \
+            $(clang_prog) --target=$(host) \
+              -B$(build_prefix)/bin \
               -isysroot$(OSX_SDK) -nostdlibinc \
               -iwithsysroot/usr/include -iframeworkwithsysroot/System/Library/Frameworks
 
 darwin_CXX=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
                -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
                -u LIBRARY_PATH \
-             $(clangxx_prog) --target=$(host) -mmacosx-version-min=$(OSX_MIN_VERSION) \
-               -B$(build_prefix)/bin -mlinker-version=$(LD64_VERSION) \
+             $(clangxx_prog) --target=$(host) \
+               -B$(build_prefix)/bin \
                -isysroot$(OSX_SDK) -nostdlibinc \
                -iwithsysroot/usr/include/c++/v1 \
                -iwithsysroot/usr/include -iframeworkwithsysroot/System/Library/Frameworks
 
-darwin_CFLAGS=-pipe
-darwin_CXXFLAGS=$(darwin_CFLAGS)
+darwin_CFLAGS=-pipe -std=c11 -mmacosx-version-min=$(OSX_MIN_VERSION) -mlinker-version=$(LD64_VERSION)
+darwin_CXXFLAGS=-pipe -std=c++17 -mmacosx-version-min=$(OSX_MIN_VERSION) -mlinker-version=$(LD64_VERSION)
+darwin_LDFLAGS=-Wl,-platform_version,macos,$(OSX_MIN_VERSION),$(OSX_SDK_VERSION) -Wl,-no_adhoc_codesign -fuse-ld=lld
 darwin_ARFLAGS=cr
 
 darwin_release_CFLAGS=-O2

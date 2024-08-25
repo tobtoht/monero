@@ -6,6 +6,7 @@ $(package)_sha256_hash=ee106e4c569f52dba3b5b282b105820f86bd8f6b3d09c06b8dce82fb1
 $(package)_patches=config.toml
 $(package)_freebsd_dependencies=freebsd_base native_binutils
 $(package)_android_dependencies=android_ndk
+$(package)_darwin_dependencies=darwin_sdk
 
 define $(package)_set_vars
 $(package)_stage_env_freebsd=AR_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-ar
@@ -15,6 +16,12 @@ $(package)_stage_env_aarch64_android=CC_aarch64_linux_android="$(host_toolchain)
 $(package)_stage_env_aarch64_android+=CXX_aarch64_linux_android="$(host_toolchain)clang++"
 $(package)_stage_env_arm_android=CC_armv7_linux_androideabi="$(host_toolchain)clang"
 $(package)_stage_env_arm_android+=CXX_armv7_linux_androideabi="$(host_toolchain)clang++"
+$(package)_stage_env_darwin=CC_x86_64_apple_darwin=x86_64-apple-darwin-clang
+$(package)_stage_env_darwin+=CXX_x86_64_apple_darwin=x86_64-apple-darwin-clang++
+$(package)_stage_env_darwin+=AR_x86_64_apple_darwin=llvm-ar
+$(package)_stage_env_darwin=CC_aarch64_apple_darwin=aarch64-apple-darwin-clang
+$(package)_stage_env_darwin+=CXX_aarch64_apple_darwin=aarch64-apple-darwin-clang++
+$(package)_stage_env_darwin+=AR_aarch64_apple_darwin=llvm-ar
 endef
 
 define $(package)_config_cmds
