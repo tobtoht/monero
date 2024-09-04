@@ -2,26 +2,22 @@ OSX_MIN_VERSION=10.13
 OSX_SDK_VERSION=11.0
 XCODE_VERSION=12.2
 XCODE_BUILD_ID=12B45b
-LD64_VERSION=711
+LLD_VERSION=711
 
 OSX_SDK=$(host_prefix)/native/SDK
 
 darwin_native_toolchain=darwin_sdk
 
+clang_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang")
+clangxx_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang++")
 
-clang_prog=clang
-clangxx_prog=clang++
-llvm_config_prog=llvm-config
-
-llvm_lib_dir=$(shell $(llvm_config_prog) --libdir)
-
-darwin_AR=llvm-ar
-darwin_DSYMUTIL=dsymutil
-darwin_NM=llvm-nm
-darwin_OBJDUMP=llvm-objdump
-darwin_RANLIB=llvm-ranlib
-darwin_STRIP=llvm-strip
-darwin_LIBTOOL=llvm-libtool-darwin
+darwin_AR=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-ar")
+darwin_DSYMUTIL=$(shell $(SHELL) $(.SHELLFLAGS) "command -v dsymutil")
+darwin_NM=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-nm")
+darwin_OBJDUMP=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-objdump")
+darwin_RANLIB=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-ranlib")
+darwin_STRIP=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-strip")
+darwin_LIBTOOL=$(shell $(SHELL) $(.SHELLFLAGS) "command -v llvm-libtool-darwin")
 
 # Flag explanations:
 #
@@ -29,11 +25,6 @@ darwin_LIBTOOL=llvm-libtool-darwin
 #
 #         Ensures that modern linker features are enabled. See here for more
 #         details: https://github.com/bitcoin/bitcoin/pull/19407.
-#
-#     -B$(build_prefix)/bin
-#
-#         Explicitly point to our binaries (e.g. cctools) so that they are
-#         ensured to be found and preferred over other possibilities.
 #
 #     -isysroot$(OSX_SDK) -nostdlibinc
 #
@@ -45,12 +36,20 @@ darwin_LIBTOOL=llvm-libtool-darwin
 #
 #         Adds the desired paths from the SDK
 #
+#     -platform_version
+#
+#         Indicate to the linker the platform, the oldest supported version,
+#         and the SDK used.
+#
+#     -no_adhoc_codesign
+#
+#         Disable adhoc codesigning (for now) when using LLVM tooling, to avoid
+#         non-determinism issues with the Identifier field.
 
 darwin_CC=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
               -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
               -u LIBRARY_PATH \
             $(clang_prog) --target=$(host) \
-              -B$(build_prefix)/bin \
               -isysroot$(OSX_SDK) -nostdlibinc \
               -iwithsysroot/usr/include -iframeworkwithsysroot/System/Library/Frameworks
 
@@ -58,13 +57,12 @@ darwin_CXX=env -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH \
                -u OBJC_INCLUDE_PATH -u OBJCPLUS_INCLUDE_PATH -u CPATH \
                -u LIBRARY_PATH \
              $(clangxx_prog) --target=$(host) \
-               -B$(build_prefix)/bin \
                -isysroot$(OSX_SDK) -nostdlibinc \
                -iwithsysroot/usr/include/c++/v1 \
                -iwithsysroot/usr/include -iframeworkwithsysroot/System/Library/Frameworks
 
-darwin_CFLAGS=-pipe -mmacosx-version-min=$(OSX_MIN_VERSION) -mlinker-version=$(LD64_VERSION)
-darwin_CXXFLAGS=-pipe -mmacosx-version-min=$(OSX_MIN_VERSION) -mlinker-version=$(LD64_VERSION)
+darwin_CFLAGS=-pipe -mmacosx-version-min=$(OSX_MIN_VERSION) -mlinker-version=$(LLD_VERSION)
+darwin_CXXFLAGS=-pipe -mmacosx-version-min=$(OSX_MIN_VERSION) -mlinker-version=$(LLD_VERSION)
 darwin_LDFLAGS=-Wl,-platform_version,macos,$(OSX_MIN_VERSION),$(OSX_SDK_VERSION) -Wl,-no_adhoc_codesign -fuse-ld=lld
 darwin_ARFLAGS=cr
 
