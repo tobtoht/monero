@@ -3,6 +3,7 @@
              ((gnu packages certs) #:select (nss-certs))
              (gnu packages rust)
              (gnu packages compression)
+             (gnu packages wget)
              ((gnu packages tls) #:select (openssl)))
 
 (packages->manifest
@@ -15,4 +16,5 @@
       openssl
       tar
       gzip
+      wget
       (list rust "cargo"))))

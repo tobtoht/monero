@@ -57,6 +57,7 @@ SET(Boost_USE_STATIC_RUNTIME ON)
 SET(OPENSSL_ROOT_DIR @prefix@)
 SET(ARCHITECTURE @arch@)
 SET(TARGET_OS @host_os@)
+SET(DEPENDS_HOST @HOST@)
 
 # for libraries and headers in the target directories
 set (CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER) # Find programs on host

@@ -3,45 +3,13 @@ $(package)_version=1.77.1
 $(package)_download_path=https://static.rust-lang.org/dist
 $(package)_file_name=rustc-$($(package)_version)-src.tar.gz
 $(package)_sha256_hash=ee106e4c569f52dba3b5b282b105820f86bd8f6b3d09c06b8dce82fb1bb3a4a1
-$(package)_patches=config.toml
-$(package)_freebsd_dependencies=freebsd_base native_binutils
-$(package)_android_dependencies=android_ndk
-$(package)_darwin_dependencies=darwin_sdk
-
-define $(package)_set_vars
-$(package)_stage_env_freebsd=AR_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-ar
-$(package)_stage_env_freebsd+=CC_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-clang
-$(package)_stage_env_freebsd+=CXX_x86_64_unknown_freebsd=x86_64-unknown-freebsd11-clang++
-$(package)_stage_env_aarch64_android=CC_aarch64_linux_android="$(host_toolchain)clang"
-$(package)_stage_env_aarch64_android+=CXX_aarch64_linux_android="$(host_toolchain)clang++"
-$(package)_stage_env_arm_android=CC_armv7_linux_androideabi="$(host_toolchain)clang"
-$(package)_stage_env_arm_android+=CXX_armv7_linux_androideabi="$(host_toolchain)clang++"
-$(package)_stage_env_darwin=CC_x86_64_apple_darwin=x86_64-apple-darwin-clang
-$(package)_stage_env_darwin+=CXX_x86_64_apple_darwin=x86_64-apple-darwin-clang++
-$(package)_stage_env_darwin+=AR_x86_64_apple_darwin=llvm-ar
-$(package)_stage_env_darwin=CC_aarch64_apple_darwin=aarch64-apple-darwin-clang
-$(package)_stage_env_darwin+=CXX_aarch64_apple_darwin=aarch64-apple-darwin-clang++
-$(package)_stage_env_darwin+=AR_aarch64_apple_darwin=llvm-ar
-endef
-
-define $(package)_config_cmds
-endef
-
-# Remove blobs from source
-# TODO: script here could be less messy
+$(package)_patches=deblob.sh
 
 define $(package)_preprocess_cmds
-  rm -rf src/llvm-project && \
-  find . -type f -regex ".*\.\(a\|dll\|exe\|lib\)$$$$" -delete && \
-  find . -type f -name ".cargo-checksum.json" -print0 | xargs -0 -I% sh -c 'echo "{\"files\":{}}" > "%"' && \
-  find . -type f -name "Cargo.lock" -delete && \
-  sed -i 's/args.append("--frozen")/pass/g' src/bootstrap/bootstrap.py && \
-  sed -i 's/cargo.arg("--frozen");//g' src/bootstrap/src/core/builder.rs && \
-  cp $($(package)_patch_dir)/config.toml . && \
-  sed -i "s/TARGET/${RUST_TARGET}/g" config.toml && \
-  sed -i "s#PREFIX#$($(package)_staging_prefix_dir)#g" config.toml
+  bash $($(package)_patch_dir)/deblob.sh
 endef
 
 define $(package)_stage_cmds
-  python3 ./x.py install
+  mkdir -p $($(package)_staging_prefix_dir)/rust &&\
+  mv * $($(package)_staging_prefix_dir)/rust
 endef

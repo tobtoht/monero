@@ -222,7 +222,11 @@ chain for " target " development."))
                    (("^\\$\\(inst_sysconfdir\\)/rpc(.*)$" _ suffix)
                     (string-append out "/etc/rpc" suffix "\n"))
                    (("^install-others =.*$")
-                    (string-append "install-others = " out "/etc/rpc\n"))))))))))))
+                     (string-append "install-others = " out "/etc/rpc\n"))))))))))
+    (native-inputs
+      (modify-inputs (package-native-inputs glibc-2.31)
+        (delete "make")
+        (append gnu-make-4.2))))) ;; make >= 4.4 causes an infinite loop (stdio-common)
 
 (packages->manifest
  (append

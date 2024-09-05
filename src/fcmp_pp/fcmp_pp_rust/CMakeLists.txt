@@ -89,7 +89,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CARGO_CMD cargo build --target "${RUST_TARGET}")
   set(TARGET_DIR "debug")
 else ()
-  set(CARGO_CMD cargo build --target "${RUST_TARGET}" --release)
+  set(CARGO_CMD cargo build --release --target "${RUST_TARGET}" -Zbuild-std=std,panic_abort --no-default-features)
   set(TARGET_DIR "release")
 endif ()
 
@@ -107,7 +107,7 @@ add_custom_command(
   COMMENT "Building fcmp++ rust lib"
   OUTPUT ${FCMP_PP_RUST_HEADER}
   OUTPUT ${FCMP_PP_RUST_LIB}
-  COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} ${CARGO_CMD}
+  COMMAND CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} __CARGO_TESTS_ONLY_SRC_ROOT=/monero/contrib/depends/${DEPENDS_HOST}/native/rust RUSTFLAGS=-Cpanic=abort RUSTC_BOOTSTRAP=1 ${CARGO_CMD}
   COMMAND cp ${CMAKE_CURRENT_SOURCE_DIR}/fcmp++.h ${FCMP_PP_RUST_HEADER}
   COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/${RUST_TARGET}/${TARGET_DIR}/libfcmp_pp_rust.a ${FCMP_PP_RUST_LIB}
   COMMAND echo "Finished copying fcmp++ rust targets"
