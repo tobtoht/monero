@@ -155,11 +155,6 @@ static_assert(sizeof(OutputContext) == (8+32+32), "db expects 72 bytes for outpu
 
 using OutputsByUnlockBlock = std::unordered_map<uint64_t, std::vector<OutputContext>>;
 
-
-// TODO: hack to get arm-linux-android builds working, do not forget to remove this
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc++11-narrowing"
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 // This class is useful to help update the curve trees merkle tree without needing to keep the entire tree in memory
@@ -297,7 +292,6 @@ public:
     const std::size_t m_c1_width;
     const std::size_t m_c2_width;
 };
-#pragma clang diagnostic pop
 //----------------------------------------------------------------------------------------------------------------------
 using Helios       = tower_cycle::Helios;
 using Selene       = tower_cycle::Selene;
