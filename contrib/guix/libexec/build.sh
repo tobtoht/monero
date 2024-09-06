@@ -77,6 +77,7 @@ store_path() {
 # includes/libs
 NATIVE_GCC="$(store_path gcc-toolchain)"
 NATIVE_GCC_STATIC="$(store_path gcc-toolchain static)"
+RUST_SRC="$(store_path rust rust-src)/lib/rustlib/src/rust"
 
 unset LIBRARY_PATH
 unset CPATH
@@ -310,7 +311,8 @@ mkdir -p "$DISTSRC"
       -DCMAKE_SHARED_LINKER_FLAGS="${HOST_LDFLAGS}" \
       -DCMAKE_SKIP_RPATH=ON \
       -DMANUAL_SUBMODULES=1 \
-      -DGUIX=1
+      -DGUIX=1 \
+      -DRUST_SRC=${RUST_SRC}
 
     make -C build --jobs="$JOBS"
 
