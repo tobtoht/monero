@@ -1691,15 +1691,11 @@ PendingTransaction *WalletImpl::createTransactionMultDest(const std::vector<stri
             break;
         }
         try {
-            size_t fake_outs_count = mixin_count > 0 ? mixin_count : m_wallet->default_mixin();
-            fake_outs_count = m_wallet->adjust_mixin(mixin_count);
-
             if (amount) {
-                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, fake_outs_count,
-                                                                            adjusted_priority,
+                transaction->m_pending_tx = m_wallet->create_transactions_2(dsts, adjusted_priority,
                                                                             extra, subaddr_account, subaddr_indices);
             } else {
-                transaction->m_pending_tx = m_wallet->create_transactions_all(0, info.address, info.is_subaddress, 1, fake_outs_count,
+                transaction->m_pending_tx = m_wallet->create_transactions_all(0, info.address, info.is_subaddress, 1,
                                                                               adjusted_priority,
                                                                               extra, subaddr_account, subaddr_indices);
             }
@@ -1889,7 +1885,7 @@ uint64_t WalletImpl::estimateTransactionFee(const std::vector<std::pair<std::str
         m_wallet->use_fork_rules(HF_VERSION_PER_BYTE_FEE, 0),
         m_wallet->use_fork_rules(4, 0),
         1,
-        m_wallet->get_min_ring_size() - 1,
+        m_wallet->get_ring_size() - 1,
         destinations.size() + 1,
         extra_size,
         m_wallet->use_fork_rules(8, 0),
