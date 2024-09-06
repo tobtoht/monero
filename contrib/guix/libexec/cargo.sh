@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-set -e -o pipefail
+set -ex -o pipefail
 
 # Environment variables for determinism
 export LC_ALL=C
 export SOURCE_DATE_EPOCH=1397818193
 export TAR_OPTIONS="--owner=0 --group=0 --numeric-owner --mtime='@${SOURCE_DATE_EPOCH}' --sort=name"
 export TZ="UTC"
+
+allowed_pattern=$(awk '{print "^./" $1 "$" }' /monero/contrib/guix/libexec/allowed_deps.txt | paste -sd '|' -)
 
 cd /
 wget --no-check-certificate https://static.rust-lang.org/dist/rustc-1.77.1-src.tar.gz
@@ -19,7 +21,9 @@ RUSTC_BOOTSTRAP=1 cargo vendor --locked --sync /rustc-1.77.1-src/library/std/Car
 
 # Create deterministic dependency archive
 cd /vendor
-rm -rf windows*
+
+find . -mindepth 1 -maxdepth 1 -type d | grep -Ev "($allowed_pattern)" | xargs rm -rf
+
 find . -type f -regex ".*\.\(a\|dll\|exe\|lib\)$" -delete
 find . -print0 \
   | sort --zero-terminated \

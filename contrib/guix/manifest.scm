@@ -27,12 +27,8 @@
              (guix download)
              (guix gexp)
              (guix git-download)
-             (gnu packages linux)
              ((guix licenses) #:prefix license:)
              (guix packages)
-             (gnu packages texinfo)
-             (gnu packages text-editors)
-             (gnu packages certs)
              ((guix utils) #:select (substitute-keyword-arguments)))
 
 (define-syntax-rule (search-our-patches file-name ...)
@@ -156,8 +152,6 @@ chain for " target " development."))
           `(append ,flags
             ;; https://gcc.gnu.org/install/configure.html
             (list "--enable-threads=posix",
-                  "--disable-sjlj-exceptions", ;; https://github.com/rust-lang/rust/issues/12859#issuecomment-185081071
-                  "--with-dwarf2",             ;; idem
                   building-on)))))))
 
 (define-public linux-base-gcc
@@ -266,16 +260,12 @@ chain for " target " development."))
         cmake-minimal
         rust
         `(,rust "cargo")
+        `(,rust "rust-src")
         ;; Scripting
         perl
         python-minimal
         ;; Git
         git-minimal
-        ;; TODO: remove this
-        nano
-        nss-certs
-        strace
-        texinfo ;; native_binutils
     )
   (let ((target (getenv "HOST")))
     (cond ((string-suffix? "-mingw32" target)

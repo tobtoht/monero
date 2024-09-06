@@ -4,6 +4,7 @@
              (gnu packages rust)
              (gnu packages compression)
              (gnu packages wget)
+             (gnu packages gawk)
              ((gnu packages tls) #:select (openssl)))
 
 (packages->manifest
@@ -17,4 +18,7 @@
       tar
       gzip
       wget
+      sed
+      gawk
+      grep
       (list rust "cargo"))))

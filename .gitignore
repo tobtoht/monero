@@ -27,7 +27,6 @@ ClangBuildAnalyzerSession.txt
 
 # guix
 /guix
-/cargo
 
 # Created by https://www.gitignore.io
 

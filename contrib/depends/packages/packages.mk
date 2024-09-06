@@ -1,4 +1,4 @@
-native_packages:=rustc fcmp_pp_rust_deps
+native_packages:=fcmp_pp_rust_deps
 packages:=boost openssl zeromq expat unbound sodium
 
 hardware_packages := hidapi protobuf libusb
@@ -11,7 +11,7 @@ darwin_native_packages = $(hardware_native_packages)
 darwin_packages = ncurses readline $(hardware_packages)
 
 # not really native...
-freebsd_native_packages = native_binutils freebsd_base $(hardware_native_packages)
+freebsd_native_packages = freebsd_base $(hardware_native_packages)
 freebsd_packages = ncurses readline protobuf libusb
 
 linux_packages = eudev ncurses readline $(hardware_packages)

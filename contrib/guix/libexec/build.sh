@@ -49,36 +49,6 @@ DISTNAME="monero-${HOST}-${VERSION}"
 # Use a fixed timestamp for depends builds so hashes match across commits that don't make changes to the build system
 export SOURCE_DATE_EPOCH=1397818193
 
-# Given a package name and an output name, return the path of that output in our
-# current guix environment
-store_path() {
-    grep --extended-regexp "/[^-]{32}-${1}-[^-]+${2:+-${2}}" "${GUIX_ENVIRONMENT}/manifest" \
-        | head --lines=1 \
-        | sed --expression='s|\x29*$||' \
-              --expression='s|^[[:space:]]*"||' \
-              --expression='s|"[[:space:]]*$||'
-}
-
-#####################
-#    Rust Setup     #
-#####################
-
-RUST_TARGET=$(
-    case "$HOST" in
-        x86_64-linux-gnu)      echo x86_64-unknown-linux-gnu ;;
-        aarch64-linux-gnu)     echo aarch64-unknown-linux-gnu ;;
-        arm-linux-gnueabihf)   echo armv7-unknown-linux-gnueabihf ;;
-        riscv64-linux-gnu)     echo riscv64gc-unknown-linux-gnu ;;
-        i686-linux-gnu)        echo i686-unknown-linux-gnu ;;
-        x86_64-w64-mingw32)    echo x86_64-pc-windows-gnu ;;
-        i686-w64-mingw32)      echo i686-pc-windows-gnu ;;
-        arm-linux-androideabi) echo armv7-linux-androideabi ;;
-        *)                     echo "$HOST" ;;
-    esac
-)
-
-export RUST_TARGET
-
 #####################
 # Environment Setup #
 #####################
@@ -91,6 +61,17 @@ printenv | sort | grep -v '^\(BASE_CACHE=\|DISTNAME=\|DISTSRC=\|OUTDIR=\|LOGDIR=
 # The depends folder also serves as a base-prefix for depends packages for
 # $HOSTs after successfully building.
 BASEPREFIX="${PWD}/contrib/depends"
+
+# Given a package name and an output name, return the path of that output in our
+# current guix environment
+store_path() {
+    grep --extended-regexp "/[^-]{32}-${1}-[^-]+${2:+-${2}}" "${GUIX_ENVIRONMENT}/manifest" \
+        | head --lines=1 \
+        | sed --expression='s|\x29*$||' \
+              --expression='s|^[[:space:]]*"||' \
+              --expression='s|"[[:space:]]*$||'
+}
+
 
 # Set environment variables to point the NATIVE toolchain to the right
 # includes/libs
@@ -118,8 +99,6 @@ prepend_to_search_env_var() {
 # includes/libs for $HOST
 case "$HOST" in
     *mingw*)
-        export LD_LIBRARY_PATH="${NATIVE_GCC}/lib"
-
         # Determine output paths to use in CROSS_* environment variables
         case "$HOST" in
             i686-*)    CROSS_GLIBC="$(store_path "mingw-w64-i686-winpthreads")" ;;
@@ -159,9 +138,6 @@ case "$HOST" in
         export CROSS_C_INCLUDE_PATH="${CROSS_GCC_LIB}/include:${CROSS_GCC_LIB}/include-fixed:${CROSS_GLIBC}/include:${CROSS_KERNEL}/include"
         export CROSS_CPLUS_INCLUDE_PATH="${CROSS_GCC}/include/c++:${CROSS_GCC}/include/c++/${HOST}:${CROSS_GCC}/include/c++/backward:${CROSS_C_INCLUDE_PATH}"
         export CROSS_LIBRARY_PATH="${CROSS_GCC_LIB_STORE}/lib:${CROSS_GCC_LIB}:${CROSS_GLIBC}/lib:${CROSS_GLIBC_STATIC}/lib"
-
-        # Todo: remove this hack
-        export LD_LIBRARY_PATH="/gnu/store/4az5pnqqpkpf4hmfknb0d73jwgx935nm-gcc-12.3.0-lib/lib"
         ;;
     *freebsd*)
         ;;
@@ -169,6 +145,7 @@ case "$HOST" in
         exit 1 ;;
 esac
 
+# TODO
 export LD_LIBRARY_PATH="$(store_path xz)/lib:${NATIVE_GCC}/lib:$(store_path zlib)/lib"
 
 # Sanity check CROSS_*_PATH directories
@@ -332,7 +309,8 @@ mkdir -p "$DISTSRC"
       -DCMAKE_EXE_LINKER_FLAGS="${HOST_LDFLAGS}" \
       -DCMAKE_SHARED_LINKER_FLAGS="${HOST_LDFLAGS}" \
       -DCMAKE_SKIP_RPATH=ON \
-      -DMANUAL_SUBMODULES=1
+      -DMANUAL_SUBMODULES=1 \
+      -DGUIX=1
 
     make -C build --jobs="$JOBS"
 
