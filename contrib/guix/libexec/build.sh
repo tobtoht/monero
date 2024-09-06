@@ -171,6 +171,7 @@ export GUIX_LD_WRAPPER_DISABLE_RPATH=yes
 [ -e /bin/bash ]  || ln -s --no-dereference "$(command -v bash)"  /bin/bash
 [ -e /bin/sh ]  || ln -s --no-dereference "$(command -v sh)"  /bin/sh
 [ -e /lib64/ld-linux-x86-64.so.2 ]  || ln -s --no-dereference "${NATIVE_GCC}/lib/ld-linux-x86-64.so.2"  /lib64/ld-linux-x86-64.so.2
+[ -e /rust ]  || ln -s --no-dereference "${RUST_SRC}"  /rust
 
 # Determine the correct value for -Wl,--dynamic-linker for the current $HOST
 case "$HOST" in
@@ -312,7 +313,7 @@ mkdir -p "$DISTSRC"
       -DCMAKE_SKIP_RPATH=ON \
       -DMANUAL_SUBMODULES=1 \
       -DGUIX=1 \
-      -DRUST_SRC=${RUST_SRC}
+      -DRUST_SRC=/rust
 
     make -C build --jobs="$JOBS"
 
