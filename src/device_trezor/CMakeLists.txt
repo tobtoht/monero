@@ -94,7 +94,7 @@ if(DEVICE_TREZOR_READY)
             common
             ${sodium_LIBRARIES}
             ${Boost_CHRONO_LIBRARY}
-            ${Protobuf_LIBRARY}
+            protobuf::libprotobuf
             ${TREZOR_LIBUSB_LIBRARIES}
             PRIVATE
             ${EXTRA_LIBRARIES}
