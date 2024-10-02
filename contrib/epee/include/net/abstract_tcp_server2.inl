@@ -32,7 +32,6 @@
 
 
 
-#include <boost/foreach.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/chrono.hpp>
 #include <boost/utility/value_init.hpp>
@@ -1408,7 +1407,7 @@ namespace net_utils
   {
     TRY_ENTRY();
     CRITICAL_REGION_LOCAL(m_threads_lock);
-    BOOST_FOREACH(boost::shared_ptr<boost::thread>& thp,  m_threads)
+    for (boost::shared_ptr<boost::thread>& thp : m_threads)
     {
       if(thp->get_id() == boost::this_thread::get_id())
         return true;

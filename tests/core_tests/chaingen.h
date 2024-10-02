@@ -35,6 +35,7 @@
 #include <iostream>
 #include <stdint.h>
 
+#include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
 #include <boost/optional.hpp>
 #include <boost/serialization/vector.hpp>
