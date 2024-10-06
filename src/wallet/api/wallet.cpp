@@ -208,9 +208,10 @@ struct Wallet2CallbackImpl : public tools::i_wallet2_callback
                      << ", burnt: " << print_money(burnt)
                      << ", raw_output_value: " << print_money(amount)
                      << ", idx: " << subaddr_index);
+
         // do not signal on received tx if wallet is not synchronized completely
         if (m_listener && m_wallet->synchronized()) {
-            m_listener->moneyReceived(tx_hash, amount - burnt);
+            m_listener->moneyReceived(tx_hash, amount - burnt, cryptonote::is_coinbase(tx));
             m_listener->updated();
         }
     }
