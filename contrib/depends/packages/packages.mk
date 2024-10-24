@@ -27,3 +27,7 @@ mingw32_native_packages = $(hardware_native_packages)
 ifneq ($(build_os),darwin)
 darwin_native_packages += darwin_sdk
 endif
+
+ifeq ($(GUIX_ENVIRONMENT),)
+native_packages += native_binutils
+endif
