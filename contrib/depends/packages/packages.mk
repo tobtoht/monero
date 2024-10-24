@@ -29,5 +29,7 @@ darwin_native_packages += darwin_sdk
 endif
 
 ifeq ($(GUIX_ENVIRONMENT),)
+ifeq ($(host_arch),riscv64)
 native_packages += native_binutils
+endif
 endif

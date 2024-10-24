@@ -8,10 +8,16 @@ define $(package)_config_cmds
   $($(package)_autoconf) --target $(host)
 endef
 
+# MAKEINFO=true : skip documentation generation
+
 define $(package)_build_cmds
-  $(MAKE)
+  $(MAKE) MAKEINFO=true
 endef
 
 define $(package)_stage_cmds
-  $(MAKE) DESTDIR=$($(package)_staging_dir) install
+  $(MAKE) MAKEINFO=true DESTDIR=$($(package)_staging_dir) install
+endef
+
+define $(package)_postprocess_cmds
+  mv bin/riscv64-linux-gnu-ld bin/real-ld
 endef
