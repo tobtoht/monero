@@ -126,6 +126,7 @@ else()
 
   SET(CMAKE_C_COMPILER @CC@)
   SET(CMAKE_CXX_COMPILER @CXX@)
+  SET(CMAKE_EXE_LINKER_FLAGS "-B@prefix@/native/bin/")
 endif()
 
 if(ARCHITECTURE STREQUAL "arm")

@@ -5,7 +5,7 @@ $(package)_file_name=binutils-$($(package)_version).tar.bz2
 $(package)_sha256_hash=f8298eb153a4b37d112e945aa5cb2850040bcf26a3ea65b5a715c83afe05e48a
 
 define $(package)_config_cmds
-  $($(package)_autoconf)
+  $($(package)_autoconf) --target $(host)
 endef
 
 define $(package)_build_cmds
