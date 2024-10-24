@@ -18,6 +18,9 @@ define $(package)_stage_cmds
   $(MAKE) MAKEINFO=true DESTDIR=$($(package)_staging_dir) install
 endef
 
+# Convince collect2 to use this ld over system toolchain ld
+# https://gcc.gnu.org/onlinedocs/gccint/Collect2.html
+
 define $(package)_postprocess_cmds
-  mv bin/riscv64-linux-gnu-ld bin/real-ld
+  cp "bin/$(host)-ld" bin/real-ld
 endef

@@ -32,4 +32,7 @@ ifeq ($(GUIX_ENVIRONMENT),)
 ifeq ($(host_arch),riscv64)
 native_packages += native_binutils
 endif
+ifeq ($(host_os),mingw32)
+native_packages += native_binutils
+endif
 endif
