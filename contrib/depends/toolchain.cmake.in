@@ -42,8 +42,8 @@ SET(LIBUNWIND_LIBRARIES @prefix@/lib/libunwind.a)
 SET(LIBUNWIND_LIBRARY_DIRS @prefix@/lib)
 endif()
 
-SET(ZMQ_INCLUDE_PATH @prefix@/include)
-SET(ZMQ_LIB @prefix@/lib/libzmq.a)
+SET(ZMQ_INCLUDE_DIRS @prefix@/include)
+SET(ZMQ_LINK_LIBRARIES @prefix@/lib/libzmq.a)
 
 SET(Boost_IGNORE_SYSTEM_PATH ON)
 SET(BOOST_ROOT @prefix@)
