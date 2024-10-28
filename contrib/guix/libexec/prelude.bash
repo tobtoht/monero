@@ -2,9 +2,6 @@
 export LC_ALL=C
 set -e -o pipefail
 
-# shellcheck source=contrib/shell/realpath.bash
-source contrib/shell/realpath.bash
-
 # shellcheck source=contrib/shell/git-utils.bash
 source contrib/shell/git-utils.bash
 
@@ -29,8 +26,8 @@ check_tools cat env readlink dirname basename git
 
 same_dir() {
     local resolved1 resolved2
-    resolved1="$(bash_realpath "${1}")"
-    resolved2="$(bash_realpath "${2}")"
+    resolved1="$(realpath -e "${1}")"
+    resolved2="$(realpath -e "${2}")"
     [ "$resolved1" = "$resolved2" ]
 }
 

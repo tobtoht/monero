@@ -108,8 +108,7 @@ desirable for building Monero release binaries."
 
 (define (gcc-mingw-patches gcc)
   (package-with-extra-patches gcc
-    (search-our-patches "gcc-remap-guix-store.patch"
-                        "gcc-fix-win32-vsnprintf.patch")))
+    (search-our-patches "gcc-remap-guix-store.patch")))
 
 (define (make-mingw-pthreads-cross-toolchain target)
   "Create a cross-compilation toolchain package for TARGET"

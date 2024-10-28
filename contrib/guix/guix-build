@@ -17,7 +17,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/libexec/prelude.bash"
 # Required non-builtin commands should be invocable
 ################
 
-check_tools cat mkdir make getent curl git guix
+check_tools cat mkdir make getent curl git guix realpath
 
 ################
 # GUIX_BUILD_OPTIONS should be empty
@@ -85,7 +85,6 @@ export HOSTS="${HOSTS:-x86_64-linux-gnu
                        riscv64-linux-gnu
                        i686-linux-gnu
                        x86_64-w64-mingw32
-                       i686-w64-mingw32
                        x86_64-unknown-freebsd
                        x86_64-apple-darwin
                        aarch64-apple-darwin
