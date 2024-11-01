@@ -54,3 +54,28 @@ check_libraries() {
         fi
     done
 }
+
+check_glibc() {
+    local binary="$1"
+    local major_max="$2"
+    local minor_max="$3"
+
+    # We don't have access to perl regexp (-P) here
+    required_glibc=$(objdump -T "$binary" | grep -o -E 'GLIBC_[0-9]\.[0-9]{1,}' | sort -V | tail -n 1 | sed 's/^GLIBC_//')
+
+    major="${required_glibc%.*}"
+    minor="${required_glibc#*.}"
+
+    failure=0
+    if [[ "$major" -gt "$major_max" ]]; then
+        failure=1
+    fi
+    if [[ "$major" -eq "$major_max" && "$minor" -gt "$minor_max" ]]; then
+        failure=1
+    fi
+
+    if [[ "$failure" -eq 1 ]]; then
+        echo "ERR: ${binary} glibc version too recent: ${required_glibc}, maximum allowed: ${major_max}.${minor_max}"
+        exit 1
+    fi
+}

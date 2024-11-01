@@ -372,6 +372,7 @@ mkdir -p "$DISTSRC"
             *linux-gnu*)
                 check_rpath "$binary"
                 check_interpreter "$binary" "$glibc_dynamic_linker"
+                check_glibc "$binary" "2" "27"
 
                 allowed_dynamic_libraries=("libatomic.so.1" "libc.so.6" "libm.so.6" "libpthread.so.0" $(basename "$glibc_dynamic_linker"))
                 check_libraries "$binary" "${allowed_dynamic_libraries[@]}"
