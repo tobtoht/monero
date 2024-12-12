@@ -223,6 +223,11 @@ contains() {
     return 1
 }
 
+# Usage: depends_print DEPENDS-VARIABLE
+depends_print() {
+    make -C "${PWD}/contrib/depends" --no-print-directory "print-$1"
+}
+
 # If the user explicitly specified a precious directory, create it so we
 # can map it into the container
 for precious_dir_name in $precious_dir_names; do
@@ -250,7 +255,7 @@ mkdir -p "$VAR_BASE"
     # Get precious dir definitions from depends and the environment
     for precious_dir_name in $precious_dir_names; do
         if contains "$depends_precious_dir_names" "$precious_dir_name"; then
-            precious_dir_path="$(make -C "${PWD}/contrib/depends" --no-print-directory print-${precious_dir_name})"
+            precious_dir_path="$(depends_print ${precious_dir_name})"
         else
             precious_dir_path="${!precious_dir_name}"
         fi
@@ -263,6 +268,29 @@ OUTDIR_BASE="${OUTDIR_BASE:-${VERSION_BASE}/output}"
 mkdir -p "$OUTDIR_BASE"
 LOGDIR_BASE="${LOGDIR_BASE:-${VERSION_BASE}/logs}"
 mkdir -p "$LOGDIR_BASE"
+
+# Download and archive Rust dependencies.
+SOURCES_PATH="${SOURCES_PATH:-$(depends_print SOURCES_PATH)}"
+mkdir -p "$SOURCES_PATH"
+# Version and Hash need to be updated when:
+# - we bump the time-machine and Guix has a new version of Rust.
+# - Cargo.lock in src/fcmp_pp/fcmp_pp_rust is updated.
+RUST_DEPS_VERSION=0
+RUST_DEPS_HASH="6abbac8d3d96db1fa64bd4b72d0b210c30db754ad95efa03d4de5437e2041f64"
+RUST_DEPS_ARCHIVE="rust_deps-${RUST_DEPS_VERSION}.tar.gz"
+if [ ! -f "${SOURCES_PATH}/${RUST_DEPS_ARCHIVE}" ]; then
+    time-machine environment --manifest="${PWD}/contrib/guix/rust/cargo.scm" \
+                             --container \
+                             --pure \
+                             --network \
+                             --no-cwd \
+                             --user="user" \
+                             --share="$PWD"=/monero \
+                             --share="$SOURCES_PATH"=/sources \
+                             -- env RUST_DEPS_ARCHIVE="$RUST_DEPS_ARCHIVE" \
+                                    bash /monero/contrib/guix/rust/cargo.sh
+fi
+echo "${RUST_DEPS_HASH} ${SOURCES_PATH}/${RUST_DEPS_ARCHIVE}" | sha256sum -c
 
 # Download the depends sources now as we won't have internet access in the build
 # container
@@ -439,7 +467,7 @@ EOF
                                  --share="$OUTDIR_BASE"=/outdir-base \
                                  --share="$LOGDIR_BASE"=/logdir-base \
                                  --expose="$(git rev-parse --git-common-dir)" \
-                                 ${SOURCES_PATH:+--share="$SOURCES_PATH"} \
+                                 --share="$SOURCES_PATH"=/sources \
                                  ${BASE_CACHE:+--share="$BASE_CACHE"} \
                                  --cores="$JOBS" \
                                  --keep-failed \
@@ -455,8 +483,9 @@ EOF
                                         COMMIT_TIMESTAMP="${COMMIT_TIMESTAMP:?unable to determine value}" \
                                         ${V:+V=1} \
                                         ${DEPENDS_ONLY:+DEPENDS_ONLY=1} \
-                                        ${SOURCES_PATH:+SOURCES_PATH="$SOURCES_PATH"} \
+                                        SOURCES_PATH="/sources" \
                                         ${BASE_CACHE:+BASE_CACHE="$BASE_CACHE"} \
+                                        RUST_DEPS_ARCHIVE="$RUST_DEPS_ARCHIVE" \
                                         DISTSRC="$(DISTSRC_BASE=/distsrc-base && distsrc_for_host "$host")" \
                                         OUTDIR="$(OUTDIR_BASE=/outdir-base && outdir_for_host "$host")" \
                                         LOGDIR="$(LOGDIR_BASE=/logdir-base && logdir_for_host "$host")" \
