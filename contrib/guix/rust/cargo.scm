@@ -23,6 +23,8 @@
 ;; Instead, we create a new package with the unaltered rust source
 ;; and vendor the standard library in cargo.sh
 
+;; TODO: can we use inherit here?
+
 (define-public rust-std
   (package
     (name "rust-std")

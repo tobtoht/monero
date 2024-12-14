@@ -383,7 +383,7 @@ mkdir -p "$DISTSRC"
 
     # Unpack rust dependencies
     mkdir -p /rust
-    tar xf "$SOURCES_PATH/$RUST_DEPS_ARCHIVE" -C /rust
+    tar xf /rust-deps -C /rust
 
     # Configure this DISTSRC for $HOST
     # shellcheck disable=SC2086

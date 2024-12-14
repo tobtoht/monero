@@ -67,6 +67,4 @@ cd /rust
 find . -print0 \
   | sort --zero-terminated \
   | tar --create --no-recursion --mode='u+rw,go+r-w,a+X' --null --files-from=- \
-  | gzip -9n > "/sources/$RUST_DEPS_ARCHIVE"
-
-sha256sum "/sources/$RUST_DEPS_ARCHIVE"
+  | gzip -9n > "/monero/$RUST_DEPS_ARCHIVE"
