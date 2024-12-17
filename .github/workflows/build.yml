@@ -66,6 +66,8 @@ jobs:
     - shell: msys2 {0}
       run: |
         curl -O https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-boost-1.86.0-7-any.pkg.tar.zst
+        curl -O https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-boost-1.86.0-7-any.pkg.tar.zst.sig
+        gpg --homedir /etc/pacman.d/gnupg --verify mingw-w64-x86_64-boost-1.86.0-7-any.pkg.tar.zst.sig
         pacman --noconfirm -U mingw-w64-x86_64-boost-1.86.0-7-any.pkg.tar.zst
     - name: build
       run: |
