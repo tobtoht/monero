@@ -23,7 +23,6 @@ $(package)_toolset_darwin=darwin
 $(package)_archiver_darwin=$($(package)_libtool)
 $(package)_config_libraries_$(host_os)="chrono,filesystem,program_options,system,thread,test,date_time,regex,serialization"
 $(package)_config_libraries_mingw32="chrono,filesystem,program_options,system,thread,test,date_time,regex,serialization,locale"
-$(package)_cxxflags+=-std=c++11
 $(package)_cxxflags_linux+=-fPIC
 $(package)_cxxflags_freebsd+=-fPIC
 $(package)_cxxflags_darwin+=-ffile-prefix-map=$($(package)_extract_dir)=/usr
