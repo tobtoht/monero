@@ -1,0 +1,22 @@
+diff --git a/configure b/configure
+index 1f86520..f344241 100755
+--- a/configure
++++ b/configure
+@@ -17235,7 +17235,7 @@ EXTRA_CPPFLAGS=
+ EXTRA_CFLAGS=
+ 
+ saved_CFLAGS="${CFLAGS}"
+-CFLAGS="-std=gnu11"
++CFLAGS="${saved_CFLAGS} -std=gnu11"
+ { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if $CC supports -std=gnu11" >&5
+ printf %s "checking if $CC supports -std=gnu11... " >&6; }
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+@@ -17261,7 +17261,7 @@ printf "%s\n" "no" >&6; }
+ fi
+ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+ if test "x$c_dialect" != xgnu; then
+-		CFLAGS="-std=c11"
++		CFLAGS="${saved_CFLAGS} -std=c11"
+ 	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking if $CC supports -std=c11" >&5
+ printf %s "checking if $CC supports -std=c11... " >&6; }
+ 	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
