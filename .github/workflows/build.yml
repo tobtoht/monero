@@ -128,8 +128,6 @@ jobs:
         run: apt update
       - name: install monero dependencies
         run: ${{env.APT_INSTALL_LINUX}}
-      - name: install pip
-        run: apt install -y python3-pip
       - name: configure git
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
@@ -190,10 +188,12 @@ jobs:
         run: apt update
       - name: install monero dependencies
         run: ${{env.APT_INSTALL_LINUX}}
-      - name: configure git
-        run: git config --global --add safe.directory '*'
+      - name: install pip
+        run: apt install -y python3-pip
       - name: install Python dependencies
         run: pip install requests psutil monotonic zmq deepdiff
+      - name: configure git
+        run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
         with:
           submodules: recursive
