@@ -58,8 +58,10 @@ jobs:
       - name: remove bundled packages
         # This is faster than rm -rf
         run: |
-          sudo mkdir /empty
-          sudo rsync -a --delete /empty/ /usr/local
+          sudo bash -c "mv /usr/local /usr/extlocal &&\
+                        mkdir /usr/local &&\
+                        chown --reference=/usr/extlocal /usr/local &&\
+                        chmod --reference=/usr/extlocal /usr/local"
       - name: depends sources cache
         uses: actions/cache/restore@v4
         with:
