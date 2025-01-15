@@ -174,9 +174,13 @@ jobs:
   test-ubuntu:
     name: "Ubuntu 20.04 (tests)"
     needs: build-ubuntu
-    runs-on: ubuntu-20.04
-    env:
-      CCACHE_TEMPDIR: /tmp/.ccache-temp
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
+      env:
+        DEBIAN_FRONTEND: noninteractive
+        CCACHE_TEMPDIR: /tmp/.ccache-temp
+        CCACHE_DIR: ~/.ccache
     steps:
     - uses: actions/checkout@v4
       with:
@@ -211,7 +215,11 @@ jobs:
 
   source-archive:
     name: "source archive"
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
+      env:
+        DEBIAN_FRONTEND: noninteractive
     steps:
     - uses: actions/checkout@v4
       with:
@@ -223,7 +231,7 @@ jobs:
         export VERSION="monero-$(git describe)"
         export OUTPUT="$VERSION.tar"
         echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
-        /home/runner/.local/bin/git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
+        ~/.local/bin/git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
     - uses: actions/upload-artifact@v4
       with:
         name: ${{ env.OUTPUT }}
