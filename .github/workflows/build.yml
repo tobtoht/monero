@@ -225,7 +225,7 @@ jobs:
       - name: update apt
         run: apt update
       - name: install git
-        run: apt install -y git
+        run: apt install -y git python3-pip
       - name: configure git
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
