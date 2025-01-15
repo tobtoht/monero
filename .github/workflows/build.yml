@@ -231,7 +231,7 @@ jobs:
         run: ${{env.APT_SET_CONF}}
       - name: update apt
         run: apt update
-      - name: install git
+      - name: install dependencies
         run: apt install -y git python3-pip
       - name: configure git
         run: git config --global --add safe.directory '*'
