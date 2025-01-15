@@ -238,7 +238,7 @@ jobs:
           export VERSION="monero-$(git describe)"
           export OUTPUT="$VERSION.tar"
           echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
-          ~/.local/bin/git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
+          git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.OUTPUT }}
