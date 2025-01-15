@@ -172,12 +172,14 @@ jobs:
         make wallet_api -j4
 
   test-ubuntu:
-    name: "Ubuntu 20.04 (tests)"
+    name: "${{ matrix.name }} (tests)"
     needs: build-ubuntu
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        container: ['ubuntu:20.04']
+        include:
+          - name: Ubuntu 20.04
+            container: ubuntu:20.04
     container:
       image: ${{ matrix.container }}
       env:
