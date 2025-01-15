@@ -28,6 +28,7 @@ jobs:
     container:
       image: ubuntu:20.04
       env:
+        DEBIAN_FRONTEND: noninteractive
         CCACHE_TEMPDIR: /tmp/.ccache-temp
     strategy:
       fail-fast: false
