@@ -175,10 +175,11 @@ jobs:
     name: "Ubuntu 20.04 (tests)"
     needs: build-ubuntu
     runs-on: ubuntu-latest
-    env:
-      CONTAINER_IMAGE: ubuntu:20.04
+    strategy:
+      matrix:
+        container: [ubuntu:20.04]
     container:
-      image: ${{ env.CONTAINER_IMAGE }}
+      image: ${{ matrix.container }}
       env:
         DEBIAN_FRONTEND: noninteractive
         CCACHE_TEMPDIR: /tmp/.ccache-temp
@@ -202,8 +203,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ccache-${{ env.CONTAINER_IMAGE }}-build-${{ github.sha }}
-          restore-keys: ccache-${{ env.CONTAINER_IMAGE }}-build-
+          key: ccache-${{ matrix.container }}-build-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.container }}-build-
       - name: tests
         env:
           CTEST_OUTPUT_ON_FAILURE: ON
