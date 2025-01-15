@@ -182,33 +182,32 @@ jobs:
         CCACHE_TEMPDIR: /tmp/.ccache-temp
         CCACHE_DIR: ~/.ccache
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: ccache
-      uses: actions/cache@v4
-      with:
-        path: ~/.ccache
-        key: ccache-${{ runner.os }}-build-ubuntu-latest-${{ github.sha }}
-        restore-keys: ccache-${{ runner.os }}-build-ubuntu-latest
-    - name: remove bundled packages
-      run: ${{env.REMOVE_BUNDLED_PACKAGES}}
-    - name: set apt conf
-      run: sudo ${{env.APT_SET_CONF}}
-    - name: update apt
-      run: sudo apt update
-    - name: install monero dependencies
-      run: sudo ${{env.APT_INSTALL_LINUX}}
-    - name: install Python dependencies
-      run: pip install requests psutil monotonic zmq deepdiff
-    - name: tests
-      env:
-        CTEST_OUTPUT_ON_FAILURE: ON
-        DNS_PUBLIC: tcp://9.9.9.9
-      run: |
-        ${{env.CCACHE_SETTINGS}}
-        ${{env.BUILD_DEFAULT_LINUX}}
-        cmake --build build --target test
+      - name: set apt conf
+        run: ${{env.APT_SET_CONF}}
+      - name: update apt
+        run: apt update
+      - name: install monero dependencies
+        run: ${{env.APT_INSTALL_LINUX}}
+      - name: configure git
+        run: git config --global --add safe.directory '*'
+      - name: install Python dependencies
+        run: pip install requests psutil monotonic zmq deepdiff
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ matrix.container }}-build-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.container }}-build-
+      - name: tests
+        env:
+          CTEST_OUTPUT_ON_FAILURE: ON
+          DNS_PUBLIC: tcp://9.9.9.9
+        run: |
+          ${{env.CCACHE_SETTINGS}}
+          ${{env.BUILD_DEFAULT_LINUX}}
+          cmake --build build --target test
 
 # ARCH="default" (not "native") ensures, that a different execution host can execute binaries compiled elsewhere.
 # BUILD_SHARED_LIBS=ON speeds up the linkage part a bit, reduces size, and is the only place where the dynamic linkage is tested.
@@ -221,18 +220,26 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        submodules: recursive
-    - name: archive
-      run: |
-        pip install git-archive-all
-        export VERSION="monero-$(git describe)"
-        export OUTPUT="$VERSION.tar"
-        echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
-        ~/.local/bin/git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
-    - uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.OUTPUT }}
-        path: /home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}/${{ env.OUTPUT }}
+      - name: set apt conf
+        run: ${{env.APT_SET_CONF}}
+      - name: update apt
+        run: apt update
+      - name: install git
+        run: apt install git
+      - name: configure git
+        run: git config --global --add safe.directory '*'
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: archive
+        run: |
+          pip install git-archive-all
+          export VERSION="monero-$(git describe)"
+          export OUTPUT="$VERSION.tar"
+          echo "OUTPUT=$OUTPUT" >> $GITHUB_ENV
+          ~/.local/bin/git-archive-all --prefix "$VERSION/" --force-submodules "$OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.OUTPUT }}
+          path: ${{ env.OUTPUT }}
