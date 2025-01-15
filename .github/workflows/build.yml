@@ -177,7 +177,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        container: [ubuntu:20.04]
+        container: ['ubuntu:20.04']
     container:
       image: ${{ matrix.container }}
       env:
