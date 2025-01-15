@@ -225,7 +225,7 @@ jobs:
       - name: update apt
         run: apt update
       - name: install git
-        run: apt install git
+        run: apt install -y git
       - name: configure git
         run: git config --global --add safe.directory '*'
       - uses: actions/checkout@v4
