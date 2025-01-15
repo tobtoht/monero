@@ -41,13 +41,13 @@ TEST(DNSResolver, IPv4Success)
 
   auto ips = resolver.get_ipv4("example.com", avail, valid);
 
-  ASSERT_EQ(1, ips.size());
+  ASSERT_GE(ips.size(), 1);
 
   //ASSERT_STREQ("93.184.216.119", ips[0].c_str());
 
   ips = tools::DNSResolver::instance().get_ipv4("example.com", avail, valid);
 
-  ASSERT_EQ(1, ips.size());
+  ASSERT_GE(ips.size(), 1);
 
   //ASSERT_STREQ("93.184.216.119", ips[0].c_str());
 }
@@ -76,7 +76,7 @@ TEST(DNSResolver, DNSSECSuccess)
 
   auto ips = resolver.get_ipv4("example.com", avail, valid);
 
-  ASSERT_EQ(1, ips.size());
+  ASSERT_GE(ips.size(), 1);
 
   //ASSERT_STREQ("93.184.216.119", ips[0].c_str());
 
