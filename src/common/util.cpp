@@ -588,6 +588,14 @@ namespace tools
     {
       return boost::none;
     }
+
+    if (!boost::filesystem::exists(prefix)) {
+      // If the device returned by stat does not exist at /sys/dev/block/, we are likely
+      // inside a container. There is no way to check if file_path is on a hard drive.
+      MWARNING("Unable to determine whether file path '" << file_path << "' is on a HDD, assuming not");
+      return false;
+    }
+
     std::string attr_path = prefix + "/queue/rotational";
     std::ifstream f(attr_path, std::ios_base::in);
     if(not f.is_open())
