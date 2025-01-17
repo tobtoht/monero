@@ -324,6 +324,10 @@ export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
 # Force Trezor support for release binaries
 export USE_DEVICE_TREZOR_MANDATORY=1
 
+# IF (BUILD_TESTS)
+export CTEST_OUTPUT_ON_FAILURE=1
+export TESTS=1
+
 # Make $HOST-specific native binaries from depends available in $PATH
 export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
 mkdir -p "$DISTSRC"
@@ -347,6 +351,8 @@ mkdir -p "$DISTSRC"
     # checked out before starting a build.
     CMAKEFLAGS+=" -DMANUAL_SUBMODULES=1"
 
+    CMAKEFLAGS+=" -DBUILD_TESTS=ON"
+
     # Configure this DISTSRC for $HOST
     # shellcheck disable=SC2086
     env CFLAGS="${HOST_CFLAGS}" CXXFLAGS="${HOST_CXXFLAGS}" \
@@ -357,6 +363,8 @@ mkdir -p "$DISTSRC"
       ${CMAKEFLAGS}
 
     make -C build --jobs="$JOBS"
+
+    cmake --build build --target test --parallel "$JOBS"
 
     # Copy docs
     cp README.md LICENSE docs/ANONYMITY_NETWORKS.md "${INSTALLPATH}"
