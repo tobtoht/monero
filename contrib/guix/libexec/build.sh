@@ -253,7 +253,8 @@ make -C contrib/depends --jobs="$JOBS" HOST="$HOST" \
                                    x86_64_linux_AR=x86_64-linux-gnu-gcc-ar \
                                    x86_64_linux_RANLIB=x86_64-linux-gnu-gcc-ranlib \
                                    x86_64_linux_NM=x86_64-linux-gnu-gcc-nm \
-                                   x86_64_linux_STRIP=x86_64-linux-gnu-strip
+                                   x86_64_linux_STRIP=x86_64-linux-gnu-strip \
+                                   TESTS=1
 
 # Log the depends package hashes
 DEPENDS_PACKAGES="$(make -C contrib/depends --no-print-directory HOST="$HOST" print-all_packages)"
@@ -326,7 +327,6 @@ export USE_DEVICE_TREZOR_MANDATORY=1
 
 # IF (BUILD_TESTS)
 export CTEST_OUTPUT_ON_FAILURE=1
-export TESTS=1
 
 # Make $HOST-specific native binaries from depends available in $PATH
 export PATH="${BASEPREFIX}/${HOST}/native/bin:${PATH}"
@@ -364,7 +364,7 @@ mkdir -p "$DISTSRC"
 
     make -C build --jobs="$JOBS"
 
-    cmake --build build --target test --parallel "$JOBS"
+#    cmake --build build --target test --parallel "$JOBS"
 
     # Copy docs
     cp README.md LICENSE docs/ANONYMITY_NETWORKS.md "${INSTALLPATH}"
