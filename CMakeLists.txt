@@ -260,6 +260,8 @@ if (MINGW)
   export_all_symbols()
 endif()
 
+message(INFO "WIN32? ${WIN32}")
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
   message(STATUS "Setting default build type: ${CMAKE_BUILD_TYPE}")
