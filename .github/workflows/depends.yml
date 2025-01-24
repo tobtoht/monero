@@ -88,6 +88,9 @@ jobs:
       run: |
         sudo update-alternatives --set ${{ matrix.toolchain.host }}-g++ $(which ${{ matrix.toolchain.host }}-g++-posix)
         sudo update-alternatives --set ${{ matrix.toolchain.host }}-gcc $(which ${{ matrix.toolchain.host }}-gcc-posix)
+    - name: shell
+      run: |
+        printenv
     - name: build
       run: |
         ${{env.CCACHE_SETTINGS}}
