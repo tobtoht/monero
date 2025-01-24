@@ -199,6 +199,8 @@ jobs:
         run: pip install requests psutil monotonic zmq deepdiff
       - name: configure git
         run: git config --global --add safe.directory '*'
+      - name: create dummy disk drives for testing
+        run: tests/create_test_disks.sh >> $GITHUB_ENV
       - uses: actions/checkout@v4
         with:
           submodules: recursive
