@@ -199,8 +199,6 @@ jobs:
         run: pip install requests psutil monotonic zmq deepdiff
       - name: configure git
         run: git config --global --add safe.directory '*'
-      - name: create dummy disk drives for testing
-        run: tests/create_test_disks.sh >> $GITHUB_ENV
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -209,6 +207,8 @@ jobs:
           path: ~/.ccache
           key: ccache-${{ matrix.container }}-build-${{ github.sha }}
           restore-keys: ccache-${{ matrix.container }}-build-
+      - name: create dummy disk drives for testing
+        run: tests/create_test_disks.sh >> $GITHUB_ENV
       - name: tests
         env:
           CTEST_OUTPUT_ON_FAILURE: ON
