@@ -18,7 +18,7 @@ create_device_node() {
     local path
     for (( i=0; i<10; i++ )); do
         path="/dev/loop$id"
-        if [[ ! -e "$path" ]] && sudo mknod "$path" b "$LOOP_DEVICE_MAJOR" "$id"; then
+        if [[ ! -e "$path" ]] && mknod "$path" b "$LOOP_DEVICE_MAJOR" "$id"; then
             echo "$path"
             return 0
         fi
@@ -49,10 +49,10 @@ create_device() {
     echo_err
     echo_err "# Device $dev"
     dd if=/dev/zero of="$fs" bs=64K count=128 >/dev/null 2>&1
-    sudo losetup "$dev" "$fs"
-    sudo mkfs.ext4 "$dev" >/dev/null 2>&1
+    losetup "$dev" "$fs"
+    mkfs.ext4 "$dev" >/dev/null 2>&1
     mkdir "$mountpoint"
-    sudo mount "$dev" "$mountpoint"
+    mount "$dev" "$mountpoint"
     echo "$dev"
 }
 
@@ -65,9 +65,9 @@ destroy_device() {
         return 1
     fi
     echo_err "Destroying device $dev"
-    sudo umount $(device_mountpoint "$datadir" "$dev")
-    sudo losetup -d "$dev"
-    sudo rm "$dev"
+    umount $(device_mountpoint "$datadir" "$dev")
+    losetup -d "$dev"
+    rm "$dev"
 }
 
 block_device_path() {
@@ -81,10 +81,10 @@ echo_err "Creating devices using temporary directory: $tmpdir"
 
 dev_rot=$(create_device "$tmpdir")
 bdev_rot=$(block_device_path "$dev_rot")
-echo 1 | sudo tee "$bdev_rot/queue/rotational" >/dev/null
+echo 1 | tee "$bdev_rot/queue/rotational" >/dev/null
 echo MONERO_TEST_DEVICE_HDD=$(device_mountpoint "$tmpdir" "$dev_rot")
 
 dev_ssd=$(create_device "$tmpdir")
 bdev_ssd=$(block_device_path "$dev_ssd")
-echo 0 | sudo tee "$bdev_ssd/queue/rotational" >/dev/null
+echo 0 | tee "$bdev_ssd/queue/rotational" >/dev/null
 echo MONERO_TEST_DEVICE_SSD=$(device_mountpoint "$tmpdir" "$dev_ssd")
