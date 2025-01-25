@@ -186,6 +186,7 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
         CCACHE_TEMPDIR: /tmp/.ccache-temp
         CCACHE_DIR: ~/.ccache
+      options: --privileged
     steps:
       - name: set apt conf
         run: ${{env.APT_SET_CONF}}
@@ -228,7 +229,6 @@ jobs:
       image: ubuntu:20.04
       env:
         DEBIAN_FRONTEND: noninteractive
-      options: --privileged
     steps:
       - name: set apt conf
         run: ${{env.APT_SET_CONF}}
