@@ -423,7 +423,7 @@ namespace rct {
         std::vector<mgSig> MGs; // simple rct has N, full has 1
         std::vector<clsag> CLSAGs;
         keyV pseudoOuts; //C - for simple rct
-        crypto::hash reference_block; // block containing the merkle tree root used for FCMP++
+        uint64_t reference_block; // FCMP++ uses the tree root as of when this reference block index enters the chain
         uint8_t n_tree_layers; // for FCMP++
         fcmp_pp::FcmpPpProof fcmp_pp;
 
@@ -500,9 +500,9 @@ namespace rct {
 
           if (type == RCTTypeFcmpPlusPlus)
           {
-            FIELD(reference_block)
+            VARINT_FIELD(reference_block)
             // n_tree_layers can be inferred from the reference_block, however, if we didn't save n_tree_layers on the
-            // tx, we would need a db read (for n_tree_layers at the block) in order to de-serialize the FCMP++ proof
+            // tx, we would need a db read (for n_tree_layers as of the block) in order to de-serialize the FCMP++ proof
             VARINT_FIELD(n_tree_layers)
             ar.tag("fcmp_pp");
             ar.begin_object();
@@ -631,7 +631,7 @@ namespace rct {
           FIELD(bulletproofs_plus)
           FIELD(MGs)
           FIELD(CLSAGs)
-          FIELD(reference_block)
+          VARINT_FIELD(reference_block)
           VARINT_FIELD(n_tree_layers)
           FIELD(fcmp_pp)
           FIELD(pseudoOuts)

@@ -49,7 +49,7 @@ struct ProofInput final
 
 struct ProofParams final
 {
-    crypto::hash reference_block;
+    uint64_t reference_block;
     std::vector<ProofInput> proof_inputs;
 };
 

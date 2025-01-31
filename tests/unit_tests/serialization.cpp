@@ -1314,6 +1314,7 @@ TEST(Serialization, tx_fcmp_pp)
   const uint8_t n_tree_layers = 3;
 
   const std::size_t proof_len = fcmp_pp::proof_len(n_inputs, n_tree_layers);
+  const uint64_t reference_block{1};
 
   const auto make_dummy_fcmp_pp_tx = [proof_len]() -> transaction
   {
@@ -1369,7 +1370,6 @@ TEST(Serialization, tx_fcmp_pp)
       tx.rct_signatures.p.pseudoOuts.push_back(pseudoOut);
 
     // Set the reference block for fcmp++
-    const crypto::hash reference_block{0x01};
     tx.rct_signatures.p.reference_block = reference_block;
 
     // Set the curve trees merkle tree depth
@@ -1394,7 +1394,7 @@ TEST(Serialization, tx_fcmp_pp)
     ASSERT_TRUE(serialization::dump_binary(tx, blob));
     ASSERT_TRUE(serialization::parse_binary(blob, tx1));
     ASSERT_EQ(tx, tx1);
-    ASSERT_EQ(tx.rct_signatures.p.reference_block, crypto::hash{0x01});
+    ASSERT_EQ(tx.rct_signatures.p.reference_block, reference_block);
     ASSERT_EQ(tx.rct_signatures.p.reference_block, tx1.rct_signatures.p.reference_block);
     ASSERT_EQ(tx.rct_signatures.p.fcmp_pp, tx1.rct_signatures.p.fcmp_pp);
   }

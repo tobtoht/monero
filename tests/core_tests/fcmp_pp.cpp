@@ -121,6 +121,12 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   std::vector<uint64_t> n_new_leaf_tuples_per_block;
   tree_cache.sync_blocks(0, {}, new_block_hashes, outs_by_last_locked_blocks, tree_extension, n_new_leaf_tuples_per_block);
   tree_cache.process_synced_blocks(0, new_block_hashes, tree_extension, n_new_leaf_tuples_per_block);
+  const uint64_t n_synced_blocks = tree_cache.n_synced_blocks();
+  if (n_synced_blocks == 0)
+  {
+    MDEBUG("n_synced_blocks == 0");
+    return false;
+  }
 
   // create 1 tx in another block, spending from the first block
   std::vector<transaction> rct_txes;
@@ -129,7 +135,7 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   uint64_t fees = 0;
   std::vector<tx_source_entry> sources;
   fcmp_pp::ProofParams fcmp_pp_params;
-  fcmp_pp_params.reference_block = new_block_hashes.back();
+  fcmp_pp_params.reference_block = n_synced_blocks - 1;
 
   sources.resize(1);
   tx_source_entry& src = sources.back();
