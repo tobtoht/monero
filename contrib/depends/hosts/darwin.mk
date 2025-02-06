@@ -8,8 +8,13 @@ OSX_SDK=$(host_prefix)/native/SDK
 
 darwin_native_toolchain=darwin_sdk native_cctools
 
+ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
+clang_prog=$(build_prefix)/bin/clang
+clangxx_prog=$(clang_prog)++
+else
 clang_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang")
 clangxx_prog=$(shell $(SHELL) $(.SHELLFLAGS) "command -v clang++")
+endif
 
 # Flag explanations:
 #

@@ -23,6 +23,10 @@ freebsd_packages :=
 
 ifneq ($(build_os),darwin)
 darwin_native_packages := darwin_sdk native_cctools native_libtapi
+
+ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
+darwin_native_packages += native_clang
+endif
 endif
 darwin_packages :=
 
