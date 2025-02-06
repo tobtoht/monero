@@ -8,11 +8,15 @@ OSX_SDK=$(host_prefix)/native/SDK
 
 darwin_native_toolchain=darwin_sdk
 
+ifeq ($(strip $(FORCE_USE_SYSTEM_CLANG)),)
+clang_prog=$(build_prefix)/bin/clang
+clangxx_prog=$(clang_prog)++
+else
 clang_prog=clang
 clangxx_prog=clang++
 llvm_config_prog=llvm-config
-
 llvm_lib_dir=$(shell $(llvm_config_prog) --libdir)
+endif
 
 darwin_AR=llvm-ar
 darwin_DSYMUTIL=dsymutil
