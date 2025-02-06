@@ -49,6 +49,7 @@ static constexpr const size_t RCT_VER_CACHE_SIZE = 8192;
 using rct_ver_cache_t = ::tools::data_cache<::crypto::hash, RCT_VER_CACHE_SIZE>;
 
 /**
+ * TODO: update for FCMP param
  * @brief Cached version of rct::verRctNonSemanticsSimple
  *
  * This function will not affect how the transaction is serialized and it will never modify the
@@ -80,6 +81,7 @@ bool ver_rct_non_semantics_simple_cached
 (
     transaction& tx,
     const rct::ctkeyM& mix_ring,
+    uint8_t* tree_root,
     rct_ver_cache_t& cache,
     std::uint8_t rct_type_to_cache
 );

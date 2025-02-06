@@ -1406,33 +1406,6 @@ template void TreeCache<Selene, Helios>::init(const uint64_t start_block_idx,
     const OutputsByLastLockedBlock &timelocked_outputs);
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
-crypto::ec_point TreeCache<C1, C2>::get_tree_root() const
-{
-    CHECK_AND_ASSERT_THROW_MES(!m_cached_blocks.empty(), "empty cache");
-
-    const uint64_t n_leaf_tuples = m_cached_blocks.back().n_leaf_tuples;
-    CHECK_AND_ASSERT_THROW_MES(n_leaf_tuples > 0, "empty tree");
-
-    const std::size_t n_layers = TreeSync<C1, C2>::m_curve_trees->n_layers(n_leaf_tuples);
-    CHECK_AND_ASSERT_THROW_MES(n_layers > 0, "n_layers must be > 0");
-
-    const LayerIdx root_layer_idx = n_layers - 1;
-
-    const auto root_layer_it = m_tree_elem_cache.find(root_layer_idx);
-    CHECK_AND_ASSERT_THROW_MES(root_layer_it != m_tree_elem_cache.end(), "did not find root layer");
-
-    const auto root_chunk_it = root_layer_it->second.find(0);
-    CHECK_AND_ASSERT_THROW_MES(root_chunk_it != root_layer_it->second.end(), "did not find root chunk");
-
-    CHECK_AND_ASSERT_THROW_MES(root_chunk_it->second.tree_elems.size() == 1, "unexpected size of root layer chunk");
-
-    return root_chunk_it->second.tree_elems.front();
-}
-
-// Explicit instantiation
-template crypto::ec_point TreeCache<Selene, Helios>::get_tree_root() const;
-//----------------------------------------------------------------------------------------------------------------------
-template<typename C1, typename C2>
 uint64_t TreeCache<C1, C2>::get_n_leaf_tuples() const
 {
     CHECK_AND_ASSERT_THROW_MES(!m_cached_blocks.empty(), "empty cache");

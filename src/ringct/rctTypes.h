@@ -423,9 +423,11 @@ namespace rct {
         std::vector<mgSig> MGs; // simple rct has N, full has 1
         std::vector<clsag> CLSAGs;
         keyV pseudoOuts; //C - for simple rct
-        uint64_t reference_block; // FCMP++ uses the tree root as of when this reference block index enters the chain
-        uint8_t n_tree_layers; // for FCMP++
-        fcmp_pp::FcmpPpProof fcmp_pp;
+        // FCMP data
+        uint64_t reference_block; // used to get the tree root as of when this reference block index enters the chain
+        uint8_t n_tree_layers; // number of layers in the tree as of the block when the reference block index enters the chain
+        fcmp_pp::FcmpPpProof fcmp_pp; // FCMP++ SAL and membership proof
+        fcmp_pp::FcmpVerifyHelperData fcmp_ver_helper_data; // used to verify FCMP proofs (not serialized, reconstructed)
 
         // when changing this function, update cryptonote::get_pruned_transaction_weight
         template<bool W, template <bool> class Archive>
@@ -763,6 +765,7 @@ namespace rct {
     bool is_rct_borromean(int type);
     bool is_rct_clsag(int type);
     bool is_rct_short_amount(int type);
+    bool is_rct_fcmp(int type);
 
     static inline const rct::key &pk2rct(const crypto::public_key &pk) { return (const rct::key&)pk; }
     static inline const rct::key &sk2rct(const crypto::secret_key &sk) { return (const rct::key&)sk; }

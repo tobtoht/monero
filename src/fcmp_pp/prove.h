@@ -53,6 +53,14 @@ struct ProofParams final
     std::vector<ProofInput> proof_inputs;
 };
 
+struct FcmpVerifyHelperData final
+{
+    uint8_t *tree_root;
+    std::vector<crypto::key_image> key_images;
+};
+
+//----------------------------------------------------------------------------------------------------------------------
+
 FcmpRerandomizedOutputCompressed rerandomize_output(const OutputBytes output);
 
 SeleneScalar o_blind(const FcmpRerandomizedOutputCompressed &rerandomized_output);

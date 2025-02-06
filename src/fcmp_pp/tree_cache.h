@@ -201,7 +201,6 @@ public:
         const OutputsByLastLockedBlock &timelocked_outputs);
 
     // TODO: make this part of the TreeSync interface
-    crypto::ec_point get_tree_root() const;
     uint64_t get_n_leaf_tuples() const;
     bool get_top_block(BlockMeta &top_block_out) const
     {

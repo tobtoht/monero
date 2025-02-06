@@ -400,6 +400,9 @@ public:
     bool audit_path(const Path &path, const OutputPair &output, const uint64_t n_leaf_tuples_in_tree) const;
 
     LastChunkChildrenForTrim last_chunk_children_from_path_bytes(const PathBytes &path_bytes) const;
+
+    uint8_t *get_tree_root_from_bytes(const std::size_t n_layers, const crypto::ec_point &tree_root) const;
+
 private:
     // Multithreaded helper function to convert outputs to leaf tuples and set leaves on tree extension
     void set_valid_leaves(

@@ -63,7 +63,8 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   // create 12 miner accounts, and have them mine the next 12 blocks
   cryptonote::account_base miner_accounts[12];
   const cryptonote::block *prev_block = &blk_0;
-  cryptonote::block blocks[12 + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW];
+  const std::size_t n_manual_blocks = 12 + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
+  cryptonote::block blocks[n_manual_blocks];
   for (size_t n = 0; n < 12; ++n) {
     miner_accounts[n].generate();
     CHECK_AND_ASSERT_MES(generator.construct_block_manually(blocks[n], *prev_block, miner_accounts[n],
@@ -97,18 +98,20 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   std::vector<crypto::hash> new_block_hashes;
   std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> outs_by_last_locked_blocks;
   uint64_t first_output_id = 0;
-  size_t blk_idx = 0;
-  for (const auto &blk : blocks)
+  for (uint64_t blk_idx = 0; blk_idx < (1 + n_manual_blocks); ++blk_idx)
   {
+    const auto &blk = blk_idx == 0 ? blk_0 : blocks[blk_idx - 1];
     new_block_hashes.push_back(blk.hash);
     auto outs_meta = cryptonote::get_outs_by_last_locked_block(blk.miner_tx, {}, first_output_id, blk_idx);
     outs_by_last_locked_blocks.emplace_back(std::move(outs_meta.outs_by_last_locked_block));
     first_output_id = outs_meta.next_output_id;
-    ++blk_idx;
   }
 
-  // We're going to spend the first output in the first block
-  const auto &spending_out = blocks[0].miner_tx.vout[0];
+  // We're going to spend the last output in the first block
+  // Note: I'm using the last otuput because first output doesn't have enough to cover min fee without changes to fee code
+  // TODO: change the fee checking code for FCMP++
+  const auto &spending_out = blocks[0].miner_tx.vout.back();
+  const auto o_idx = blocks[0].miner_tx.vout.size() - 1;
 
   // Register the output with the TreeCache to know its location in the tree
   const auto &output_pubkey = boost::get<txout_to_key>(spending_out.target).key;
@@ -141,11 +144,10 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   tx_source_entry& src = sources.back();
 
   src.amount = spending_out.amount;
-  size_t real_index_in_tx = 0;
   src.push_output(0, output_pubkey, src.amount);
   src.real_out_tx_key = cryptonote::get_tx_pub_key_from_extra(blocks[0].miner_tx);
   src.real_output = 0;
-  src.real_output_in_tx_index = real_index_in_tx;
+  src.real_output_in_tx_index = o_idx;
   src.mask = rct::identity();
   src.rct = false;
 
@@ -285,7 +287,7 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
       proof_input.selene_branch_blinds.emplace_back(fcmp_pp::selene_branch_blind());
     for (std::size_t i = 0; i < n_helios_layers_excl_root; ++i)
       proof_input.helios_branch_blinds.emplace_back(fcmp_pp::helios_branch_blind());
-}
+  }
 
   crypto::secret_key tx_key;
   std::vector<crypto::secret_key> additional_tx_keys;

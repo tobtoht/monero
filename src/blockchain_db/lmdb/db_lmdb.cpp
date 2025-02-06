@@ -859,7 +859,7 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
   }
   bi.bi_long_term_block_weight = long_term_block_weight;
   bi.bi_n_leaf_tuples = this->get_n_leaf_tuples();
-  bi.bi_tree_root = this->get_tree_root();
+  bi.bi_tree_root = this->get_tree_root(); // TODO: grow_tree should return new root and n leaf tuples
 
   MDB_val_set(val, bi);
   result = mdb_cursor_put(m_cur_block_info, (MDB_val *)&zerokval, &val, MDB_APPENDDUP);
@@ -1969,6 +1969,7 @@ uint64_t BlockchainLMDB::get_block_n_leaf_tuples(const uint64_t block_idx) const
   return n_leaf_tuples;
 }
 
+// TODO: remove this function for cleanup. Can be replaced by having grow_tree return new root
 crypto::ec_point BlockchainLMDB::get_tree_root() const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
@@ -1977,7 +1978,7 @@ crypto::ec_point BlockchainLMDB::get_tree_root() const
   TXN_PREFIX_RDONLY();
   RCURSOR(layers)
 
-  crypto::ec_point root;
+  crypto::ec_point root{};
 
   {
     MDB_val k, v;
@@ -1988,12 +1989,39 @@ crypto::ec_point BlockchainLMDB::get_tree_root() const
       root = std::move(lv->child_chunk_hash);
     }
     else if (result != MDB_NOTFOUND)
-      throw0(DB_ERROR(lmdb_error("Failed to get last leaf: ", result).c_str()));
+      throw0(DB_ERROR(lmdb_error("Failed to get last layer elem (the expected root): ", result).c_str()));
   }
 
   TXN_POSTFIX_RDONLY();
 
   return root;
+}
+
+// TODO: don't return de-compressed data anywhere from DB interface. DB interface should return what the DB knows
+std::size_t BlockchainLMDB::get_tree_root_at_blk_idx(const uint64_t blk_idx, uint8_t *&tree_root_out) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(block_info);
+
+  MDB_val_set(result, blk_idx);
+  auto get_result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &result, MDB_GET_BOTH);
+  if (get_result == MDB_NOTFOUND)
+    throw0(BLOCK_DNE(std::string("Attempt to get tree root from blk idx ").append(boost::lexical_cast<std::string>(blk_idx)).append(" failed -- tree root not in db").c_str()));
+  else if (get_result)
+    throw0(DB_ERROR("Error attempting to retrieve a tree root from the db"));
+
+  mdb_block_info *bi = (mdb_block_info *)result.mv_data;
+  const crypto::ec_point root = bi->bi_tree_root;
+  const std::size_t n_tree_layers = m_curve_trees->n_layers(bi->bi_n_leaf_tuples);
+  tree_root_out = m_curve_trees->get_tree_root_from_bytes(n_tree_layers, root);
+  if (tree_root_out == nullptr)
+    throw0(DB_ERROR("Error reading tree root from bytes"));
+  TXN_POSTFIX_RDONLY();
+
+  return n_tree_layers;
 }
 
 fcmp_pp::curve_trees::CurveTreesV1::LastHashes BlockchainLMDB::get_tree_last_hashes() const

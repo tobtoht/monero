@@ -122,6 +122,7 @@ public:
   virtual void trim_tree(const uint64_t new_n_leaf_tuples, const uint64_t trim_block_id) override {};
   virtual bool audit_tree(const uint64_t expected_n_leaf_tuples) const override { return false; };
   virtual crypto::ec_point get_tree_root() const override { return {}; };
+  virtual std::size_t get_tree_root_at_blk_idx(const uint64_t blk_idx, uint8_t *&tree_root_out) const override { return {}; };
   virtual uint64_t get_n_leaf_tuples() const override { return 0; };
   virtual uint64_t get_block_n_leaf_tuples(const uint64_t block_idx) const override { return 0; };
   virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const override { return {{}}; };

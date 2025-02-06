@@ -271,6 +271,25 @@ namespace rct {
         }
     }
 
+    bool is_rct_fcmp(int type)
+    {
+        switch (type)
+        {
+            case RCTTypeFcmpPlusPlus:
+                return true;
+            case RCTTypeNull:
+            case RCTTypeFull:
+            case RCTTypeSimple:
+            case RCTTypeBulletproof:
+            case RCTTypeBulletproof2:
+            case RCTTypeCLSAG:
+            case RCTTypeBulletproofPlus:
+                return false;
+            default:
+                CHECK_AND_ASSERT_THROW_MES(false, "unknown rct type = " << type);
+        }
+    }
+
     static size_t n_bulletproof_amounts_base(const size_t L_size, const size_t R_size, const size_t V_size, const size_t max_outputs)
     {
         CHECK_AND_ASSERT_MES(L_size >= 6, 0, "Invalid bulletproof L size");
