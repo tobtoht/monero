@@ -118,7 +118,6 @@ jobs:
         # Debian 10 ships Rust 1.41.1. We need >=1.69 to build FCMP++.
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          export PATH="$HOME/.cargo/bin:$PATH"
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           rustup toolchain install 1.69
           rustup default 1.69
