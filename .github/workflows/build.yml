@@ -150,6 +150,7 @@ jobs:
           path: ~/.ccache
           key: ccache-${{ matrix.container }}-build-${{ github.sha }}
           restore-keys: ccache-${{ matrix.container }}-build-
+      - uses: ./.github/actions/set-make-job-count
       - name: build
         env:
           CMAKE_BUILD_PARALLEL_LEVEL: ${{env.MAKE_JOB_COUNT}}
@@ -196,8 +197,6 @@ jobs:
           path: ~/.ccache
           key: ccache-${{ matrix.container }}-build-${{ github.sha }}
           restore-keys: ccache-${{ matrix.container }}-build-
-      - name: create dummy disk drives for testing
-        run: tests/create_test_disks.sh >> $GITHUB_ENV
       - uses: ./.github/actions/set-make-job-count
       - name: tests
         env:
