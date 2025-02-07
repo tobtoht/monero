@@ -6,7 +6,9 @@ $(package)_sha256_hash=a5714234abe6e1f53647dd8cba7d69f65f71c558b7896ed218864ffcf
 $(package)_linux_dependencies=libusb
 
 define $(package)_set_vars
-  $(package)_config_opts+=-DBUILD_SHARED_LIBS=OFF -DHIDAPI_WITH_HIDRAW=OFF
+  $(package)_config_opts := -DBUILD_SHARED_LIBS=OFF
+  $(package)_config_opts += -DHIDAPI_WITH_HIDRAW=OFF
+  $(package)_config_opts += -DHIDAPI_NO_ICONV=ON
 endef
 
 # Remove blobs
