@@ -8,7 +8,6 @@ $(package)_linux_dependencies=libusb
 define $(package)_set_vars
   $(package)_config_opts := -DBUILD_SHARED_LIBS=OFF
   $(package)_config_opts += -DHIDAPI_WITH_HIDRAW=OFF
-  $(package)_config_opts += -DHIDAPI_NO_ICONV=ON
 endef
 
 # Remove blobs
