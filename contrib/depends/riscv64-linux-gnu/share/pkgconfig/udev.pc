@@ -1,0 +1,7 @@
+Name: udev
+Description: eudev
+Version: 251
+prefix=/monero/contrib/depends/riscv64-linux-gnu
+exec_prefix=${prefix}
+udev_dir=${exec_prefix}/lib/udev
+udevdir=${udev_dir}

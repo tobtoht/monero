@@ -1,0 +1,13 @@
+prefix=/monero/contrib/depends/riscv64-linux-gnu
+exec_prefix=/monero/contrib/depends/riscv64-linux-gnu
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: unbound
+Description: Library with validating, recursive, and caching DNS resolver
+URL: http://www.unbound.net
+Version: 1.22.0
+Requires.private:    
+Libs: -L${libdir} -lunbound
+Libs.private: -lssl -lpthread  -lcrypto
+Cflags: -I${includedir}
