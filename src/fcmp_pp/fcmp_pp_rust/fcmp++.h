@@ -241,6 +241,12 @@ CResult fcmp_pp_prove_input_new(const uint8_t *x,
                                              struct ObjectSlice selene_branch_blinds,
                                              struct ObjectSlice helios_branch_blinds);
 
+CResult balance_last_pseudo_out(const uint8_t *sum_input_masks,
+                                             const uint8_t *sum_output_masks,
+                                             Slice<const uint8_t *>fcmp_prove_inputs);
+
+uint8_t *read_input_pseudo_out(const uint8_t *fcmp_prove_input);
+
 CResult prove(const uint8_t *signable_tx_hash,
                                              struct ObjectSlice fcmp_prove_inputs,
                                              uintptr_t n_tree_layers);

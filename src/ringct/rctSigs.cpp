@@ -1249,14 +1249,15 @@ done:
 
         if (is_fcmp_pp)
         {
-          // Check balance, since we don't automatically balance FCMP inputs here
-          key balance = sumout;
-          for (const ctkey &in_sk : inSk)
-            sc_sub(balance.bytes, balance.bytes, in_sk.mask.bytes);
-          for (const FcmpRerandomizedOutputCompressed &rerandomized_output : rerandomized_outputs)
-            sc_sub(balance.bytes, balance.bytes, rerandomized_output.r_c);
-          CHECK_AND_ASSERT_THROW_MES(balance == rct::Z,
-            "FCMP input blinding factors don't balance with output amount blinding factors");
+          // TODO: maybe balance before calling?
+          // // Check balance, since we don't automatically balance FCMP inputs here
+          // key balance = sumout;
+          // for (const ctkey &in_sk : inSk)
+          //   sc_sub(balance.bytes, balance.bytes, in_sk.mask.bytes);
+          // for (const FcmpRerandomizedOutputCompressed &rerandomized_output : rerandomized_outputs)
+          //   sc_sub(balance.bytes, balance.bytes, rerandomized_output.r_c);
+          // CHECK_AND_ASSERT_THROW_MES(balance == rct::Z,
+          //   "FCMP input blinding factors don't balance with output amount blinding factors");
 
           xmr_amount balance_amount = rv.txnFee;
           for (const xmr_amount outamount : outamounts)
@@ -1269,6 +1270,7 @@ done:
           // TODO: separate function once this is finalized
           std::vector<const uint8_t *> fcmp_prove_inputs;
           fcmp_prove_inputs.reserve(inamounts.size());
+          key sum_input_masks = zero();
           for (i = 0; i < inamounts.size(); i++)
           {
             // Collect x and y
@@ -1285,6 +1287,9 @@ done:
             // store C~
             memcpy(&pseudoOuts[i], &rerandomized_output.input.C_tilde, sizeof(rct::key));
 
+            // Collecting sum of input masks to balance the last pseudo out
+            sc_add(sum_input_masks.bytes, sum_input_masks.bytes, inSk[i].mask.bytes);
+
             // TODO: separate SAL from membership proof. Implement SAL in hw device interface
             auto fcmp_prove_input = fcmp_pp::fcmp_pp_prove_input_new(x,
                 y,
@@ -1296,6 +1301,10 @@ done:
 
             fcmp_prove_inputs.emplace_back(std::move(fcmp_prove_input));
           }
+
+          // Now we need to update the last pseudo out to make sure sum of the input masks == sum of output masks
+          fcmp_pp::balance_last_pseudo_out(sum_input_masks.bytes, sumout.bytes, fcmp_prove_inputs);
+          pseudoOuts.back() = rct::pt2rct(fcmp_pp::read_input_pseudo_out(fcmp_prove_inputs.back()));
 
           const key full_message = get_pre_mlsag_hash(rv,hwdev);
 

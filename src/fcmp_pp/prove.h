@@ -114,6 +114,12 @@ uint8_t *fcmp_pp_prove_input_new(const uint8_t *x,
     const std::vector<const uint8_t *> &selene_branch_blinds,
     const std::vector<const uint8_t *> &helios_branch_blinds);
 
+void balance_last_pseudo_out(const uint8_t *sum_input_masks,
+    const uint8_t *sum_output_masks,
+    std::vector<const uint8_t *> &fcmp_prove_inputs_inout);
+
+crypto::ec_point read_input_pseudo_out(const uint8_t *fcmp_prove_input);
+
 FcmpPpProof prove(const crypto::hash &signable_tx_hash,
     const std::vector<const uint8_t *> &fcmp_prove_inputs,
     const std::size_t n_tree_layers);
