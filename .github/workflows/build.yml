@@ -119,7 +119,7 @@ jobs:
           curl -O https://static.rust-lang.org/rustup/archive/1.27.1/x86_64-unknown-linux-gnu/rustup-init
           echo "6aeece6993e902708983b209d04c0d1dbb14ebb405ddb87def578d41f920f56d rustup-init" | sha256sum -c
           chmod +x rustup-init
-          ./rustup-init -y --default-toolchain 1.69 --target ${{ matrix.toolchain.rust_host }}
+          ./rustup-init -y --default-toolchain 1.69
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - name: configure git
         run: git config --global --add safe.directory '*'
