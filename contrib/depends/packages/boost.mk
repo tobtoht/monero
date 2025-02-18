@@ -9,7 +9,7 @@ $(package)_patches=fix_aroptions.patch fix_arm_arch.patch
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
 $(package)_config_opts_debug=variant=debug
-$(package)_config_opts=--layout=tagged --build-type=complete --user-config=user-config.jam
+$(package)_config_opts+=--layout=system --user-config=user-config.jam
 $(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
 $(package)_config_opts_android=threadapi=pthread runtime-link=static target-os=android
