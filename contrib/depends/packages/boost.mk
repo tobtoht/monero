@@ -1,10 +1,10 @@
 package=boost                                                                                                                                                                                                                      
-$(package)_version=1.66.0
+$(package)_version=1.67.0
 $(package)_download_path=https://archives.boost.io/release/$($(package)_version)/source/
 $(package)_file_name=$(package)_$(subst .,_,$($(package)_version)).tar.gz
-$(package)_sha256_hash=bd0df411efd9a585e5a2212275f8762079fed8842264954675a4fddc46cfcf60
+$(package)_sha256_hash=8aa4e330c870ef50a896634c931adf468b21f8a69b77007e45c444151229f665
 $(package)_dependencies=libiconv
-$(package)_patches=fix_aroptions.patch fix_arm_arch.patch
+$(package)_patches=fix_aroptions.patch fix_arm_arch.patch Removed-clang-specific-branch-for-x86-DCAS-based-loa.patch
 
 define $(package)_set_vars
 $(package)_config_opts_release=variant=release
@@ -31,6 +31,7 @@ endef
 define $(package)_preprocess_cmds
   patch -p1 < $($(package)_patch_dir)/fix_aroptions.patch &&\
   patch -p1 < $($(package)_patch_dir)/fix_arm_arch.patch &&\
+  patch -p1 < $($(package)_patch_dir)/Removed-clang-specific-branch-for-x86-DCAS-based-loa.patch &&\
   echo "using $(boost_toolset_$(host_os)) : : $($(package)_cxx) : <cxxflags>\"$($(package)_cxxflags) $($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$(boost_archiver_$(host_os))\" <arflags>\"$($(package)_arflags)\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;" > user-config.jam
 endef
 
