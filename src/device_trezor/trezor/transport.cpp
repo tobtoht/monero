@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <functional>
 #include <boost/endian/conversion.hpp>
+#include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/format.hpp>
@@ -613,7 +614,8 @@ namespace trezor{
     }
 
     udp::resolver resolver(m_io_service);
-    m_endpoint = *resolver.resolve(udp::v4(), m_device_host, std::to_string(m_device_port)).begin();
+    udp::resolver::query query(udp::v4(), m_device_host, std::to_string(m_device_port));
+    m_endpoint = *resolver.resolve(query);
 
     m_socket.reset(new udp::socket(m_io_service));
     m_socket->open(udp::v4());

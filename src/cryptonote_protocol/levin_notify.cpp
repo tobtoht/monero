@@ -28,8 +28,6 @@
 
 #include "levin_notify.h"
 
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/uuid/uuid_io.hpp>
@@ -223,7 +221,7 @@ namespace levin
        `dispatch` is used heavily, which means "execute immediately in _this_
        thread if the strand is not in use, otherwise queue the callback to be
        executed immediately after the strand completes its current task".
-       `post` is used where deferred execution to an `asio::io_context::run`
+       `post` is used where deferred execution to an `asio::io_service::run`
        thread is preferred.
 
        The strand per "zone" is useful because the levin
@@ -240,7 +238,7 @@ namespace levin
     //! A queue of levin messages for a noise i2p/tor link
     struct noise_channel
     {
-      explicit noise_channel(boost::asio::io_context& io_service)
+      explicit noise_channel(boost::asio::io_service& io_service)
         : active(nullptr),
           queue(),
           strand(io_service),
@@ -248,7 +246,7 @@ namespace levin
           connection(boost::uuids::nil_uuid())
       {}
 
-      // `asio::io_context::strand` cannot be copied or moved
+      // `asio::io_service::strand` cannot be copied or moved
       noise_channel(const noise_channel&) = delete;
       noise_channel& operator=(const noise_channel&) = delete;
 
@@ -256,7 +254,7 @@ namespace levin
 
       epee::byte_slice active;
       std::deque<epee::byte_slice> queue;
-      boost::asio::io_context::strand strand;
+      boost::asio::io_service::strand strand;
       boost::asio::steady_timer next_noise;
       boost::uuids::uuid connection;
     };
@@ -266,7 +264,7 @@ namespace levin
   {
     struct zone
     {
-      explicit zone(boost::asio::io_context& io_service, std::shared_ptr<connections> p2p, epee::byte_slice noise_in, epee::net_utils::zone zone, bool pad_txs)
+      explicit zone(boost::asio::io_service& io_service, std::shared_ptr<connections> p2p, epee::byte_slice noise_in, epee::net_utils::zone zone, bool pad_txs)
         : p2p(std::move(p2p)),
           noise(std::move(noise_in)),
           next_epoch(io_service),
@@ -288,7 +286,7 @@ namespace levin
       const epee::byte_slice noise; //!< `!empty()` means zone is using noise channels
       boost::asio::steady_timer next_epoch;
       boost::asio::steady_timer flush_txs;
-      boost::asio::io_context::strand strand;
+      boost::asio::io_service::strand strand;
       struct context_t {
         std::vector<cryptonote::blobdata> fluff_txs;
         std::chrono::steady_clock::time_point flush_time;
@@ -456,7 +454,7 @@ namespace levin
 
         if (next_flush == std::chrono::steady_clock::time_point::max())
           MWARNING("Unable to send transaction(s), no available connections");
-        else if (!zone->flush_callbacks || next_flush < zone->flush_txs.expiry())
+        else if (!zone->flush_callbacks || next_flush < zone->flush_txs.expires_at())
           fluff_flush::queue(std::move(zone), next_flush);
       }
     };
@@ -517,7 +515,7 @@ namespace levin
         for (auto id = zone->map.begin(); id != zone->map.end(); ++id)
         {
           const std::size_t i = id - zone->map.begin();
-          boost::asio::post(zone->channels[i].strand, update_channel{zone, i, *id});
+          zone->channels[i].strand.post(update_channel{zone, i, *id});
         }
       }
 
@@ -676,7 +674,7 @@ namespace levin
               MWARNING("Unable to send transaction(s) to " << epee::net_utils::zone_to_string(zone_->nzone) <<
 			" - no suitable outbound connections at height " << height);
 
-            boost::asio::post(zone_->strand, update_channels{zone_, std::move(connections)});
+            zone_->strand.post(update_channels{zone_, std::move(connections)});
           }
         }
 
@@ -706,8 +704,7 @@ namespace levin
         const bool fluffing = crypto::rand_idx(unsigned(100)) < CRYPTONOTE_DANDELIONPP_FLUFF_PROBABILITY;
         const auto start = std::chrono::steady_clock::now();
         auto connections = get_out_connections(*(zone_->p2p), core_);
-        boost::asio::dispatch(
-          zone_->strand,
+        zone_->strand.dispatch(
           change_channels{zone_, net::dandelionpp::connection_map{std::move(connections), count_}, fluffing}
         );
 
@@ -718,7 +715,7 @@ namespace levin
     };
   } // anonymous
 
-  notify::notify(boost::asio::io_context& service, std::shared_ptr<connections> p2p, epee::byte_slice noise, epee::net_utils::zone zone, const bool pad_txs, i_core_events& core)
+  notify::notify(boost::asio::io_service& service, std::shared_ptr<connections> p2p, epee::byte_slice noise, epee::net_utils::zone zone, const bool pad_txs, i_core_events& core)
     : zone_(std::make_shared<detail::zone>(service, std::move(p2p), std::move(noise), zone, pad_txs))
     , core_(std::addressof(core))
   {
@@ -761,8 +758,7 @@ namespace levin
     if (!zone_ || zone_->noise.empty() || CRYPTONOTE_NOISE_CHANNELS <= zone_->connection_count)
       return;
 
-    boost::asio::dispatch(
-      zone_->strand,
+    zone_->strand.dispatch(
       update_channels{zone_, get_out_connections(*(zone_->p2p), core_)}
     );
   }
@@ -773,7 +769,7 @@ namespace levin
       return;
 
     auto& zone = zone_;
-    boost::asio::dispatch(zone_->strand, [zone, id, is_income] {
+    zone_->strand.dispatch([zone, id, is_income]{
       zone->contexts[id] = {
         .fluff_txs = {},
         .flush_time = std::chrono::steady_clock::time_point::max(),
@@ -788,7 +784,7 @@ namespace levin
       return;
 
     auto& zone = zone_;
-    boost::asio::dispatch(zone_->strand, [zone, id]{
+    zone_->strand.dispatch([zone, id]{
       zone->contexts.erase(id);
     });
   }
@@ -863,8 +859,7 @@ namespace levin
 
       for (std::size_t channel = 0; channel < zone_->channels.size(); ++channel)
       {
-        boost::asio::dispatch(
-          zone_->channels[channel].strand,
+        zone_->channels[channel].strand.dispatch(
           queue_covert_notify{zone_, message.clone(), channel}
         );
       }
@@ -883,8 +878,7 @@ namespace levin
           if (zone_->nzone == epee::net_utils::zone::public_)
           {
             // this will change a local/forward tx to stem or fluff ...
-            boost::asio::dispatch(
-              zone_->strand,
+            zone_->strand.dispatch(
               dandelionpp_notify{zone_, core_, std::move(txs), source, tx_relay}
             );
             break;
@@ -897,7 +891,7 @@ namespace levin
              ipv4/6. Marking it as "fluff" here will make the tx immediately
              visible externally from this node, which is not desired. */
           core_->on_transactions_relayed(epee::to_span(txs), tx_relay);
-          boost::asio::dispatch(zone_->strand, fluff_notify{zone_, std::move(txs), source});
+          zone_->strand.dispatch(fluff_notify{zone_, std::move(txs), source});
           break;
       }
     }
