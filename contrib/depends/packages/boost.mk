@@ -1,8 +1,8 @@
 package=boost                                                                                                                                                                                                                      
-$(package)_version=1.66.0
+$(package)_version=1.71.0
 $(package)_download_path=https://archives.boost.io/release/$($(package)_version)/source/
 $(package)_file_name=$(package)_$(subst .,_,$($(package)_version)).tar.gz
-$(package)_sha256_hash=bd0df411efd9a585e5a2212275f8762079fed8842264954675a4fddc46cfcf60
+$(package)_sha256_hash=96b34f7468f26a141f6020efb813f1a2f3dfb9797ecf76a7d7cbd843cc95f5bd
 $(package)_dependencies=libiconv
 $(package)_patches=fix_aroptions.patch fix_arm_arch.patch
 
