@@ -32,6 +32,7 @@
 #include "cryptonote_core/cryptonote_core.h"
 #include "cryptonote_core/tx_verification_utils.h"
 #include "hardforks/hardforks.h"
+#include "fcmp_pp/curve_trees.h"
 #include "ringct/rctSigs.h"
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
@@ -109,26 +110,31 @@ static bool check_post_fcmp_expanded_tx(const transaction& tx)
     return true;
 }
 
-// Do RCT expansion, then do post-expansion sanity checks, then do full non-semantics verification.
-static bool expand_tx_and_ver_rct_non_sem(transaction& tx, const rct::ctkeyM& mix_ring, uint8_t* tree_root)
+// Do pre FCMP++ RCT expansion, then do post-expansion sanity checks.
+static bool expand_pre_fcmp_tx(transaction& tx, const crypto::hash& tx_prefix_hash, const rct::ctkeyM& mix_ring)
 {
-    // Pruned transactions can not be expanded and verified because they are missing RCT data
-    VER_ASSERT(!tx.pruned, "Pruned transaction will not pass verRctNonSemanticsSimple");
-
-    // Calculate prefix hash
-    const crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
-
-    // Expand {mixring || tree_root}, tx inputs, tx key images, prefix hash message, etc into the RCT sig
-    const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, mix_ring, tree_root);
+    // Expand mixRing, tx inputs, tx key images, prefix hash message, etc into the RCT sig
+    const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, mix_ring, nullptr/*tree_root*/);
     VER_ASSERT(exp_res, "Failed to expand rct signatures!");
 
     // Do sanity checks after expansion
-    const bool check_res = rct::is_rct_fcmp(tx.rct_signatures.type)
-        ? check_post_fcmp_expanded_tx(tx)
-        : check_pre_fcmp_expanded_tx(tx, mix_ring);
-    VER_ASSERT(check_res, "Failed sanity checks on expanded RCT tx");
+    return check_pre_fcmp_expanded_tx(tx, mix_ring);
+}
 
-    return rct::verRctNonSemanticsSimple(tx.rct_signatures);
+// Do post FCMP++ RCT expansion, then do post-expansion sanity checks.
+static bool expand_post_fcmp_tx(transaction& tx, const crypto::hash& tx_prefix_hash, const crypto::ec_point& tree_root)
+{
+    // Expand the tree root
+    const auto curve_trees = fcmp_pp::curve_trees::curve_trees_v1();
+    const auto root = curve_trees->get_tree_root_from_bytes(tx.rct_signatures.p.n_tree_layers, tree_root);
+    VER_ASSERT(root != nullptr, "Failed to decompress root");
+
+    // Expand tree_root, tx inputs, tx key images, prefix hash message, etc into the RCT sig
+    const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, {}/*mixRing*/, root);
+    VER_ASSERT(exp_res, "Failed to expand rct signatures!");
+
+    // Do sanity checks after expansion
+    return check_post_fcmp_expanded_tx(tx);
 }
 
 // Create a unique identifier for pair of tx blob + mix ring
@@ -263,7 +269,7 @@ static bool ver_non_input_consensus_templated(TxForwardIt tx_begin, TxForwardIt 
 }
 
 // Create a unique identifier for pair of tx blob + tree root
-static crypto::hash calc_tx_tree_root_hash(const transaction& tx, const uint8_t* tree_root)
+static crypto::hash calc_tx_tree_root_hash(const transaction& tx, const crypto::ec_point& tree_root)
 {
     std::stringstream ss;
 
@@ -274,16 +280,42 @@ static crypto::hash calc_tx_tree_root_hash(const transaction& tx, const uint8_t*
     const crypto::hash tx_hash = get_transaction_hash(tx);
     ss.write(tx_hash.data, sizeof(crypto::hash));
 
-    // FIXME: serialize tree_root
-    // // Then serialize tree root
-    // binary_archive<true> ar(ss);
-    // ::do_serialize(ar, const_cast<crypto::ec_point&>(tree_root));
+    // Then serialize tree root
+    binary_archive<true> ar(ss);
+    ::do_serialize(ar, const_cast<crypto::ec_point&>(tree_root));
 
     // Calculate hash of TX hash and tree root
     crypto::hash tx_and_tree_root_hash;
     get_blob_hash(ss.str(), tx_and_tree_root_hash);
 
     return tx_and_tree_root_hash;
+}
+
+// Expand the RCT tx then do post-expansion semantics AND non-semantics verification.
+static bool expand_tx_and_ver_rct_non_sem(cryptonote::transaction& tx_inout,
+    const rct::ctkeyM& mix_ring,
+    const crypto::ec_point& tree_root)
+{
+    // Pruned transactions can not be expanded and verified because they are missing RCT data
+    VER_ASSERT(!tx_inout.pruned, "Pruned transaction will not pass verRctNonSemanticsSimple");
+    const crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx_inout);
+
+    const bool expanded = rct::is_rct_fcmp(tx_inout.rct_signatures.type)
+        ? expand_post_fcmp_tx(tx_inout, tx_prefix_hash, tree_root)
+        : expand_pre_fcmp_tx(tx_inout, tx_prefix_hash, mix_ring);
+    VER_ASSERT(expanded, "Failed to expand RCT tx");
+
+    return rct::verRctNonSemanticsSimple(tx_inout.rct_signatures);
+}
+
+// Create a unique identifer for a tx and its referenced anon set
+static crypto::hash calc_tx_anon_set_hash(const cryptonote::transaction& tx,
+    const rct::ctkeyM& mix_ring,
+    const crypto::ec_point& tree_root)
+{
+    return rct::is_rct_fcmp(tx.rct_signatures.type)
+        ? calc_tx_tree_root_hash(tx, tree_root)
+        : calc_tx_mixring_hash(tx, mix_ring);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +336,7 @@ bool ver_rct_non_semantics_simple_cached
 (
     transaction& tx,
     const rct::ctkeyM& mix_ring,
-    uint8_t* tree_root,
+    const crypto::ec_point& tree_root,
     rct_ver_cache_t& cache,
     const std::uint8_t rct_type_to_cache
 )
@@ -334,9 +366,7 @@ bool ver_rct_non_semantics_simple_cached
     }
 
     // Generate unique hash for tx+anon set identifier
-    const crypto::hash cache_hash = rct::is_rct_fcmp(tx.rct_signatures.type)
-        ? calc_tx_tree_root_hash(tx, tree_root)
-        : calc_tx_mixring_hash(tx, mix_ring);
+    const crypto::hash cache_hash = calc_tx_anon_set_hash(tx, mix_ring, tree_root);
 
     // Search cache for successful verification of same TX + mix set hash combination
     if (cache.has(cache_hash))

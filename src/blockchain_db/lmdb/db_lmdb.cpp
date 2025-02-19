@@ -1997,8 +1997,7 @@ crypto::ec_point BlockchainLMDB::get_tree_root() const
   return root;
 }
 
-// TODO: don't return de-compressed data anywhere from DB interface. DB interface should return what the DB knows
-std::size_t BlockchainLMDB::get_tree_root_at_blk_idx(const uint64_t blk_idx, uint8_t *&tree_root_out) const
+std::size_t BlockchainLMDB::get_tree_root_at_blk_idx(const uint64_t blk_idx, crypto::ec_point &tree_root_out) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2014,11 +2013,8 @@ std::size_t BlockchainLMDB::get_tree_root_at_blk_idx(const uint64_t blk_idx, uin
     throw0(DB_ERROR("Error attempting to retrieve a tree root from the db"));
 
   mdb_block_info *bi = (mdb_block_info *)result.mv_data;
-  const crypto::ec_point root = bi->bi_tree_root;
+  tree_root_out = bi->bi_tree_root;
   const std::size_t n_tree_layers = m_curve_trees->n_layers(bi->bi_n_leaf_tuples);
-  tree_root_out = m_curve_trees->get_tree_root_from_bytes(n_tree_layers, root);
-  if (tree_root_out == nullptr)
-    throw0(DB_ERROR("Error reading tree root from bytes"));
   TXN_POSTFIX_RDONLY();
 
   return n_tree_layers;

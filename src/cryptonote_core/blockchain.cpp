@@ -2547,9 +2547,9 @@ static bool fill(BlockchainDB *db, const crypto::hash &tx_hash, tx_blob_entry &t
   return true;
 }
 //------------------------------------------------------------------
-static bool get_fcmp_tx_tree_root(BlockchainDB *db, const cryptonote::transaction &tx, uint8_t *&tree_root_out)
+static bool get_fcmp_tx_tree_root(BlockchainDB *db, const cryptonote::transaction &tx, crypto::ec_point &tree_root_out)
 {
-  tree_root_out = nullptr;
+  tree_root_out = crypto::ec_point{};
   if (!rct::is_rct_fcmp(tx.rct_signatures.type))
     return true;
 
@@ -2559,9 +2559,9 @@ static bool get_fcmp_tx_tree_root(BlockchainDB *db, const cryptonote::transactio
 
   // Get the tree root and n tree layers at provided block
   const std::size_t n_tree_layers = db->get_tree_root_at_blk_idx(tx.rct_signatures.p.reference_block, tree_root_out);
-  CHECK_AND_ASSERT_MES(tree_root_out != nullptr, false, "tree root was not set");
 
   // Make sure the provided n tree layers matches expected
+  // IMPORTANT!
   static_assert(sizeof(std::size_t) >= sizeof(uint8_t), "unexpected size of size_t");
   CHECK_AND_ASSERT_MES((std::size_t)tx.rct_signatures.p.n_tree_layers == n_tree_layers, false,
       "tx included incorrect number of tree layers");
@@ -3579,8 +3579,8 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         false, "Transaction spends at least one output which is too young");
   }
 
-  // TODO: use byte represenation, decompress the tree root when verifying
-  uint8_t *ref_tree_root = nullptr;
+  // Read the db for the tree root for FCMP txs
+  crypto::ec_point ref_tree_root{};
   CHECK_AND_ASSERT_MES(get_fcmp_tx_tree_root(m_db, tx, ref_tree_root), false, "failed to get tree root");
 
   // Warn that new RCT types are present, and thus the cache is not being used effectively

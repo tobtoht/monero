@@ -81,7 +81,7 @@ bool ver_rct_non_semantics_simple_cached
 (
     transaction& tx,
     const rct::ctkeyM& mix_ring,
-    uint8_t* tree_root,
+    const crypto::ec_point& tree_root,
     rct_ver_cache_t& cache,
     std::uint8_t rct_type_to_cache
 );
