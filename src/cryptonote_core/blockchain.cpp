@@ -3510,6 +3510,9 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
     if (rct::is_rct_fcmp(tx.rct_signatures.type))
     {
+      // All FCMP tx inputs should have 0 amount
+      CHECK_AND_ASSERT_MES(in_to_key.amount == 0, false, "non-0 amount on FCMP tx input in transaction with id " << get_transaction_hash(tx));
+
       // No need to check ring signature members for FCMP txs
       CHECK_AND_ASSERT_MES(in_to_key.key_offsets.empty(), false, "non-empty in_to_key.key_offsets in transaction with id " << get_transaction_hash(tx));
       // No referenced pubkeys, key_offsets should all be empty

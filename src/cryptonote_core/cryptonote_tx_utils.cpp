@@ -344,16 +344,21 @@ namespace cryptonote
 
       //put key image into tx input
       txin_to_key input_to_key;
-      input_to_key.amount = src_entr.amount;
       input_to_key.k_image = img;
 
       if (is_fcmp_pp)
       {
+        // Amount should be 0 for all FCMP txs
+        input_to_key.amount = 0;
         // FIXME: triple check tx does not have anything saved that indicates the output spent
         // Don't save key_offsets for FCMP++ txs, since we don't use ring sigs anymore
+        input_to_key.key_offsets.clear();
         tx.vin.push_back(input_to_key);
         continue;
       }
+
+      CHECK_AND_ASSERT_THROW_MES(rct_config.bp_version < 5, "Unexpected bp version when constructing tx");
+      input_to_key.amount = src_entr.amount;
 
       //fill outputs array and use relative offsets
       for(const tx_source_entry::output_entry& out_entry: src_entr.outputs)
