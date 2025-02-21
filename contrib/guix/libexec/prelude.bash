@@ -68,7 +68,7 @@ fi
 time-machine() {
     # shellcheck disable=SC2086
     guix time-machine --url=https://github.com/monero-project/guix.git \
-                      --commit=9d09b0cf841fb657a1aec12e9bab68e00c2b493c \
+                      --commit=a036a455da1c91282ac2c6a7ca9757ee2e8ba107 \
                       --cores="$JOBS" \
                       --keep-failed \
                       --fallback \
