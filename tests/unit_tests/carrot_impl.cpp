@@ -468,10 +468,10 @@ static bool compare_scan_result(const unittest_carrot_scan_result_t &scan_res,
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-struct unittest_transaction_proposal
+struct unittest_transaction_preproposal
 {
     using per_payment_proposal = std::pair<CarrotPaymentProposalV1, /*is subtractble?*/bool>;
-    using per_ss_payment_proposal = std::pair<CarrotPaymentProposalSelfSendV1, /*is subtractble?*/bool>;
+    using per_ss_payment_proposal = std::pair<CarrotPaymentProposalVerifiableSelfSendV1, /*is subtractble?*/bool>;
     using per_account = std::pair<mock_carrot_or_legacy_keys, std::vector<per_payment_proposal>>;
     using per_input = std::pair<crypto::key_image, rct::xmr_amount>;
 
@@ -479,9 +479,10 @@ struct unittest_transaction_proposal
     std::vector<per_ss_payment_proposal> explicit_selfsend_proposals;
     size_t self_sender_index{0};
     rct::xmr_amount fee_per_weight;
+    std::vector<std::uint8_t> extra_extra;
 
     void get_flattened_payment_proposals(std::vector<CarrotPaymentProposalV1> &normal_payment_proposals_out,
-        std::vector<CarrotPaymentProposalSelfSendV1> &selfsend_payment_proposals_out,
+        std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals_out,
         std::set<size_t> &subtractable_normal_payment_proposals,
         std::set<size_t> &subtractable_selfsend_payment_proposals) const
     {
@@ -544,36 +545,41 @@ static inline bool operator==(const mx25519_pubkey &a, const mx25519_pubkey &b)
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-static void subtest_multi_account_transfer_over_transaction(const unittest_transaction_proposal &tx_proposal)
+static void subtest_multi_account_transfer_over_transaction(const unittest_transaction_preproposal &tx_preproposal)
 {
     // get payment proposals
     std::vector<CarrotPaymentProposalV1> normal_payment_proposals;
-    std::vector<CarrotPaymentProposalSelfSendV1> selfsend_payment_proposals;
+    std::vector<CarrotPaymentProposalVerifiableSelfSendV1> selfsend_payment_proposals;
     std::set<size_t> subtractable_normal_payment_proposals;
     std::set<size_t> subtractable_selfsend_payment_proposals;
-    tx_proposal.get_flattened_payment_proposals(normal_payment_proposals,
+    tx_preproposal.get_flattened_payment_proposals(normal_payment_proposals,
         selfsend_payment_proposals,
         subtractable_normal_payment_proposals,
         subtractable_selfsend_payment_proposals);
 
     // get self-sender account
     const mock_carrot_or_legacy_keys &ss_keys =
-        tx_proposal.per_account_payments.at(tx_proposal.self_sender_index).first;
+    tx_preproposal.per_account_payments.at(tx_preproposal.self_sender_index).first;
 
-    // make unsigned transaction
-    std::vector<CarrotPaymentProposalV1> modified_normal_payment_proposals = normal_payment_proposals;
-    std::vector<CarrotPaymentProposalSelfSendV1> modified_selfsend_payment_proposals = selfsend_payment_proposals;
-    cryptonote::transaction tx;
-    std::vector<crypto::secret_key> output_amount_blinding_factors;
-    make_unsigned_transaction_transfer(modified_normal_payment_proposals,
-        modified_selfsend_payment_proposals,
-        tx_proposal.fee_per_weight,
+    // make transaction proposal
+    CarrotTransactionProposalV1 tx_proposal;
+    make_carrot_transaction_proposal_v1_transfer(normal_payment_proposals,
+        selfsend_payment_proposals,
+        tx_preproposal.fee_per_weight,
+        tx_preproposal.extra_extra,
         make_fake_input_selection_callback(),
         ss_keys.get_view_balance_device(),
         &ss_keys.k_view_dev,
         ss_keys.account_spend_pubkey,
-        tx,
-        output_amount_blinding_factors);
+        tx_proposal);
+
+    // make unsigned transaction
+    cryptonote::transaction tx;
+    make_pruned_transaction_from_carrot_proposal_v1(tx_proposal,
+        ss_keys.get_view_balance_device(),
+        &ss_keys.k_view_dev,
+        ss_keys.account_spend_pubkey,
+        tx);
 
     // calculate acceptable fee margin between proposed amount and actual amount for subtractable outputs
     const size_t num_subtractable = subtractable_normal_payment_proposals.size() +
@@ -594,13 +600,18 @@ static void subtest_multi_account_transfer_over_transaction(const unittest_trans
         parsed_encrypted_payment_id));
     ASSERT_TRUE(parsed_encrypted_payment_id);
 
+    // collect modified selfsend payment proposal cores
+    std::vector<CarrotPaymentProposalSelfSendV1> modified_selfsend_payment_proposals;
+    for (const auto &p : tx_proposal.selfsend_payment_proposals)
+        modified_selfsend_payment_proposals.push_back(p.proposal);
+
     // sanity check that the enotes and pid_enc loaded from the transaction are equal to the enotes
     // and pic_enc returned from get_output_enote_proposals() when called with the modified payment
     // proposals. we do this so that the modified payment proposals from make_unsigned_transaction()
     // can be passed to a hardware device for deterministic verification of the signable tx hash
     std::vector<RCTOutputEnoteProposal> rederived_output_enote_proposals;
     encrypted_payment_id_t rederived_encrypted_payment_id;
-    get_output_enote_proposals(modified_normal_payment_proposals,
+    get_output_enote_proposals(tx_proposal.normal_payment_proposals,
         modified_selfsend_payment_proposals,
         *parsed_encrypted_payment_id,
         ss_keys.get_view_balance_device(),
@@ -618,7 +629,7 @@ static void subtest_multi_account_transfer_over_transaction(const unittest_trans
 
     // collect accounts
     std::vector<const mock_carrot_or_legacy_keys*> accounts;
-    for (const auto &pa : tx_proposal.per_account_payments)
+    for (const auto &pa : tx_preproposal.per_account_payments)
         accounts.push_back(&pa.first);
 
     // do scanning of all accounts on every enotes
@@ -636,11 +647,11 @@ static void subtest_multi_account_transfer_over_transaction(const unittest_trans
     for (size_t account_idx = 0; account_idx < accounts.size(); ++account_idx)
     {
         // skip self-sender account
-        if (account_idx == tx_proposal.self_sender_index)
+        if (account_idx == tx_preproposal.self_sender_index)
             continue;
 
         const std::vector<unittest_carrot_scan_result_t> &account_scan_results = scan_results.at(account_idx);
-        const auto &account_payment_proposals = tx_proposal.per_account_payments.at(account_idx).second;
+        const auto &account_payment_proposals = tx_preproposal.per_account_payments.at(account_idx).second;
         ASSERT_EQ(account_payment_proposals.size(), account_scan_results.size());
         std::set<size_t> matched_payment_proposals;
 
@@ -703,7 +714,7 @@ static void subtest_multi_account_transfer_over_transaction(const unittest_trans
 
     // check that the scan results for the selfsend account match the corresponding payment
     // proposals. also check that the accounts can each open their corresponding onetime outut pubkeys
-    const std::vector<unittest_carrot_scan_result_t> &account_scan_results = scan_results.at(tx_proposal.self_sender_index);
+    const std::vector<unittest_carrot_scan_result_t> &account_scan_results = scan_results.at(tx_preproposal.self_sender_index);
     ASSERT_EQ(selfsend_payment_proposals.size() + 1, account_scan_results.size());
     std::set<size_t> matched_payment_proposals;
     const unittest_carrot_scan_result_t* implicit_change_scan_res = nullptr;
@@ -715,7 +726,7 @@ static void subtest_multi_account_transfer_over_transaction(const unittest_trans
         for (size_t ss_prop_idx = 0; ss_prop_idx < selfsend_payment_proposals.size(); ++ss_prop_idx)
         {
             // calculate acceptable loss from fee subtraction
-            const CarrotPaymentProposalSelfSendV1 &account_payment_proposal = selfsend_payment_proposals.at(ss_prop_idx);
+            const CarrotPaymentProposalSelfSendV1 &account_payment_proposal = selfsend_payment_proposals.at(ss_prop_idx).proposal;
             const bool is_subtractable = subtractable_selfsend_payment_proposals.count(ss_prop_idx);
             const rct::xmr_amount acceptable_fee_margin_for_proposal = is_subtractable ? acceptable_fee_margin : 0;
 
@@ -781,7 +792,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_1)
     // 1 normal payment to main address
     // 0 explicit selfsend payments
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(2);
     mock_carrot_or_legacy_keys &acc0 = tx_proposal.per_account_payments[0].first;
     mock_carrot_or_legacy_keys &acc1 = tx_proposal.per_account_payments[1].first;
@@ -813,7 +824,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_2)
     // 1 normal payment to main address, integrated address, and subaddress each
     // 0 explicit selfsend payments
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -862,7 +873,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_3)
     // 2 normal payment to main address, 1 integrated address, and 2 subaddress, each copied except integrated
     // 0 explicit selfsend payments
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -915,7 +926,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_4)
     // 2 normal payment to main address, 1 integrated address, and 2 subaddress, each copied except integrated
     // 2 explicit selfsend payments: 1 main address destination, 1 subaddress destination
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -955,7 +966,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_4)
     };
 
     // 1 main address selfsend
-    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalSelfSendV1{
+    tools::add_element(tx_proposal.explicit_selfsend_proposals).first.proposal = CarrotPaymentProposalSelfSendV1{
         .destination_address_spend_pubkey = acc2.first.account_spend_pubkey,
         .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
         .enote_type = CarrotEnoteType::PAYMENT,
@@ -963,10 +974,13 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_4)
     };
 
     // 1 subaddress selfsend
-    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalSelfSendV1{
-        .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
-        .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
-        .enote_type = CarrotEnoteType::CHANGE
+    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalVerifiableSelfSendV1{
+        .proposal = CarrotPaymentProposalSelfSendV1{
+            .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
+            .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
+            .enote_type = CarrotEnoteType::CHANGE
+        },
+        .subaddr_index = {4, 19}
     };
 
     // specify fee per weight
@@ -983,7 +997,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_5)
     // 1 normal payment to main address
     // 0 explicit selfsend payments
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(2);
     mock_carrot_or_legacy_keys &acc0 = tx_proposal.per_account_payments[0].first;
     mock_carrot_or_legacy_keys &acc1 = tx_proposal.per_account_payments[1].first;
@@ -1015,7 +1029,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_6)
     // 1 normal payment to main address, integrated address, and subaddress each
     // 0 explicit selfsend payments
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1064,7 +1078,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_7)
     // 2 normal payment to main address, 1 integrated address, and 2 subaddress, each copied except integrated
     // 0 explicit selfsend payments
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1117,7 +1131,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_8)
     // 2 normal payment to main address, 1 integrated address, and 2 subaddress, each copied except integrated
     // 2 explicit selfsend payments: 1 main address destination, 1 subaddress destination
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1157,7 +1171,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_8)
     };
 
     // 1 main address selfsend
-    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalSelfSendV1{
+    tools::add_element(tx_proposal.explicit_selfsend_proposals).first.proposal = CarrotPaymentProposalSelfSendV1{
         .destination_address_spend_pubkey = acc2.first.account_spend_pubkey,
         .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
         .enote_type = CarrotEnoteType::PAYMENT,
@@ -1165,10 +1179,13 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_8)
     };
 
     // 1 subaddress selfsend
-    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalSelfSendV1{
-        .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
-        .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
-        .enote_type = CarrotEnoteType::CHANGE
+    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalVerifiableSelfSendV1{
+        .proposal = CarrotPaymentProposalSelfSendV1{
+            .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
+            .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
+            .enote_type = CarrotEnoteType::CHANGE
+        },
+        .subaddr_index = {4, 19}
     };
 
     // specify fee per weight
@@ -1186,7 +1203,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_9)
     // 0 explicit selfsend payments
     // subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(2);
     mock_carrot_or_legacy_keys &acc0 = tx_proposal.per_account_payments[0].first;
     mock_carrot_or_legacy_keys &acc1 = tx_proposal.per_account_payments[1].first;
@@ -1220,7 +1237,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_10)
     // 0 explicit selfsend payments
     // subaddress and integrated address are subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1270,7 +1287,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_11)
     // 0 explicit selfsend payments
     // 1 main and 1 subaddress is subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1326,7 +1343,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_12)
     // 2 explicit selfsend payments: 1 main address destination, 1 subaddress destination
     // 1 normal main address, 1 integrated, and 1 self-send subaddress is subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1367,7 +1384,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_12)
     }, true};
 
     // 1 main address selfsend
-    tools::add_element(tx_proposal.explicit_selfsend_proposals).first = CarrotPaymentProposalSelfSendV1{
+    tools::add_element(tx_proposal.explicit_selfsend_proposals).first.proposal = CarrotPaymentProposalSelfSendV1{
         .destination_address_spend_pubkey = acc2.first.account_spend_pubkey,
         .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
         .enote_type = CarrotEnoteType::PAYMENT,
@@ -1375,10 +1392,13 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_12)
     };
 
     // 1 subaddress selfsend (subtractable)
-    tools::add_element(tx_proposal.explicit_selfsend_proposals) = {CarrotPaymentProposalSelfSendV1{
-        .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
-        .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
-        .enote_type = CarrotEnoteType::CHANGE
+    tools::add_element(tx_proposal.explicit_selfsend_proposals) = {CarrotPaymentProposalVerifiableSelfSendV1{
+        .proposal = CarrotPaymentProposalSelfSendV1{
+            .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
+            .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
+            .enote_type = CarrotEnoteType::CHANGE
+        },
+        .subaddr_index = {4, 19}
     }, true};
 
     // specify fee per weight
@@ -1396,7 +1416,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_13)
     // 0 explicit selfsend payments
     // subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(2);
     mock_carrot_or_legacy_keys &acc0 = tx_proposal.per_account_payments[0].first;
     mock_carrot_or_legacy_keys &acc1 = tx_proposal.per_account_payments[1].first;
@@ -1430,7 +1450,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_14)
     // 0 explicit selfsend payments
     // 1 integrated and 1 subaddress subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1480,7 +1500,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_15)
     // 0 explicit selfsend payments
     // all subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1534,7 +1554,7 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_16)
     // 2 explicit selfsend payments: 1 main address destination, 1 subaddress destination
     // all subtractable
 
-    unittest_transaction_proposal tx_proposal;
+    unittest_transaction_preproposal tx_proposal;
     tx_proposal.per_account_payments.resize(4);
     auto &acc0 = tx_proposal.per_account_payments[0];
     auto &acc1 = tx_proposal.per_account_payments[1];
@@ -1574,18 +1594,21 @@ TEST(carrot_impl, multi_account_transfer_over_transaction_16)
     }, true};
 
     // 1 main address selfsend (subtractable)
-    tools::add_element(tx_proposal.explicit_selfsend_proposals) = {CarrotPaymentProposalSelfSendV1{
+    tools::add_element(tx_proposal.explicit_selfsend_proposals) = {{CarrotPaymentProposalSelfSendV1{
         .destination_address_spend_pubkey = acc2.first.account_spend_pubkey,
         .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
         .enote_type = CarrotEnoteType::PAYMENT,
         // no internal messages for legacy self-sends
-    }, true};
+    }}, true};
 
     // 1 subaddress selfsend (subtractable)
-    tools::add_element(tx_proposal.explicit_selfsend_proposals) = {CarrotPaymentProposalSelfSendV1{
-        .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
-        .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
-        .enote_type = CarrotEnoteType::CHANGE
+    tools::add_element(tx_proposal.explicit_selfsend_proposals) = {CarrotPaymentProposalVerifiableSelfSendV1{
+        .proposal = CarrotPaymentProposalSelfSendV1{
+            .destination_address_spend_pubkey = acc2.first.subaddress(4, 19).address_spend_pubkey,
+            .amount = crypto::rand_idx<rct::xmr_amount>(1000000),
+            .enote_type = CarrotEnoteType::CHANGE
+        },
+        .subaddr_index = {4, 19}
     }, true};
 
     // specify fee per weight
