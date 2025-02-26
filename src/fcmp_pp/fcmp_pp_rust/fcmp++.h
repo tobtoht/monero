@@ -111,9 +111,9 @@ struct ObjectSlice
 extern "C" {
 #endif
 
-struct HeliosPoint helios_hash_init_point();
+struct HeliosPoint helios_hash_init_point(void);
 
-struct SelenePoint selene_hash_init_point();
+struct SelenePoint selene_hash_init_point(void);
 
 uint8_t *helios_scalar_to_bytes(struct HeliosScalar helios_scalar);
 
@@ -133,9 +133,9 @@ struct HeliosScalar selene_point_to_helios_scalar(struct SelenePoint selene_poin
 
 struct SeleneScalar helios_point_to_selene_scalar(struct HeliosPoint helios_point);
 
-struct HeliosScalar helios_zero_scalar();
+struct HeliosScalar helios_zero_scalar(void);
 
-struct SeleneScalar selene_zero_scalar();
+struct SeleneScalar selene_zero_scalar(void);
 
 uint8_t *selene_tree_root(struct SelenePoint selene_point);
 
@@ -186,8 +186,8 @@ CResult output_blinds_new(const uint8_t *o_blind,
                                              const uint8_t *i_blind_blind,
                                              const uint8_t *c_blind);
 
-CResult helios_branch_blind();
-CResult selene_branch_blind();
+CResult helios_branch_blind(void);
+CResult selene_branch_blind(void);
 
 CResult fcmp_prove_input_new(const uint8_t *x,
                                              const uint8_t *y,
