@@ -564,7 +564,7 @@ struct SalInput {
     rerandomized_output: RerandomizedOutput,
 }
 
-pub struct FcmpProveInput {
+pub struct FcmpPpProveInput {
     sal_input: SalInput,
     path: Path<Curves>,
     output_blinds: OutputBlinds<EdwardsPoint>,
@@ -572,7 +572,7 @@ pub struct FcmpProveInput {
     c2_branch_blinds: Vec<BranchBlind<<Helios as Ciphersuite>::G>>,
 }
 
-pub type FcmpProveInputSlice = Slice<*const FcmpProveInput>;
+pub type FcmpPpProveInputSlice = Slice<*const FcmpPpProveInput>;
 
 /// # Safety
 ///
@@ -581,7 +581,7 @@ pub type FcmpProveInputSlice = Slice<*const FcmpProveInput>;
 /// (via Box::into_raw(Box::new())), and the branch blinds are slices of
 /// BranchBlind allocated on the heap (via CResult).
 #[no_mangle]
-pub unsafe extern "C" fn fcmp_prove_input_new(
+pub unsafe extern "C" fn fcmp_pp_prove_input_new(
     x: *const u8,
     y: *const u8,
     rerandomized_output: *const RerandomizedOutput,
@@ -589,7 +589,7 @@ pub unsafe extern "C" fn fcmp_prove_input_new(
     output_blinds: *const OutputBlinds<EdwardsPoint>,
     selene_branch_blinds: SeleneBranchBlindSlice,
     helios_branch_blinds: HeliosBranchBlindSlice,
-) -> CResult<FcmpProveInput, ()> {
+) -> CResult<FcmpPpProveInput, ()> {
     // SAL
     let x = ed25519_scalar_from_bytes(x);
     let y = ed25519_scalar_from_bytes(y);
@@ -619,7 +619,7 @@ pub unsafe extern "C" fn fcmp_prove_input_new(
         .map(|x| unsafe { (*x.to_owned()).clone() })
         .collect();
 
-    let fcmp_prove_input = FcmpProveInput {
+    let fcmp_prove_input = FcmpPpProveInput {
         sal_input,
         path,
         output_blinds,
@@ -632,19 +632,19 @@ pub unsafe extern "C" fn fcmp_prove_input_new(
 /// # Safety
 ///
 /// This function assumes that the signable_tx_hash is 32 bytes and that the inputs are a slice
-/// of inputs returned from fcmp_prove_input_new.
+/// of inputs returned from fcmp_pp_prove_input_new.
 #[no_mangle]
 pub unsafe extern "C" fn prove(
     signable_tx_hash: *const u8,
-    inputs: FcmpProveInputSlice,
+    inputs: FcmpPpProveInputSlice,
     n_tree_layers: usize,
 ) -> CResult<*const u8, ()> {
     let signable_tx_hash = unsafe { core::slice::from_raw_parts(signable_tx_hash, 32) };
     let signable_tx_hash: [u8; 32] = signable_tx_hash.try_into().unwrap();
 
     // Collect inputs into a vec
-    let inputs: &[*const FcmpProveInput] = inputs.into();
-    let inputs: Vec<FcmpProveInput> = inputs.iter().map(|x| unsafe { x.read() }).collect();
+    let inputs: &[*const FcmpPpProveInput] = inputs.into();
+    let inputs: Vec<FcmpPpProveInput> = inputs.iter().map(|x| unsafe { x.read() }).collect();
 
     // SAL proofs
     let sal_proofs = inputs

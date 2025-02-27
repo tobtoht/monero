@@ -189,7 +189,7 @@ CResult output_blinds_new(const uint8_t *o_blind,
 CResult helios_branch_blind(void);
 CResult selene_branch_blind(void);
 
-CResult fcmp_prove_input_new(const uint8_t *x,
+CResult fcmp_pp_prove_input_new(const uint8_t *x,
                                              const uint8_t *y,
                                              const uint8_t *rerandomized_output,
                                              const uint8_t *path,

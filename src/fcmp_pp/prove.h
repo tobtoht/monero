@@ -82,7 +82,7 @@ uint8_t *output_blinds_new(const uint8_t *blinded_o_blind,
 uint8_t *selene_branch_blind();
 uint8_t *helios_branch_blind();
 
-uint8_t *fcmp_prove_input_new(const uint8_t *x,
+uint8_t *fcmp_pp_prove_input_new(const uint8_t *x,
     const uint8_t *y,
     const uint8_t *rerandomized_output,
     const uint8_t *path,

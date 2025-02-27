@@ -244,7 +244,7 @@ TEST(fcmp_pp, prove)
             for (std::size_t i = 0; i < selene_scalars.size(); ++i)
                 helios_branch_blinds.emplace_back(fcmp_pp::helios_branch_blind());
 
-        auto fcmp_prove_input = fcmp_pp::fcmp_prove_input_new(x,
+        auto fcmp_prove_input = fcmp_pp::fcmp_pp_prove_input_new(x,
             y,
             rerandomized_output,
             path_rust,

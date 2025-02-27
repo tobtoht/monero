@@ -1264,7 +1264,7 @@ done:
             pseudoOuts[i] = rct::pt2rct(fcmp_pp::pseudo_out(rerandomized_output));
 
             // TODO: separate SAL from membership proof. Implement SAL in hw device interface
-            auto fcmp_prove_input = fcmp_pp::fcmp_prove_input_new(x,
+            auto fcmp_prove_input = fcmp_pp::fcmp_pp_prove_input_new(x,
                 y,
                 rerandomized_output,
                 fcmp_pp_input.path,
