@@ -189,6 +189,12 @@ CResult output_blinds_new(const uint8_t *o_blind,
 CResult helios_branch_blind(void);
 CResult selene_branch_blind(void);
 
+CResult fcmp_prove_input_new(const uint8_t *rerandomized_output,
+                                        const uint8_t *path,
+                                        const uint8_t *output_blinds,
+                                        struct ObjectSlice selene_branch_blinds,
+                                        struct ObjectSlice helios_branch_blinds);
+
 CResult fcmp_pp_prove_input_new(const uint8_t *x,
                                              const uint8_t *y,
                                              const uint8_t *rerandomized_output,
@@ -220,6 +226,21 @@ CResult fcmp_pp_prove_sal(const uint8_t signable_tx_hash[32],
                                              const uint8_t y[32],
                                              const void *rerandomized_output,
                                              uint8_t sal_proof_out[FCMP_PP_SAL_PROOF_SIZE_V1]);
+
+/**
+ * brief: fcmp_pp_prove_membership - Make a FCMP++ membership proof for N inputs
+ * param: inputs - a slice of FCMP provable inputs returned from fcmp_prove_input_new()
+ * param: n_tree_layers -
+ * outparam: fcmp_proof_out - a buffer where the FCMP proof will be written to
+ * outparam: fcmp_proof_out_size - the max length of the buffer fcmp_proof_out, is set to written proof size
+ * return: an error on failure, nothing otherwise
+ */
+CResult fcmp_pp_prove_membership(struct ObjectSlice fcmp_prove_inputs,
+                                             uintptr_t n_tree_layers,
+                                             uint8_t fcmp_proof_out[],
+                                             uintptr_t *fcmp_proof_out_len);
+
+uintptr_t fcmp_proof_size(uintptr_t n_inputs, uintptr_t n_tree_layers);
 
 uintptr_t fcmp_pp_proof_size(uintptr_t n_inputs, uintptr_t n_tree_layers);
 

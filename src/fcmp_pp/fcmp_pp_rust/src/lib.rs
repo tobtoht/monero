@@ -558,21 +558,80 @@ pub extern "C" fn selene_branch_blind() -> CResult<BranchBlind<<Selene as Cipher
 
 //-------------------------------------------------------------------------------------- Fcmp
 
-struct SalInput {
-    x: Scalar,
-    y: Scalar,
-    rerandomized_output: RerandomizedOutput,
-}
-
 pub struct FcmpPpProveInput {
-    sal_input: SalInput,
+    rerandomized_output: RerandomizedOutput,
+
+    // FCMP-specific
     path: Path<Curves>,
     output_blinds: OutputBlinds<EdwardsPoint>,
     c1_branch_blinds: Vec<BranchBlind<<Selene as Ciphersuite>::G>>,
     c2_branch_blinds: Vec<BranchBlind<<Helios as Ciphersuite>::G>>,
+
+    // SA/L-specific, ignore when only doing membership proofs
+    x: Scalar,
+    y: Scalar
 }
 
 pub type FcmpPpProveInputSlice = Slice<*const FcmpPpProveInput>;
+
+unsafe fn prove_membership_native(inputs: &[*const FcmpPpProveInput], n_tree_layers: usize) -> Option<Fcmp<Curves>> {
+    let paths = inputs.iter().cloned().map(|x| (*x).path.clone()).collect();
+    let output_blinds = inputs.iter().cloned().map(|x| (*x).output_blinds.clone()).collect();
+
+    let c1_branch_blinds: Vec<_> = inputs
+        .iter()
+        .cloned()
+        .map(|x| (*x).c1_branch_blinds.clone())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .flatten()
+        .collect();
+    let c2_branch_blinds: Vec<_> = inputs
+        .iter()
+        .cloned()
+        .map(|x| (*x).c2_branch_blinds.clone())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .flatten()
+        .collect();
+
+    let branches = Branches::new(paths).unwrap();
+
+    assert_eq!(branches.necessary_c1_blinds(), c1_branch_blinds.len());
+    assert_eq!(branches.necessary_c2_blinds(), c2_branch_blinds.len());
+
+    let n_branch_blinds = (c1_branch_blinds.len() + c2_branch_blinds.len()) / inputs.len();
+    assert_eq!(n_tree_layers, n_branch_blinds + 1);
+
+    let blinded_branches = branches
+        .blind(output_blinds, c1_branch_blinds, c2_branch_blinds)
+        .unwrap();
+
+    Fcmp::prove(&mut OsRng, FCMP_PARAMS(), blinded_branches).ok()
+}
+
+/// # Safety
+///
+/// This function assumes that RerandomizedOutput/Path/OutputBlinds were
+/// allocated on the heap (via Box::into_raw(Box::new())), and the branch
+/// blinds are slices of BranchBlind allocated on the heap (via CResult).
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_prove_input_new(rerandomized_output: *const RerandomizedOutput,
+    path: *const Path<Curves>,
+    output_blinds: *const OutputBlinds<EdwardsPoint>,
+    selene_branch_blinds: SeleneBranchBlindSlice,
+    helios_branch_blinds: HeliosBranchBlindSlice 
+) -> CResult<FcmpPpProveInput, ()> {
+    let zero = [0u8; 32];
+    let pzero = &zero as *const u8;
+    fcmp_pp_prove_input_new(pzero,
+        pzero,
+        rerandomized_output,
+        path,
+        output_blinds,
+        selene_branch_blinds,
+        helios_branch_blinds)
+}
 
 /// # Safety
 ///
@@ -594,11 +653,6 @@ pub unsafe extern "C" fn fcmp_pp_prove_input_new(
     let x = ed25519_scalar_from_bytes(x);
     let y = ed25519_scalar_from_bytes(y);
     let rerandomized_output = unsafe { rerandomized_output.read() };
-    let sal_input = SalInput {
-        x,
-        y,
-        rerandomized_output,
-    };
 
     // Path and output blinds
     let path = unsafe { path.read() };
@@ -620,11 +674,13 @@ pub unsafe extern "C" fn fcmp_pp_prove_input_new(
         .collect();
 
     let fcmp_prove_input = FcmpPpProveInput {
-        sal_input,
+        rerandomized_output,
         path,
         output_blinds,
         c1_branch_blinds,
         c2_branch_blinds,
+        x,
+        y
     };
     CResult::ok(fcmp_prove_input)
 }
@@ -642,22 +698,20 @@ pub unsafe extern "C" fn prove(
     let signable_tx_hash = unsafe { core::slice::from_raw_parts(signable_tx_hash, 32) };
     let signable_tx_hash: [u8; 32] = signable_tx_hash.try_into().unwrap();
 
-    // Collect inputs into a vec
     let inputs: &[*const FcmpPpProveInput] = inputs.into();
-    let inputs: Vec<FcmpPpProveInput> = inputs.iter().map(|x| unsafe { x.read() }).collect();
 
     // SAL proofs
     let sal_proofs = inputs
         .iter()
+        .cloned()
         .map(|prove_input| {
-            let sal_input = &prove_input.sal_input;
-            let rerandomized_output = &sal_input.rerandomized_output;
-            let x = sal_input.x;
-            let y = sal_input.y;
+            let rerandomized_output = &(*prove_input).rerandomized_output;
+            let x = &(*prove_input).x;
+            let y = &(*prove_input).y;
 
             assert_eq!(
-                prove_input.path.output.O(),
-                EdwardsPoint((*x * *EdwardsPoint::generator()) + (*y * *EdwardsPoint(T())))
+                (*prove_input).path.output.O(),
+                EdwardsPoint((**x * *EdwardsPoint::generator()) + (**y * *EdwardsPoint(T())))
             );
 
             let input = rerandomized_output.input();
@@ -666,44 +720,17 @@ pub unsafe extern "C" fn prove(
             let (key_image, spend_auth_and_linkability) =
                 SpendAuthAndLinkability::prove(&mut OsRng, signable_tx_hash, opening);
 
-            assert_eq!(prove_input.path.output.I() * x, key_image);
+            assert_eq!((*prove_input).path.output.I() * x, key_image);
 
             (input, spend_auth_and_linkability)
         })
         .collect();
 
-    let paths = inputs.iter().map(|x| x.path.clone()).collect();
-    let output_blinds = inputs.iter().map(|x| x.output_blinds.clone()).collect();
-
-    let c1_branch_blinds: Vec<_> = inputs
-        .iter()
-        .map(|x| x.c1_branch_blinds.clone())
-        .collect::<Vec<_>>()
-        .into_iter()
-        .flatten()
-        .collect();
-    let c2_branch_blinds: Vec<_> = inputs
-        .iter()
-        .map(|x| x.c2_branch_blinds.clone())
-        .collect::<Vec<_>>()
-        .into_iter()
-        .flatten()
-        .collect();
-
-    let branches = Branches::new(paths).unwrap();
-
-    assert_eq!(branches.necessary_c1_blinds(), c1_branch_blinds.len());
-    assert_eq!(branches.necessary_c2_blinds(), c2_branch_blinds.len());
-
-    let n_branch_blinds = (c1_branch_blinds.len() + c2_branch_blinds.len()) / inputs.len();
-    assert_eq!(n_tree_layers, n_branch_blinds + 1);
-
-    let blinded_branches = branches
-        .blind(output_blinds, c1_branch_blinds, c2_branch_blinds)
-        .unwrap();
-
     // Membership proof
-    let fcmp = Fcmp::prove(&mut OsRng, FCMP_PARAMS(), blinded_branches).unwrap();
+    let fcmp = match prove_membership_native(inputs, n_tree_layers) {
+        Some(x) => x,
+        None => return CResult::err(())
+    };
 
     // Combine SAL proofs and membership proof
     let fcmp_plus_plus = FcmpPlusPlus::new(sal_proofs, fcmp);
@@ -748,6 +775,36 @@ pub extern "C" fn fcmp_pp_prove_sal(signable_tx_hash: *const u8,
         Ok(_) => CResult::ok(()),
         Err(_) => CResult::err(()) 
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_prove_membership(inputs: FcmpPpProveInputSlice,
+    n_tree_layers: usize,
+    fcmp_proof_out: *mut u8,
+    fcmp_proof_out_len: *mut usize
+) -> CResult<(), ()> {
+    let inputs: &[*const FcmpPpProveInput] = inputs.into();
+    let capacity = fcmp_proof_out_len.read();
+    let proof_size = fcmp_proof_size(inputs.len(), n_tree_layers);
+    if capacity < proof_size {
+        return CResult::err(())
+    }
+    fcmp_proof_out_len.write(proof_size);
+    let mut buf_out = core::slice::from_raw_parts_mut(fcmp_proof_out, proof_size);
+
+    match prove_membership_native(inputs, n_tree_layers) {
+        Some(fcmp) => match fcmp.write(&mut buf_out) {
+            Ok(_) => CResult::ok(()),
+            Err(_) => CResult::err(())
+        },
+        None => CResult::err(())
+    }
+}
+
+// TODO: cache a static global table for proof lens by n_inputs and n_tree_layers bc the calc is slow
+#[no_mangle]
+pub extern "C" fn fcmp_proof_size(n_inputs: usize, n_tree_layers: usize) -> usize {
+    Fcmp::<Curves>::proof_size(n_inputs, n_tree_layers)
 }
 
 // TODO: cache a static global table for proof lens by n_inputs and n_tree_layers bc the calc is slow
