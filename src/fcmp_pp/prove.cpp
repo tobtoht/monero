@@ -138,6 +138,21 @@ uint8_t *helios_branch_blind()
     return handle_res_ptr(__func__, res);
 }
 
+uint8_t *fcmp_prove_input_new(const uint8_t *rerandomized_output,
+    const uint8_t *path,
+    const uint8_t *output_blinds,
+    const std::vector<const uint8_t *> &selene_branch_blinds,
+    const std::vector<const uint8_t *> &helios_branch_blinds)
+{
+    auto res = ::fcmp_prove_input_new(rerandomized_output,
+        path,
+        output_blinds,
+        {selene_branch_blinds.data(), selene_branch_blinds.size()},
+        {helios_branch_blinds.data(), helios_branch_blinds.size()});
+
+    return handle_res_ptr(__func__, res);
+}
+
 uint8_t *fcmp_pp_prove_input_new(const uint8_t *x,
     const uint8_t *y,
     const uint8_t *rerandomized_output,
@@ -205,6 +220,27 @@ FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
     return p;
 }
 //----------------------------------------------------------------------------------------------------------------------
+FcmpMembershipProof prove_membership(const std::vector<const uint8_t *> &fcmp_prove_inputs,
+    const std::size_t n_tree_layers)
+{
+    FcmpPpSalProof p;
+    p.resize(::fcmp_proof_size(fcmp_prove_inputs.size(), n_tree_layers));
+
+    size_t proof_size = p.size();
+    auto res = ::fcmp_pp_prove_membership({fcmp_prove_inputs.data(), fcmp_prove_inputs.size()},
+        n_tree_layers,
+        &p[0],
+        &proof_size);
+
+    handle_res_ptr(__func__, res);
+
+    p.resize(proof_size);
+
+    // No `free()` since result type `()` is zero-sized
+
+    return p;
+}
+//----------------------------------------------------------------------------------------------------------------------
 bool verify(const crypto::hash &signable_tx_hash,
     const FcmpPpProof &fcmp_pp_proof,
     const std::size_t n_tree_layers,
@@ -245,6 +281,19 @@ bool verify_sal(const crypto::hash &signable_tx_hash,
         input,
         to_bytes(key_image),
         sal_proof.data());
+}
+//----------------------------------------------------------------------------------------------------------------------
+bool verify_membership(const FcmpMembershipProof &fcmp_proof,
+    const std::size_t n_tree_layers,
+    const uint8_t *tree_root,
+    const std::vector<const void*> &inputs)
+{
+    return ::fcmp_pp_verify_membership(
+        {reinterpret_cast<const uint8_t* const *>(inputs.data()), inputs.size()},
+        tree_root,
+        n_tree_layers,
+        fcmp_proof.data(),
+        fcmp_proof.size());
 }
 //----------------------------------------------------------------------------------------------------------------------
 std::size_t proof_len(const std::size_t n_inputs, const uint8_t n_tree_layers)

@@ -82,6 +82,12 @@ uint8_t *output_blinds_new(const uint8_t *blinded_o_blind,
 uint8_t *selene_branch_blind();
 uint8_t *helios_branch_blind();
 
+uint8_t *fcmp_prove_input_new(const uint8_t *rerandomized_output,
+    const uint8_t *path,
+    const uint8_t *output_blinds,
+    const std::vector<const uint8_t *> &selene_branch_blinds,
+    const std::vector<const uint8_t *> &helios_branch_blinds);
+
 uint8_t *fcmp_pp_prove_input_new(const uint8_t *x,
     const uint8_t *y,
     const uint8_t *rerandomized_output,
@@ -99,6 +105,9 @@ FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
     const crypto::secret_key &y,
     const uint8_t *rerandomized_output);
 
+FcmpMembershipProof prove_membership(const std::vector<const uint8_t *> &fcmp_prove_inputs,
+    const std::size_t n_tree_layers);
+
 bool verify(const crypto::hash &signable_tx_hash,
     const FcmpPpProof &fcmp_pp_proof,
     const std::size_t n_tree_layers,
@@ -110,6 +119,11 @@ bool verify_sal(const crypto::hash &signable_tx_hash,
     const void *input,
     crypto::key_image &key_image,
     const FcmpPpSalProof &sal_proof);
+
+bool verify_membership(const FcmpMembershipProof &fcmp_proof,
+    const std::size_t n_tree_layers,
+    const uint8_t *tree_root,
+    const std::vector<const void*> &inputs);
 
 std::size_t proof_len(const std::size_t n_inputs, const uint8_t n_tree_layers);
 //----------------------------------------------------------------------------------------------------------------------
