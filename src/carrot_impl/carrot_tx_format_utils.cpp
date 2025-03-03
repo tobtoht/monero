@@ -48,7 +48,7 @@ namespace carrot
 {
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
-static constexpr const std::uint8_t carrot_rct_type = rct::RCTTypeBulletproof2; // @TODO: WRONG version
+static constexpr const std::uint8_t carrot_v1_rct_type = rct::RCTTypeFcmpPlusPlus;
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 template <bool is_coinbase, class EnoteContainer>
@@ -124,7 +124,7 @@ cryptonote::transaction store_carrot_to_transaction_v1(const std::vector<CarrotE
     tx.vin.reserve(nins);
     tx.vout.reserve(nouts);
     tx.extra.reserve(MAX_TX_EXTRA_SIZE);
-    tx.rct_signatures.type = carrot_rct_type;
+    tx.rct_signatures.type = carrot_v1_rct_type;
     tx.rct_signatures.txnFee = fee;
     tx.rct_signatures.ecdhInfo.reserve(nouts);
     tx.rct_signatures.outPk.reserve(nouts);
