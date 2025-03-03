@@ -263,6 +263,20 @@ bool fcmp_pp_verify_sal(const uint8_t signable_tx_hash[32],
                                              const void *input,
                                              const uint8_t L[32],
                                              const uint8_t sal_proof[FCMP_PP_SAL_PROOF_SIZE_V1]);
+/**
+ * brief: fcmp_pp_verify_membership - Verify a FCMP++ membership proof
+ * param: inputs - a slice of fcmp_input_ref pointers
+ * param: tree_root -
+ * param: n_tree_layers -
+ * param: fcmp_proof - FCMP proof bytes to verify
+ * param: fcmp_proof_len - length of fcmp_proof buffer
+ * return: true on verification success, false otherwise
+ */
+bool fcmp_pp_verify_membership(struct ObjectSlice inputs,
+  const uint8_t *tree_root,
+  const uintptr_t n_tree_layers,
+  const uint8_t fcmp_proof[],
+  const uintptr_t fcmp_proof_len);
 
 #ifdef __cplusplus
 } //extern "C"

@@ -16,6 +16,7 @@ use ec_divisors::{DivisorCurve, ScalarDecomposition};
 use full_chain_membership_proofs::tree::{hash_grow, hash_trim};
 
 use monero_fcmp_plus_plus::{
+    fcmps,
     fcmps::{
         BranchBlind, Branches, CBlind, Fcmp, IBlind, IBlindBlind, OBlind, OutputBlinds, Path,
         TreeRoot,
@@ -402,7 +403,7 @@ pub unsafe extern "C" fn pseudo_out(output: *const RerandomizedOutput) -> *const
 #[no_mangle]
 pub extern "C" fn fcmp_input_ref(output: *const RerandomizedOutput) -> *mut u8 {
     let rerandomized_output = unsafe { output.read() };
-    return Box::into_raw(Box::new(rerandomized_output.input())) as *mut u8;
+    Box::into_raw(Box::new(rerandomized_output.input())) as *mut u8
 }
 
 //---------------------------------------------- OBlind
@@ -869,7 +870,7 @@ pub unsafe extern "C" fn verify(
     let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
     let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
 
-    fcmp_plus_plus
+    match fcmp_plus_plus
         .verify(
             &mut OsRng,
             &mut ed_verifier,
@@ -880,11 +881,12 @@ pub unsafe extern "C" fn verify(
             signable_tx_hash,
             key_images,
         )
-        .unwrap();
-
-    ed_verifier.verify_vartime()
-        && SELENE_GENERATORS().verify(c1_verifier)
-        && HELIOS_GENERATORS().verify(c2_verifier)
+    {
+        Ok(()) => ed_verifier.verify_vartime()
+            && SELENE_GENERATORS().verify(c1_verifier)
+            && HELIOS_GENERATORS().verify(c2_verifier),
+        Err(_) => false
+    }    
 }
 
 /// # Safety
@@ -909,6 +911,53 @@ pub unsafe extern "C" fn fcmp_pp_verify_sal(signable_tx_hash: *const u8,
     sal_proof.verify(&mut OsRng, &mut ed_verifier, signable_tx_hash, &input, key_image);
 
     ed_verifier.verify_vartime()
+}
+
+/// # Safety
+///
+/// This function assumes that each element of inputs is heap allocated via a
+/// CResult, [fcmp_proof, fcmp_proof+fcmp_proof_len) is a valid readable range
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_verify_membership(inputs: Slice<*const Input>,
+    tree_root: *const TreeRoot<Selene, Helios>,
+    n_tree_layers: usize,
+    fcmp_proof: *const u8,
+    fcmp_proof_len: usize
+) -> bool {
+    let inputs: &[*const Input] = inputs.into();
+    let Ok(inputs) = inputs
+        .iter()
+        .cloned()
+        .map(|x|fcmps::Input::new((*x).O_tilde(), (*x).I_tilde(), (*x).R(), (*x).C_tilde()))
+        .collect::<Result<Vec<_>, _>>()
+        else { return false };
+
+    let tree_root = tree_root.read();
+
+    let mut fcmp_proof_buf = core::slice::from_raw_parts(fcmp_proof, fcmp_proof_len);
+    let fcmp = match Fcmp::read(&mut fcmp_proof_buf, inputs.len(), n_tree_layers) {
+        Ok(p) => p,
+        Err(_) => return false
+    };
+
+    let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
+    let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
+
+    match fcmp
+        .verify(
+            &mut OsRng,
+            &mut c1_verifier,
+            &mut c2_verifier,
+            FCMP_PARAMS(),
+            tree_root,
+            n_tree_layers,
+            &inputs
+        )
+    {
+        Ok(()) => SELENE_GENERATORS().verify(c1_verifier)
+            && HELIOS_GENERATORS().verify(c2_verifier),
+        Err(_) => false
+    }
 }
 
 // https://github.com/rust-lang/rust/issues/79609
