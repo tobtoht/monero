@@ -498,3 +498,29 @@ TEST(fcmp_pp, membership_completeness)
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
+TEST(fcmp_pp, read_write_rerandomized_output)
+{
+    rct::key bytes_in[8];
+    for (size_t i = 0; i < 4; ++i)
+        bytes_in[i] = rct::pkGen();
+    for (size_t i = 4; i < 8; ++i)
+        bytes_in[i] = rct::skGen();
+    uint8_t bytes_out[8 * 32];
+
+    static_assert(sizeof(bytes_in) == sizeof(bytes_out));
+    static_assert(sizeof(bytes_out) == 8 * 32);
+
+    CResult res = ::rerandomized_output_read(bytes_in[0].bytes);
+    ASSERT_EQ(res.err, nullptr);
+    ASSERT_NE(res.value, nullptr);
+    void *rerandomized_output = res.value;
+
+    res = ::rerandomized_output_write(rerandomized_output, bytes_out);
+    ASSERT_EQ(res.err, nullptr);
+    ASSERT_NE(res.value, nullptr);
+
+    EXPECT_EQ(0, memcmp(bytes_in, bytes_out, sizeof(bytes_in)));
+
+    free(rerandomized_output);
+}
+//----------------------------------------------------------------------------------------------------------------------

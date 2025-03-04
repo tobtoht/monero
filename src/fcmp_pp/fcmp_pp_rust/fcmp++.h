@@ -167,6 +167,17 @@ CResult path_new(struct OutputSlice leaves,
                                              struct SeleneScalarChunks selene_layer_chunks);
 
 CResult rerandomize_output(struct OutputBytes output);
+CResult rerandomized_output_new(const uint8_t O_tilde[32],
+  const uint8_t I_tilde[32],
+  const uint8_t R[32],
+  const uint8_t C_tilde[32],
+  const uint8_t r_o[32],
+  const uint8_t r_i[32],
+  const uint8_t r_r_i[32],
+  const uint8_t r_c[32]);
+CResult rerandomized_output_write(const void *rerandomized_output,
+  uint8_t rerandomized_output_bytes_out[8 * 32]);
+CResult rerandomized_output_read(const uint8_t rerandomized_output_bytes[8 * 32]);
 
 uint8_t *pseudo_out(const uint8_t *rerandomized_output);
 void *fcmp_input_ref(const uint8_t* rerandomized_output);

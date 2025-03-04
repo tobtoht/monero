@@ -381,6 +381,51 @@ pub extern "C" fn rerandomize_output(output: OutputBytes) -> CResult<Rerandomize
     CResult::ok(rerandomized_output)
 }
 
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn rerandomized_output_new(O_tilde: *const u8,
+    I_tilde: *const u8,
+    R: *const u8,
+    C_tilde: *const u8,
+    r_o: *const u8,
+    r_i: *const u8,
+    r_r_i: *const u8,
+    r_c: *const u8
+) -> CResult<RerandomizedOutput, ()> {
+    let mut bytes = [0u8; 256];
+    bytes[0*32..1*32].copy_from_slice(core::slice::from_raw_parts(O_tilde, 32));
+    bytes[1*32..2*32].copy_from_slice(core::slice::from_raw_parts(I_tilde, 32));
+    bytes[2*32..3*32].copy_from_slice(core::slice::from_raw_parts(R, 32));
+    bytes[3*32..4*32].copy_from_slice(core::slice::from_raw_parts(C_tilde, 32));
+    bytes[4*32..5*32].copy_from_slice(core::slice::from_raw_parts(r_o, 32));
+    bytes[5*32..6*32].copy_from_slice(core::slice::from_raw_parts(r_i, 32));
+    bytes[6*32..7*32].copy_from_slice(core::slice::from_raw_parts(r_r_i, 32));
+    bytes[7*32..8*32].copy_from_slice(core::slice::from_raw_parts(r_c, 32));
+
+    rerandomized_output_read(&bytes as *const u8)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rerandomized_output_write(rerandomized_output: *const RerandomizedOutput,
+    rerandomized_output_bytes_out: *mut u8) -> CResult<(), ()>
+{
+    let mut rerandomized_output_bytes_out = core::slice::from_raw_parts_mut(rerandomized_output_bytes_out, 8 * 32);
+    match rerandomized_output.read().write(&mut rerandomized_output_bytes_out) {
+        Ok(_) => CResult::ok(()),
+        Err(_) => CResult::err(())
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rerandomized_output_read(rerandomized_output_bytes: *const u8
+) -> CResult<RerandomizedOutput, ()> {
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    match RerandomizedOutput::read(&mut rerandomized_output_bytes) {
+        Ok(r) => CResult::ok(r),
+        Err(_) => CResult::err(())
+    }
+}
+
 //---------------------------------------------- PseudoOut
 
 /// # Safety
