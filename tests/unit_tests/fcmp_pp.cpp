@@ -493,7 +493,10 @@ TEST(fcmp_pp, membership_completeness)
                 helios_scalar_chunks,
                 selene_scalar_chunks);
 
-            // rerandomize output
+            // Rerandomize output. We use rerandomize_output_manual() here just to test out the U, V
+            // generators and the rerandomized_output_new() API endpoint. But
+            // fcmp_pp::rerandomize_output() would work perfectly fine here as well, especially since
+            // we're not balancing C~ and thus don't need to modify it.
             uint8_t *rerandomized_output = reinterpret_cast<uint8_t*>(rerandomize_output_manual(
                 path.leaves.at(output_idx).O,
                 path.leaves.at(output_idx).C));
@@ -529,8 +532,16 @@ TEST(fcmp_pp, membership_completeness)
             // get FCMP input
             fcmp_raw_inputs.push_back(::fcmp_input_ref(rerandomized_output));
 
-            // dealloc
+            // Dealloc
             free(rerandomized_output);
+            free(o_blind);
+            free(i_blind);
+            free(i_blind_blind);
+            free(c_blind);
+            free(blinded_o_blind);
+            free(blinded_i_blind);
+            free(blinded_i_blind_blind);
+            free(blinded_c_blind);
             free(output_blinds);
         }
 
@@ -544,6 +555,12 @@ TEST(fcmp_pp, membership_completeness)
         // Verify
         LOG_PRINT_L1("Verifying " << num_inputs << "-in " << n_layers << "-layer FCMP");
         EXPECT_TRUE(fcmp_pp::verify_membership(proof, n_layers, global_tree.get_tree_root(), fcmp_raw_inputs));
+
+        // Dealloc
+        for (const void *input : fcmp_raw_inputs)
+            free(const_cast<void*>(input));
+        for (const uint8_t *input : fcmp_provable_inputs)
+            free(const_cast<uint8_t*>(input));
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
