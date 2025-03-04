@@ -234,11 +234,9 @@ bool mul8_is_identity(const ge_p3 &point) {
     ge_p3_to_p2(&point_ge_p2, &point);
     ge_p1p1 point_mul8;
     ge_mul8(&point_mul8, &point_ge_p2);
-    ge_p2 point_mul8_p2;
-    ge_p1p1_to_p2(&point_mul8_p2, &point_mul8);
-    rct::key tmp;
-    ge_tobytes(tmp.bytes, &point_mul8_p2);
-    return tmp == rct::I;
+    ge_p3 point_mul8_p3;
+    ge_p1p1_to_p3(&point_mul8_p3, &point_mul8);
+    return ge_p3_is_point_at_infinity_vartime(&point_mul8_p3);
 }
 //----------------------------------------------------------------------------------------------------------------------
 // https://github.com/kayabaNerve/fcmp-plus-plus/blob/94744c5324e869a9483bbbd93a864e108304bf76/crypto/divisors/src/tests/torsion_check.rs
