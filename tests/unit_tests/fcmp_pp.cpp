@@ -49,11 +49,58 @@ struct OutputContextsAndKeys
 };
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-rct::key derive_key_image_generator(const rct::key O)
+static rct::key derive_key_image_generator(const rct::key O)
 {
     crypto::public_key I;
     crypto::derive_key_image_generator(rct::rct2pk(O), I);
     return rct::pk2rct(I);
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+static void *rerandomize_output_manual(const rct::key &O, const rct::key &C)
+{
+    // sample random r_o, r_i, r_r_i, r_c in [0, l)
+    rct::key r_o = rct::skGen();
+    rct::key r_i = rct::skGen();
+    rct::key r_r_i = rct::skGen();
+    rct::key r_c = rct::skGen();
+
+    // O~ = O + r_o T
+    rct::key O_tilde = rct::scalarmultKey(rct::pk2rct(crypto::get_T()), r_o);
+    O_tilde = rct::addKeys(O_tilde, O);
+
+    // I = Hp(O)
+    // I~ = I + r_i U
+    const rct::key I = derive_key_image_generator(O);
+    rct::key I_tilde = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), r_i);
+    I_tilde = rct::addKeys(I_tilde, I);
+
+    // precomp T
+    const ge_p3 T_p3 = crypto::get_T_p3();
+    ge_dsmp T_dsmp;
+    ge_dsm_precomp(T_dsmp, &T_p3);
+
+    // R = r_i V + r_r_i T
+    rct::key R;
+    rct::addKeys3(R, r_i, rct::pk2rct(crypto::get_V()), r_r_i, T_dsmp);
+
+    // C~ = C + r_c G
+    rct::key C_tilde;
+    rct::addKeys1(C_tilde, r_c, C);
+
+    // make rerandomized output
+    CResult res = ::rerandomized_output_new(O_tilde.bytes,
+        I_tilde.bytes,
+        R.bytes,
+        C_tilde.bytes,
+        r_o.bytes,
+        r_i.bytes,
+        r_r_i.bytes,
+        r_c.bytes);
+    CHECK_AND_ASSERT_THROW_MES(res.err == nullptr, "rerandomize_output_manual: encountered error in rerandomized_output_new");
+    CHECK_AND_ASSERT_THROW_MES(res.value != nullptr, "rerandomize_output_manual: encountered unexpected value in rerandomized_output_new");
+
+    return res.value;
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
@@ -447,7 +494,9 @@ TEST(fcmp_pp, membership_completeness)
                 selene_scalar_chunks);
 
             // rerandomize output
-            const auto rerandomized_output = fcmp_pp::rerandomize_output(output_bytes.at(output_idx));
+            uint8_t *rerandomized_output = reinterpret_cast<uint8_t*>(rerandomize_output_manual(
+                path.leaves.at(output_idx).O,
+                path.leaves.at(output_idx).C));
 
             // check the size of our precalculated branch blind cache
             ASSERT_EQ(helios_scalars.size(), expected_num_selene_branch_blinds);
@@ -522,5 +571,19 @@ TEST(fcmp_pp, read_write_rerandomized_output)
     EXPECT_EQ(0, memcmp(bytes_in, bytes_out, sizeof(bytes_in)));
 
     free(rerandomized_output);
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(fcmp_pp, force_init_gen_u_v)
+{
+#ifdef NDEBUG
+    GTEST_SKIP() << "Generator reproduction assert statements don't trigger on Release builds";
+#endif
+
+    const ge_p3 U_p3 = crypto::get_U_p3();
+    const ge_p3 V_p3 = crypto::get_V_p3();
+    const ge_cached U_cached = crypto::get_U_cached();
+    const ge_cached V_cached = crypto::get_V_cached();
+
+    (void) U_p3, (void) V_p3, (void) U_cached, (void) V_cached;
 }
 //----------------------------------------------------------------------------------------------------------------------
