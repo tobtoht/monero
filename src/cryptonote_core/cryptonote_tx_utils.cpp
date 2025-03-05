@@ -598,7 +598,7 @@ namespace cryptonote
         tx.vout[i].amount = 0;
 
       // Collect rerandomized outputs
-      std::vector<const uint8_t*> rerandomized_outputs;
+      std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs;
       rerandomized_outputs.reserve(sources.size());
       for (size_t i = 0; i < sources.size(); ++i)
         rerandomized_outputs.push_back(sources[i].rerandomized_output);

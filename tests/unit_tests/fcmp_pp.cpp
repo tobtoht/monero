@@ -57,23 +57,48 @@ static rct::key derive_key_image_generator(const rct::key O)
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-static void *rerandomize_output_manual(const rct::key &O, const rct::key &C)
+static void store_key(uint8_t b[32], const rct::key &k)
 {
+    memcpy(b, k.bytes, 32);
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+static rct::key load_key(const uint8_t b[32])
+{
+    rct::key k;
+    memcpy(k.bytes, b, sizeof(k));
+    return k;
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+static FcmpRerandomizedOutputCompressed rerandomize_output_manual(const rct::key &O, const rct::key &C)
+{
+    FcmpRerandomizedOutputCompressed res;
+
     // sample random r_o, r_i, r_r_i, r_c in [0, l)
     rct::key r_o = rct::skGen();
     rct::key r_i = rct::skGen();
     rct::key r_r_i = rct::skGen();
     rct::key r_c = rct::skGen();
 
+    store_key(res.r_o, r_o);
+    store_key(res.r_i, r_i);
+    store_key(res.r_r_i, r_r_i);
+    store_key(res.r_c, r_c);
+
     // O~ = O + r_o T
     rct::key O_tilde = rct::scalarmultKey(rct::pk2rct(crypto::get_T()), r_o);
     O_tilde = rct::addKeys(O_tilde, O);
+
+    store_key(res.input.O_tilde, O_tilde);
 
     // I = Hp(O)
     // I~ = I + r_i U
     const rct::key I = derive_key_image_generator(O);
     rct::key I_tilde = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), r_i);
     I_tilde = rct::addKeys(I_tilde, I);
+
+    store_key(res.input.I_tilde, I_tilde);
 
     // precomp T
     const ge_p3 T_p3 = crypto::get_T_p3();
@@ -84,23 +109,15 @@ static void *rerandomize_output_manual(const rct::key &O, const rct::key &C)
     rct::key R;
     rct::addKeys3(R, r_i, rct::pk2rct(crypto::get_V()), r_r_i, T_dsmp);
 
+    store_key(res.input.R, R);
+
     // C~ = C + r_c G
     rct::key C_tilde;
     rct::addKeys1(C_tilde, r_c, C);
 
-    // make rerandomized output
-    CResult res = ::rerandomized_output_new(O_tilde.bytes,
-        I_tilde.bytes,
-        R.bytes,
-        C_tilde.bytes,
-        r_o.bytes,
-        r_i.bytes,
-        r_r_i.bytes,
-        r_c.bytes);
-    CHECK_AND_ASSERT_THROW_MES(res.err == nullptr, "rerandomize_output_manual: encountered error in rerandomized_output_new");
-    CHECK_AND_ASSERT_THROW_MES(res.value != nullptr, "rerandomize_output_manual: encountered unexpected value in rerandomized_output_new");
+    store_key(res.input.C_tilde, C_tilde);
 
-    return res.value;
+    return res;
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
@@ -213,9 +230,9 @@ TEST(fcmp_pp, prove)
         }
         const fcmp_pp::OutputChunk leaves{output_bytes.data(), output_bytes.size()};
 
-        const auto rerandomized_output = fcmp_pp::rerandomize_output(output_bytes[output_idx]);
+        const FcmpRerandomizedOutputCompressed rerandomized_output = fcmp_pp::rerandomize_output(output_bytes[output_idx]);
 
-        pseudo_outs.emplace_back(fcmp_pp::pseudo_out(rerandomized_output));
+        pseudo_outs.emplace_back(rct::rct2pt(load_key(rerandomized_output.input.C_tilde)));
 
         key_images.emplace_back();
         crypto::generate_key_image(rct::rct2pk(path.leaves[output_idx].O),
@@ -342,7 +359,7 @@ TEST(fcmp_pp, sal_completeness)
     crypto::generate_key_image(rct::rct2pk(O), rct::rct2sk(x), L);
 
     // Rerandomize
-    uint8_t *rerandomized_output{fcmp_pp::rerandomize_output(fcmp_pp::OutputBytes{
+    const FcmpRerandomizedOutputCompressed rerandomized_output{fcmp_pp::rerandomize_output(fcmp_pp::OutputBytes{
         .O_bytes = O.bytes,
         .I_bytes = I.bytes,
         .C_bytes = C.bytes
@@ -351,19 +368,14 @@ TEST(fcmp_pp, sal_completeness)
     // Generate signable_tx_hash
     const crypto::hash signable_tx_hash = crypto::rand<crypto::hash>();
 
-    // Get the input
-    void *fcmp_input = fcmp_input_ref(rerandomized_output);
-
     // Prove
     const fcmp_pp::FcmpPpSalProof sal_proof = fcmp_pp::prove_sal(signable_tx_hash,
         rct::rct2sk(x),
         rct::rct2sk(y),
         rerandomized_output);
-    free(rerandomized_output);
 
     // Verify
-    const bool ver = fcmp_pp::verify_sal(signable_tx_hash, fcmp_input, L, sal_proof);
-    free(fcmp_input);
+    const bool ver = fcmp_pp::verify_sal(signable_tx_hash, rerandomized_output.input, L, sal_proof);
 
     EXPECT_TRUE(ver);
 }
@@ -418,7 +430,7 @@ TEST(fcmp_pp, membership_completeness)
         // Build up a set of `num_inputs` inputs to prove membership on
         ASSERT_LE(num_inputs, num_tree_leaves);
         std::set<size_t> selected_indices;
-        std::vector<const void*> fcmp_raw_inputs;
+        std::vector<FcmpInputCompressed> fcmp_raw_inputs;
         fcmp_raw_inputs.reserve(num_inputs);
         std::vector<const uint8_t*> fcmp_provable_inputs;
         fcmp_provable_inputs.reserve(num_inputs);
@@ -494,12 +506,12 @@ TEST(fcmp_pp, membership_completeness)
                 selene_scalar_chunks);
 
             // Rerandomize output. We use rerandomize_output_manual() here just to test out the U, V
-            // generators and the rerandomized_output_new() API endpoint. But
-            // fcmp_pp::rerandomize_output() would work perfectly fine here as well, especially since
-            // we're not balancing C~ and thus don't need to modify it.
-            uint8_t *rerandomized_output = reinterpret_cast<uint8_t*>(rerandomize_output_manual(
+            // generators and manually constructing a FcmpRerandomizedOutputCompressed. But
+            // fcmp_pp::rerandomize_output() would work perfectly fine here as well, especially
+            // since we're not balancing C~ and thus don't need to modify it.
+            const FcmpRerandomizedOutputCompressed rerandomized_output = rerandomize_output_manual(
                 path.leaves.at(output_idx).O,
-                path.leaves.at(output_idx).C));
+                path.leaves.at(output_idx).C);
 
             // check the size of our precalculated branch blind cache
             ASSERT_EQ(helios_scalars.size(), expected_num_selene_branch_blinds);
@@ -507,10 +519,10 @@ TEST(fcmp_pp, membership_completeness)
 
             // Calculate output blinds for rerandomized output
             LOG_PRINT_L1("Calculating output blind");
-            const auto o_blind = fcmp_pp::o_blind(rerandomized_output);
-            const auto i_blind = fcmp_pp::i_blind(rerandomized_output);
-            const auto i_blind_blind = fcmp_pp::i_blind_blind(rerandomized_output);
-            const auto c_blind = fcmp_pp::c_blind(rerandomized_output);
+            const SeleneScalar o_blind = fcmp_pp::o_blind(rerandomized_output);
+            const SeleneScalar i_blind = fcmp_pp::i_blind(rerandomized_output);
+            const SeleneScalar i_blind_blind = fcmp_pp::i_blind_blind(rerandomized_output);
+            const SeleneScalar c_blind = fcmp_pp::c_blind(rerandomized_output);
 
             const auto blinded_o_blind = fcmp_pp::blind_o_blind(o_blind);
             const auto blinded_i_blind = fcmp_pp::blind_i_blind(i_blind);
@@ -528,16 +540,11 @@ TEST(fcmp_pp, membership_completeness)
                 output_blinds,
                 selene_branch_blinds,
                 helios_branch_blinds));
-            
+
             // get FCMP input
-            fcmp_raw_inputs.push_back(::fcmp_input_ref(rerandomized_output));
+            fcmp_raw_inputs.push_back(rerandomized_output.input);
 
             // Dealloc
-            free(rerandomized_output);
-            free(o_blind);
-            free(i_blind);
-            free(i_blind_blind);
-            free(c_blind);
             free(blinded_o_blind);
             free(blinded_i_blind);
             free(blinded_i_blind_blind);
@@ -557,37 +564,9 @@ TEST(fcmp_pp, membership_completeness)
         EXPECT_TRUE(fcmp_pp::verify_membership(proof, n_layers, global_tree.get_tree_root(), fcmp_raw_inputs));
 
         // Dealloc
-        for (const void *input : fcmp_raw_inputs)
-            free(const_cast<void*>(input));
         for (const uint8_t *input : fcmp_provable_inputs)
             free(const_cast<uint8_t*>(input));
     }
-}
-//----------------------------------------------------------------------------------------------------------------------
-TEST(fcmp_pp, read_write_rerandomized_output)
-{
-    rct::key bytes_in[8];
-    for (size_t i = 0; i < 4; ++i)
-        bytes_in[i] = rct::pkGen();
-    for (size_t i = 4; i < 8; ++i)
-        bytes_in[i] = rct::skGen();
-    uint8_t bytes_out[8 * 32];
-
-    static_assert(sizeof(bytes_in) == sizeof(bytes_out));
-    static_assert(sizeof(bytes_out) == 8 * 32);
-
-    CResult res = ::rerandomized_output_read(bytes_in[0].bytes);
-    ASSERT_EQ(res.err, nullptr);
-    ASSERT_NE(res.value, nullptr);
-    void *rerandomized_output = res.value;
-
-    res = ::rerandomized_output_write(rerandomized_output, bytes_out);
-    ASSERT_EQ(res.err, nullptr);
-    ASSERT_NE(res.value, nullptr);
-
-    EXPECT_EQ(0, memcmp(bytes_in, bytes_out, sizeof(bytes_in)));
-
-    free(rerandomized_output);
 }
 //----------------------------------------------------------------------------------------------------------------------
 TEST(fcmp_pp, force_init_gen_u_v)

@@ -30,6 +30,13 @@
 
 #include "prove.h"
 
+#define HANDLE_RES_CODE(res_t, api_func, ...) do {            \
+        res_t res;                                            \
+        if (api_func(__VA_ARGS__, &res) < 0)                  \
+            throw std::runtime_error("failed to " #api_func); \
+        return res;                                           \
+    } while (0);                                              \
+
 namespace fcmp_pp
 {
 //----------------------------------------------------------------------------------------------------------------------
@@ -43,71 +50,57 @@ static uint8_t *handle_res_ptr(const std::string func, const ::CResult &res)
     }
     return (uint8_t *) res.value;
 }
-
-uint8_t *rerandomize_output(const OutputBytes output)
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+FcmpRerandomizedOutputCompressed rerandomize_output(const OutputBytes output)
 {
-    auto res = ::rerandomize_output(output);
+    HANDLE_RES_CODE(FcmpRerandomizedOutputCompressed, ::rerandomize_output, output);
+}
+//----------------------------------------------------------------------------------------------------------------------
+SeleneScalar o_blind(const FcmpRerandomizedOutputCompressed &rerandomized_output)
+{
+    HANDLE_RES_CODE(SeleneScalar, ::o_blind, &rerandomized_output);
+}
+//----------------------------------------------------------------------------------------------------------------------
+SeleneScalar i_blind(const FcmpRerandomizedOutputCompressed &rerandomized_output)
+{
+    HANDLE_RES_CODE(SeleneScalar, ::i_blind, &rerandomized_output);
+}
+//----------------------------------------------------------------------------------------------------------------------
+SeleneScalar i_blind_blind(const FcmpRerandomizedOutputCompressed &rerandomized_output)
+{
+    HANDLE_RES_CODE(SeleneScalar, ::i_blind_blind, &rerandomized_output);
+}
+//----------------------------------------------------------------------------------------------------------------------
+SeleneScalar c_blind(const FcmpRerandomizedOutputCompressed &rerandomized_output)
+{
+    HANDLE_RES_CODE(SeleneScalar, ::c_blind, &rerandomized_output);
+}
+//----------------------------------------------------------------------------------------------------------------------
+uint8_t *blind_o_blind(const SeleneScalar &o_blind)
+{
+    auto res = ::blind_o_blind(&o_blind);
     return handle_res_ptr(__func__, res);
 }
-
-crypto::ec_point pseudo_out(const uint8_t *rerandomized_output)
+//----------------------------------------------------------------------------------------------------------------------
+uint8_t *blind_i_blind(const SeleneScalar &i_blind)
 {
-    uint8_t * res_ptr = ::pseudo_out(rerandomized_output);
-    crypto::ec_point res;
-    static_assert(sizeof(crypto::ec_point) == 32, "unexpected size of crypto::ec_point");
-    memcpy(&res, res_ptr, sizeof(crypto::ec_point));
-    free(res_ptr);
-    return res;
-}
-
-uint8_t *o_blind(const uint8_t *rerandomized_output)
-{
-    auto result = ::o_blind(rerandomized_output);
-    return handle_res_ptr(__func__, result);
-}
-
-uint8_t *i_blind(const uint8_t *rerandomized_output)
-{
-    auto result = ::i_blind(rerandomized_output);
-    return handle_res_ptr(__func__, result);
-}
-
-uint8_t *i_blind_blind(const uint8_t *rerandomized_output)
-{
-    auto result = ::i_blind_blind(rerandomized_output);
-    return handle_res_ptr(__func__, result);
-}
-
-uint8_t *c_blind(const uint8_t *rerandomized_output)
-{
-    auto result = ::c_blind(rerandomized_output);
-    return handle_res_ptr(__func__, result);
-}
-
-uint8_t *blind_o_blind(const uint8_t *o_blind)
-{
-    auto res = ::blind_o_blind(o_blind);
+    auto res = ::blind_i_blind(&i_blind);
     return handle_res_ptr(__func__, res);
 }
-
-uint8_t *blind_i_blind(const uint8_t *i_blind)
+//----------------------------------------------------------------------------------------------------------------------
+uint8_t *blind_i_blind_blind(const SeleneScalar &i_blind_blind)
 {
-    auto res = ::blind_i_blind(i_blind);
+    auto res = ::blind_i_blind_blind(&i_blind_blind);
     return handle_res_ptr(__func__, res);
 }
-
-uint8_t *blind_i_blind_blind(const uint8_t *i_blind_blind)
+//----------------------------------------------------------------------------------------------------------------------
+uint8_t *blind_c_blind(const SeleneScalar &c_blind)
 {
-    auto res = ::blind_i_blind_blind(i_blind_blind);
+    auto res = ::blind_c_blind(&c_blind);
     return handle_res_ptr(__func__, res);
 }
-
-uint8_t *blind_c_blind(const uint8_t *c_blind)
-{
-    auto res = ::blind_c_blind(c_blind);
-    return handle_res_ptr(__func__, res);
-}
-
+//----------------------------------------------------------------------------------------------------------------------
 uint8_t *path_new(const OutputChunk &leaves,
     std::size_t output_idx,
     const HeliosT::ScalarChunks &helios_layer_chunks,
@@ -116,7 +109,7 @@ uint8_t *path_new(const OutputChunk &leaves,
     auto res = ::path_new(leaves, output_idx, helios_layer_chunks, selene_layer_chunks);
     return handle_res_ptr(__func__, res);
 }
-
+//----------------------------------------------------------------------------------------------------------------------
 uint8_t *output_blinds_new(const uint8_t *blinded_o_blind,
     const uint8_t *blinded_i_blind,
     const uint8_t *blinded_i_blind_blind,
@@ -125,26 +118,26 @@ uint8_t *output_blinds_new(const uint8_t *blinded_o_blind,
     auto res = ::output_blinds_new(blinded_o_blind, blinded_i_blind, blinded_i_blind_blind, blinded_c_blind);
     return handle_res_ptr(__func__, res);
 }
-
+//----------------------------------------------------------------------------------------------------------------------
 uint8_t *selene_branch_blind()
 {
     const auto res = ::selene_branch_blind();
     return handle_res_ptr(__func__, res);
 }
-
+//----------------------------------------------------------------------------------------------------------------------
 uint8_t *helios_branch_blind()
 {
     const auto res = ::helios_branch_blind();
     return handle_res_ptr(__func__, res);
 }
-
-uint8_t *fcmp_prove_input_new(const uint8_t *rerandomized_output,
+//----------------------------------------------------------------------------------------------------------------------
+uint8_t *fcmp_prove_input_new(const FcmpRerandomizedOutputCompressed &rerandomized_output,
     const uint8_t *path,
     const uint8_t *output_blinds,
     const std::vector<const uint8_t *> &selene_branch_blinds,
     const std::vector<const uint8_t *> &helios_branch_blinds)
 {
-    auto res = ::fcmp_prove_input_new(rerandomized_output,
+    auto res = ::fcmp_prove_input_new(&rerandomized_output,
         path,
         output_blinds,
         {selene_branch_blinds.data(), selene_branch_blinds.size()},
@@ -152,10 +145,10 @@ uint8_t *fcmp_prove_input_new(const uint8_t *rerandomized_output,
 
     return handle_res_ptr(__func__, res);
 }
-
+//----------------------------------------------------------------------------------------------------------------------
 uint8_t *fcmp_pp_prove_input_new(const uint8_t *x,
     const uint8_t *y,
-    const uint8_t *rerandomized_output,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
     const uint8_t *path,
     const uint8_t *output_blinds,
     const std::vector<const uint8_t *> &selene_branch_blinds,
@@ -163,7 +156,7 @@ uint8_t *fcmp_pp_prove_input_new(const uint8_t *x,
 {
     auto res = ::fcmp_pp_prove_input_new(x,
         y,
-        rerandomized_output,
+        &rerandomized_output,
         path,
         output_blinds,
         {selene_branch_blinds.data(), selene_branch_blinds.size()},
@@ -202,7 +195,7 @@ FcmpPpProof prove(const crypto::hash &signable_tx_hash,
 FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
     const crypto::secret_key &x,
     const crypto::secret_key &y,
-    const uint8_t *rerandomized_output)
+    const FcmpRerandomizedOutputCompressed &rerandomized_output)
 {
     FcmpPpSalProof p;
     p.resize(FCMP_PP_SAL_PROOF_SIZE_V1);
@@ -210,7 +203,7 @@ FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
     const ::CResult res = ::fcmp_pp_prove_sal(to_bytes(signable_tx_hash),
         to_bytes(x),
         to_bytes(y),
-        rerandomized_output,
+        &rerandomized_output,
         &p[0]);
 
     handle_res_ptr(__func__, res);
@@ -270,7 +263,7 @@ bool verify(const crypto::hash &signable_tx_hash,
 }
 //----------------------------------------------------------------------------------------------------------------------
 bool verify_sal(const crypto::hash &signable_tx_hash,
-    const void *input,
+    const FcmpInputCompressed &input,
     crypto::key_image &key_image,
     const FcmpPpSalProof &sal_proof)
 {
@@ -278,7 +271,7 @@ bool verify_sal(const crypto::hash &signable_tx_hash,
         return false;
 
     return ::fcmp_pp_verify_sal(to_bytes(signable_tx_hash),
-        input,
+        &input,
         to_bytes(key_image),
         sal_proof.data());
 }
@@ -286,10 +279,10 @@ bool verify_sal(const crypto::hash &signable_tx_hash,
 bool verify_membership(const FcmpMembershipProof &fcmp_proof,
     const std::size_t n_tree_layers,
     const uint8_t *tree_root,
-    const std::vector<const void*> &inputs)
+    const std::vector<FcmpInputCompressed> &inputs)
 {
     return ::fcmp_pp_verify_membership(
-        {reinterpret_cast<const uint8_t* const *>(inputs.data()), inputs.size()},
+        {inputs.data(), inputs.size()},
         tree_root,
         n_tree_layers,
         fcmp_proof.data(),
@@ -301,6 +294,5 @@ std::size_t proof_len(const std::size_t n_inputs, const uint8_t n_tree_layers)
     static_assert(sizeof(std::size_t) >= sizeof(uint8_t), "unexpected size of size_t");
     return ::fcmp_pp_proof_size(n_inputs, (std::size_t) n_tree_layers);
 }
-//----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 }//namespace fcmp_pp

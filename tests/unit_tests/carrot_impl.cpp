@@ -303,7 +303,7 @@ static bool can_prove_sal(const crypto::secret_key &address_privkey_g,
     crypto::public_key I;
     crypto::derive_key_image_generator(onetime_address, I);
 
-    uint8_t *rerandomized_output = fcmp_pp::rerandomize_output(fcmp_pp::OutputBytes{
+    const FcmpRerandomizedOutputCompressed rerandomized_output = fcmp_pp::rerandomize_output(fcmp_pp::OutputBytes{
         .O_bytes = to_bytes(onetime_address),
         .I_bytes = to_bytes(I),
         .C_bytes = amount_commitment.bytes
@@ -317,22 +317,15 @@ static bool can_prove_sal(const crypto::secret_key &address_privkey_g,
     crypto::secret_key combined_t;
     sc_add(to_bytes(combined_t), to_bytes(address_privkey_t), to_bytes(sender_extension_t));
 
-    // get input
-    void *input = fcmp_input_ref(rerandomized_output);
-
     // make SA/L proof
     const fcmp_pp::FcmpPpSalProof sal_proof = fcmp_pp::prove_sal({}, combined_g, combined_t, rerandomized_output);
-    free(rerandomized_output);
 
     // L = x Hp(O)
     crypto::key_image L;
     crypto::generate_key_image(onetime_address, combined_g, L);
 
     // verify SA/L
-    const bool ver = fcmp_pp::verify_sal({}, input, L, sal_proof);
-    free(input);
-
-    return ver;
+    return fcmp_pp::verify_sal({}, rerandomized_output.input, L, sal_proof);
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------

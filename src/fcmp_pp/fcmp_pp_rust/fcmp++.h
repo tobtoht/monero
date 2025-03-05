@@ -28,8 +28,16 @@
 
 #pragma once
 
-#include "stdbool.h"
-#include "stdint.h"
+// static assertions
+#if defined(__cplusplus) || (__STDC_VERSION__ >= 202311L)
+#define FCMP_STATIC_ASSERT static_assert
+#else
+#include <assert.h>
+#define FCMP_STATIC_ASSERT _Static_assert
+#endif
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #define FCMP_PP_SAL_PROOF_SIZE_V1 (12*32)
 
@@ -71,6 +79,28 @@ struct OutputBytes {
   const uint8_t *C_bytes;
 };
 
+struct FcmpInputCompressed
+{
+  uint8_t O_tilde[32];
+  uint8_t I_tilde[32];
+  uint8_t R[32];
+  uint8_t C_tilde[32];
+};
+FCMP_STATIC_ASSERT(sizeof(struct FcmpInputCompressed) == 4 * 32,
+  "FcmpInputCompressed has padding and thus cannot be treated as a byte buffer");
+
+struct FcmpRerandomizedOutputCompressed
+{
+  struct FcmpInputCompressed input;
+
+  uint8_t r_o[32];
+  uint8_t r_i[32];
+  uint8_t r_r_i[32];
+  uint8_t r_c[32];
+};
+FCMP_STATIC_ASSERT(sizeof(struct FcmpRerandomizedOutputCompressed) == 8 * 32,
+  "RerandomizedOutputCompressed has padding and thus cannot be treated as a byte buffer");
+
 struct HeliosScalarSlice
 {
   const struct HeliosScalar *buf;
@@ -86,6 +116,12 @@ struct SeleneScalarSlice
 struct OutputSlice
 {
   const struct OutputBytes *buf;
+  uintptr_t len;
+};
+
+struct InputSlice
+{
+  const struct FcmpInputCompressed *buf;
   uintptr_t len;
 };
 
@@ -166,31 +202,22 @@ CResult path_new(struct OutputSlice leaves,
                                              struct HeliosScalarChunks helios_layer_chunks,
                                              struct SeleneScalarChunks selene_layer_chunks);
 
-CResult rerandomize_output(struct OutputBytes output);
-CResult rerandomized_output_new(const uint8_t O_tilde[32],
-  const uint8_t I_tilde[32],
-  const uint8_t R[32],
-  const uint8_t C_tilde[32],
-  const uint8_t r_o[32],
-  const uint8_t r_i[32],
-  const uint8_t r_r_i[32],
-  const uint8_t r_c[32]);
-CResult rerandomized_output_write(const void *rerandomized_output,
-  uint8_t rerandomized_output_bytes_out[8 * 32]);
-CResult rerandomized_output_read(const uint8_t rerandomized_output_bytes[8 * 32]);
+int rerandomize_output(struct OutputBytes output,
+                                            struct FcmpRerandomizedOutputCompressed *rerandomized_output_out);
 
-uint8_t *pseudo_out(const uint8_t *rerandomized_output);
-void *fcmp_input_ref(const uint8_t* rerandomized_output);
+int o_blind(const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
+  struct SeleneScalar *o_blind_out);
+int i_blind(const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
+  struct SeleneScalar *i_blind_out);
+int i_blind_blind(const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
+  struct SeleneScalar *i_blind_blind_out);
+int c_blind(const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
+  struct SeleneScalar *c_blind_out);
 
-CResult o_blind(const uint8_t *rerandomized_output);
-CResult i_blind(const uint8_t *rerandomized_output);
-CResult i_blind_blind(const uint8_t *rerandomized_output);
-CResult c_blind(const uint8_t *rerandomized_output);
-
-CResult blind_o_blind(const uint8_t *o_blind);
-CResult blind_i_blind(const uint8_t *i_blind);
-CResult blind_i_blind_blind(const uint8_t *i_blind_blind);
-CResult blind_c_blind(const uint8_t *c_blind);
+CResult blind_o_blind(const struct SeleneScalar *o_blind);
+CResult blind_i_blind(const struct SeleneScalar *i_blind);
+CResult blind_i_blind_blind(const struct SeleneScalar *i_blind_blind);
+CResult blind_c_blind(const struct SeleneScalar *c_blind);
 
 CResult output_blinds_new(const uint8_t *o_blind,
                                              const uint8_t *i_blind,
@@ -200,7 +227,7 @@ CResult output_blinds_new(const uint8_t *o_blind,
 CResult helios_branch_blind(void);
 CResult selene_branch_blind(void);
 
-CResult fcmp_prove_input_new(const uint8_t *rerandomized_output,
+CResult fcmp_prove_input_new(const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
                                         const uint8_t *path,
                                         const uint8_t *output_blinds,
                                         struct ObjectSlice selene_branch_blinds,
@@ -208,7 +235,7 @@ CResult fcmp_prove_input_new(const uint8_t *rerandomized_output,
 
 CResult fcmp_pp_prove_input_new(const uint8_t *x,
                                              const uint8_t *y,
-                                             const uint8_t *rerandomized_output,
+                                             const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
                                              const uint8_t *path,
                                              const uint8_t *output_blinds,
                                              struct ObjectSlice selene_branch_blinds,
@@ -235,7 +262,7 @@ CResult prove(const uint8_t *signable_tx_hash,
 CResult fcmp_pp_prove_sal(const uint8_t signable_tx_hash[32],
                                              const uint8_t x[32],
                                              const uint8_t y[32],
-                                             const void *rerandomized_output,
+                                             const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
                                              uint8_t sal_proof_out[FCMP_PP_SAL_PROOF_SIZE_V1]);
 
 /**
@@ -271,7 +298,7 @@ bool verify(const uint8_t *signable_tx_hash,
  * return: true on verification success, false otherwise
  */
 bool fcmp_pp_verify_sal(const uint8_t signable_tx_hash[32],
-                                             const void *input,
+                                             const struct FcmpInputCompressed *input,
                                              const uint8_t L[32],
                                              const uint8_t sal_proof[FCMP_PP_SAL_PROOF_SIZE_V1]);
 /**
@@ -283,7 +310,7 @@ bool fcmp_pp_verify_sal(const uint8_t signable_tx_hash[32],
  * param: fcmp_proof_len - length of fcmp_proof buffer
  * return: true on verification success, false otherwise
  */
-bool fcmp_pp_verify_membership(struct ObjectSlice inputs,
+bool fcmp_pp_verify_membership(struct InputSlice inputs,
   const uint8_t *tree_root,
   const uintptr_t n_tree_layers,
   const uint8_t fcmp_proof[],

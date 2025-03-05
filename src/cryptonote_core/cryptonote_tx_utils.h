@@ -54,8 +54,7 @@ namespace cryptonote
     rct::key mask;                      //ringct amount mask
     rct::multisig_kLRki multisig_kLRki; //multisig info
 
-    // TODO: serialize and de-serialize
-    uint8_t *rerandomized_output;
+    FcmpRerandomizedOutputCompressed rerandomized_output;
 
     void push_output(uint64_t idx, const crypto::public_key &k, uint64_t amount) { outputs.push_back(std::make_pair(idx, rct::ctkey({rct::pk2rct(k), rct::zeroCommitVartime(amount)}))); }
 

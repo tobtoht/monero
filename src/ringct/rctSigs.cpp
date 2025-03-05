@@ -1109,7 +1109,7 @@ done:
     
     //RCT simple    
     //for post-rct only
-    rctSig genRctSimple(const key &message, const ctkeyV & inSk, const keyV & destinations, const vector<xmr_amount> &inamounts, const vector<xmr_amount> &outamounts, xmr_amount txnFee, const ctkeyM & mixRing, const keyV &amount_keys, const std::vector<unsigned int> & index, ctkeyV &outSk, const std::vector<const uint8_t*> rerandomized_outputs, const fcmp_pp::ProofParams &fcmp_pp_params, const RCTConfig &rct_config, hw::device &hwdev) {
+    rctSig genRctSimple(const key &message, const ctkeyV & inSk, const keyV & destinations, const vector<xmr_amount> &inamounts, const vector<xmr_amount> &outamounts, xmr_amount txnFee, const ctkeyM & mixRing, const keyV &amount_keys, const std::vector<unsigned int> & index, ctkeyV &outSk, const std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs, const fcmp_pp::ProofParams &fcmp_pp_params, const RCTConfig &rct_config, hw::device &hwdev) {
         const bool bulletproof_or_plus = rct_config.range_proof_type > RangeProofBorromean;
         const bool is_fcmp_pp = rct_config.bp_version == 0 || rct_config.bp_version >= 5;
         CHECK_AND_ASSERT_THROW_MES(inamounts.size() > 0, "Empty inamounts");
@@ -1261,7 +1261,7 @@ done:
             const auto &rerandomized_output = rerandomized_outputs[i];
             const auto &fcmp_pp_input = fcmp_pp_params.proof_inputs[i];
 
-            pseudoOuts[i] = rct::pt2rct(fcmp_pp::pseudo_out(rerandomized_output));
+            memcpy(&pseudoOuts[i], &rerandomized_output.input.C_tilde, sizeof(rct::key));
 
             // TODO: separate SAL from membership proof. Implement SAL in hw device interface
             auto fcmp_prove_input = fcmp_pp::fcmp_pp_prove_input_new(x,
@@ -1330,7 +1330,7 @@ done:
         return rv;
     }
 
-    rctSig genRctSimple(const key &message, const ctkeyV & inSk, const ctkeyV & inPk, const keyV & destinations, const vector<xmr_amount> &inamounts, const vector<xmr_amount> &outamounts, const keyV &amount_keys, const std::vector<const uint8_t*> rerandomized_outputs, const fcmp_pp::ProofParams &fcmp_pp_params, xmr_amount txnFee, unsigned int mixin, const RCTConfig &rct_config, hw::device &hwdev) {
+    rctSig genRctSimple(const key &message, const ctkeyV & inSk, const ctkeyV & inPk, const keyV & destinations, const vector<xmr_amount> &inamounts, const vector<xmr_amount> &outamounts, const keyV &amount_keys, const std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs, const fcmp_pp::ProofParams &fcmp_pp_params, xmr_amount txnFee, unsigned int mixin, const RCTConfig &rct_config, hw::device &hwdev) {
         std::vector<unsigned int> index;
         index.resize(inPk.size());
         ctkeyM mixRing;

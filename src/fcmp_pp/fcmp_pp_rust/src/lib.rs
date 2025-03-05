@@ -28,6 +28,8 @@ use monero_fcmp_plus_plus::{
 
 use monero_generators::{FCMP_U, FCMP_V, T};
 
+use std::os::raw::c_int;
+
 // TODO: everything allocated with Box::into_raw needs to be freed manually using from_raw when done
 // https://doc.rust-lang.org/std/boxed/struct.Box.html#method.from_raw
 // https://internals.rust-lang.org/t/manually-freeing-the-pointer-from-into-raw/19002
@@ -105,6 +107,17 @@ fn ed25519_scalar_from_bytes(ed25519_scalar: *const u8) -> Scalar {
 
 fn hash_array_from_bytes(h: *const u8) -> [u8; 32] {
     unsafe { core::slice::from_raw_parts(h, 32) }.try_into().unwrap()
+}
+
+// @TODO: this is horrible :(, expose direct read/write for Input in the fcmp-plus-plus crate
+fn input_from_bytes(input_bytes: &[u8]) -> std::io::Result<Input> {
+    let mut rerandomized_output_bytes = [0u8; 8 * 32];
+    if input_bytes.len() != 4 * 32 {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "passed input slice wrong size"));
+    }
+    rerandomized_output_bytes[0..4*32].copy_from_slice(input_bytes);
+    let rerandomized_output = RerandomizedOutput::read(&mut rerandomized_output_bytes.as_slice())?;
+    Ok(rerandomized_output.input())
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -367,100 +380,36 @@ pub unsafe extern "C" fn path_new(
 //---------------------------------------------- RerandomizedOutput
 
 #[no_mangle]
-pub extern "C" fn rerandomize_output(output: OutputBytes) -> CResult<RerandomizedOutput, ()> {
-    // TODO: CResult::err() on failure of output decompression
-    // TODO: take in a de-compressed output
-    let output = Output::new(
+pub unsafe extern "C" fn rerandomize_output(output: OutputBytes,
+    rerandomized_output_bytes: *mut u8
+) -> c_int {
+    let Ok(output) = Output::new(
         ed25519_point_from_bytes(output.O),
         ed25519_point_from_bytes(output.I),
         ed25519_point_from_bytes(output.C),
-    )
-    .unwrap();
+    ) else { return -1 };
+
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts_mut(rerandomized_output_bytes, 8 * 32);
 
     let rerandomized_output = RerandomizedOutput::new(&mut OsRng, output);
-    CResult::ok(rerandomized_output)
-}
-
-#[no_mangle]
-#[allow(non_snake_case)]
-pub unsafe extern "C" fn rerandomized_output_new(O_tilde: *const u8,
-    I_tilde: *const u8,
-    R: *const u8,
-    C_tilde: *const u8,
-    r_o: *const u8,
-    r_i: *const u8,
-    r_r_i: *const u8,
-    r_c: *const u8
-) -> CResult<RerandomizedOutput, ()> {
-    let mut bytes = [0u8; 256];
-    bytes[0*32..1*32].copy_from_slice(core::slice::from_raw_parts(O_tilde, 32));
-    bytes[1*32..2*32].copy_from_slice(core::slice::from_raw_parts(I_tilde, 32));
-    bytes[2*32..3*32].copy_from_slice(core::slice::from_raw_parts(R, 32));
-    bytes[3*32..4*32].copy_from_slice(core::slice::from_raw_parts(C_tilde, 32));
-    bytes[4*32..5*32].copy_from_slice(core::slice::from_raw_parts(r_o, 32));
-    bytes[5*32..6*32].copy_from_slice(core::slice::from_raw_parts(r_i, 32));
-    bytes[6*32..7*32].copy_from_slice(core::slice::from_raw_parts(r_r_i, 32));
-    bytes[7*32..8*32].copy_from_slice(core::slice::from_raw_parts(r_c, 32));
-
-    rerandomized_output_read(&bytes as *const u8)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rerandomized_output_write(rerandomized_output: *const RerandomizedOutput,
-    rerandomized_output_bytes_out: *mut u8) -> CResult<(), ()>
-{
-    let mut rerandomized_output_bytes_out = core::slice::from_raw_parts_mut(rerandomized_output_bytes_out, 8 * 32);
-    match rerandomized_output.read().write(&mut rerandomized_output_bytes_out) {
-        Ok(_) => CResult::ok(()),
-        Err(_) => CResult::err(())
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn rerandomized_output_read(rerandomized_output_bytes: *const u8
-) -> CResult<RerandomizedOutput, ()> {
-    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
-    match RerandomizedOutput::read(&mut rerandomized_output_bytes) {
-        Ok(r) => CResult::ok(r),
-        Err(_) => CResult::err(())
-    }
-}
-
-//---------------------------------------------- PseudoOut
-
-/// # Safety
-///
-/// This function assumes that the rerandomized output being passed in input was
-/// allocated on the heap and returned through a CResult instance.
-#[no_mangle]
-pub unsafe extern "C" fn pseudo_out(output: *const RerandomizedOutput) -> *const u8 {
-    let rerandomized_output = unsafe { output.read() };
-    c_u8_32(rerandomized_output.input().C_tilde().to_bytes())
-}
-
-//---------------------------------------------- FCMPInput
-
-/// # Safety
-///
-/// This function assumes that the rerandomized output being passed in input was
-/// allocated on the heap and returned through a CResult instance.
-
-#[no_mangle]
-pub extern "C" fn fcmp_input_ref(output: *const RerandomizedOutput) -> *mut u8 {
-    let rerandomized_output = unsafe { output.read() };
-    Box::into_raw(Box::new(rerandomized_output.input())) as *mut u8
+    if rerandomized_output.write(&mut rerandomized_output_bytes).is_err() { -1 } else { 0 }
 }
 
 //---------------------------------------------- OBlind
 
 /// # Safety
 ///
-/// This function assumes that the rerandomized output being passed in input was
-/// allocated on the heap and returned through a CResult instance.
+/// This function assumes that the rerandomized output byte buffer being passed
+/// in is 8*32 bytes.
 #[no_mangle]
-pub unsafe extern "C" fn o_blind(output: *const RerandomizedOutput) -> CResult<Scalar, ()> {
-    let rerandomized_output = unsafe { output.read() };
-    CResult::ok(rerandomized_output.o_blind())
+pub unsafe extern "C" fn o_blind(rerandomized_output_bytes: *const u8,
+    o_blind: *mut Scalar
+) -> c_int {
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    match RerandomizedOutput::read(&mut rerandomized_output_bytes) {
+        Ok(rerandomized_output) => { o_blind.write(rerandomized_output.o_blind()); 0 }
+        Err(_) => -1
+    }
 }
 
 /// # Safety
@@ -483,12 +432,17 @@ pub unsafe extern "C" fn blind_o_blind(
 
 /// # Safety
 ///
-/// This function assumes that the rerandomized output being passed in input was
-/// allocated on the heap and returned through a CResult instance.
+/// This function assumes that the rerandomized output byte buffer being passed
+/// in is 8*32 bytes.
 #[no_mangle]
-pub unsafe extern "C" fn c_blind(output: *const RerandomizedOutput) -> CResult<Scalar, ()> {
-    let rerandomized_output = unsafe { output.read() };
-    CResult::ok(rerandomized_output.c_blind())
+pub unsafe extern "C" fn c_blind(rerandomized_output_bytes: *const u8,
+    c_blind: *mut Scalar
+) -> c_int {
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    match RerandomizedOutput::read(&mut rerandomized_output_bytes) {
+        Ok(rerandomized_output) => { c_blind.write(rerandomized_output.c_blind()); 0 }
+        Err(_) => -1
+    }
 }
 
 /// # Safety
@@ -511,12 +465,17 @@ pub unsafe extern "C" fn blind_c_blind(
 
 /// # Safety
 ///
-/// This function assumes that the rerandomized output being passed in input was
-/// allocated on the heap and returned through a CResult instance.
+/// This function assumes that the rerandomized output byte buffer being passed
+/// in is 8*32 bytes.
 #[no_mangle]
-pub unsafe extern "C" fn i_blind(output: *const RerandomizedOutput) -> CResult<Scalar, ()> {
-    let rerandomized_output = unsafe { output.read() };
-    CResult::ok(rerandomized_output.i_blind())
+pub unsafe extern "C" fn i_blind(rerandomized_output_bytes: *const u8,
+    i_blind: *mut Scalar
+) -> c_int {
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    match RerandomizedOutput::read(&mut rerandomized_output_bytes) {
+        Ok(rerandomized_output) => { i_blind.write(rerandomized_output.i_blind()); 0 }
+        Err(_) => -1
+    }
 }
 
 /// # Safety
@@ -539,12 +498,17 @@ pub unsafe extern "C" fn blind_i_blind(
 
 /// # Safety
 ///
-/// This function assumes that the rerandomized output being passed in input was
-/// allocated on the heap and returned through a CResult instance.
+/// This function assumes that the rerandomized output byte buffer being passed
+/// in is 8*32 bytes.
 #[no_mangle]
-pub unsafe extern "C" fn i_blind_blind(output: *const RerandomizedOutput) -> CResult<Scalar, ()> {
-    let rerandomized_output = unsafe { output.read() };
-    CResult::ok(rerandomized_output.i_blind_blind())
+pub unsafe extern "C" fn i_blind_blind(rerandomized_output_bytes: *const u8,
+    i_blind_blind: *mut Scalar
+) -> c_int {
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    match RerandomizedOutput::read(&mut rerandomized_output_bytes) {
+        Ok(rerandomized_output) => { i_blind_blind.write(rerandomized_output.i_blind_blind()); 0 }
+        Err(_) => -1
+    }
 }
 
 /// # Safety
@@ -662,7 +626,7 @@ unsafe fn prove_membership_native(inputs: &[*const FcmpPpProveInput], n_tree_lay
 /// allocated on the heap (via Box::into_raw(Box::new())), and the branch
 /// blinds are slices of BranchBlind allocated on the heap (via CResult).
 #[no_mangle]
-pub unsafe extern "C" fn fcmp_prove_input_new(rerandomized_output: *const RerandomizedOutput,
+pub unsafe extern "C" fn fcmp_prove_input_new(rerandomized_output_bytes: *const u8,
     path: *const Path<Curves>,
     output_blinds: *const OutputBlinds<EdwardsPoint>,
     selene_branch_blinds: SeleneBranchBlindSlice,
@@ -672,7 +636,7 @@ pub unsafe extern "C" fn fcmp_prove_input_new(rerandomized_output: *const Rerand
     let pzero = &zero as *const u8;
     fcmp_pp_prove_input_new(pzero,
         pzero,
-        rerandomized_output,
+        rerandomized_output_bytes,
         path,
         output_blinds,
         selene_branch_blinds,
@@ -689,7 +653,7 @@ pub unsafe extern "C" fn fcmp_prove_input_new(rerandomized_output: *const Rerand
 pub unsafe extern "C" fn fcmp_pp_prove_input_new(
     x: *const u8,
     y: *const u8,
-    rerandomized_output: *const RerandomizedOutput,
+    rerandomized_output_bytes: *const u8,
     path: *const Path<Curves>,
     output_blinds: *const OutputBlinds<EdwardsPoint>,
     selene_branch_blinds: SeleneBranchBlindSlice,
@@ -698,7 +662,10 @@ pub unsafe extern "C" fn fcmp_pp_prove_input_new(
     // SAL
     let x = ed25519_scalar_from_bytes(x);
     let y = ed25519_scalar_from_bytes(y);
-    let rerandomized_output = unsafe { rerandomized_output.read() };
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    let Ok(rerandomized_output) = RerandomizedOutput::read(&mut rerandomized_output_bytes) else {
+        return CResult::err(());
+    };
 
     // Path and output blinds
     let path = unsafe { path.read() };
@@ -796,15 +763,20 @@ pub unsafe extern "C" fn prove(
 /// This function assumes that the signable_tx_hash, x, and y are 32 bytes, sal_proof_out is
 /// FCMP_PP_SAL_PROOF_SIZE_V1 bytes, and that the rerandomized output is returned from rerandomize_output().
 #[no_mangle]
-pub extern "C" fn fcmp_pp_prove_sal(signable_tx_hash: *const u8,
+pub unsafe extern "C" fn fcmp_pp_prove_sal(signable_tx_hash: *const u8,
     x: *const u8,
     y: *const u8,
-    rerandomized_output: *const RerandomizedOutput,
+    rerandomized_output_bytes: *const u8,
     sal_proof_out: *mut u8
 ) -> CResult<(), ()> {
     let signable_tx_hash = hash_array_from_bytes(signable_tx_hash);
 
-    let Some(opening) = OpenedInputTuple::open(unsafe { (*rerandomized_output).clone() },
+    let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
+    let Ok(rerandomized_output) = RerandomizedOutput::read(&mut rerandomized_output_bytes) else {
+        return CResult::err(());
+    };
+
+    let Some(opening) = OpenedInputTuple::open(rerandomized_output,
         &ed25519_scalar_from_bytes(x),
         &ed25519_scalar_from_bytes(y)
     ) else {
@@ -940,14 +912,17 @@ pub unsafe extern "C" fn verify(
 /// allocated via a CResult, key_image is 32 bytes, and sal_proof is FCMP_PP_SAL_PROOF_SIZE_V1 bytes
 #[no_mangle]
 pub unsafe extern "C" fn fcmp_pp_verify_sal(signable_tx_hash: *const u8,
-    input: *const Input,
+    input_bytes: *const u8,
     key_image: *const u8,
     sal_proof: *const u8
 ) -> bool {
     let signable_tx_hash = hash_array_from_bytes(signable_tx_hash);
-    let input = unsafe { *input };
+    let input_bytes = core::slice::from_raw_parts(input_bytes, 4 * 32);
+    let Ok(input) = input_from_bytes(input_bytes) else {
+        return false;
+    };
     let key_image = ed25519_point_from_bytes(key_image);
-    let Ok(sal_proof) = SpendAuthAndLinkability::read(&mut unsafe { core::slice::from_raw_parts(sal_proof, 12*32) }) else { // @TODO: remove magic number
+    let Ok(sal_proof) = SpendAuthAndLinkability::read(&mut core::slice::from_raw_parts(sal_proof, 12*32)) else { // @TODO: remove magic number
         return false;
     };
 
@@ -963,17 +938,16 @@ pub unsafe extern "C" fn fcmp_pp_verify_sal(signable_tx_hash: *const u8,
 /// This function assumes that each element of inputs is heap allocated via a
 /// CResult, [fcmp_proof, fcmp_proof+fcmp_proof_len) is a valid readable range
 #[no_mangle]
-pub unsafe extern "C" fn fcmp_pp_verify_membership(inputs: Slice<*const Input>,
+pub unsafe extern "C" fn fcmp_pp_verify_membership(inputs: Slice<[u8; 4 * 32]>,
     tree_root: *const TreeRoot<Selene, Helios>,
     n_tree_layers: usize,
     fcmp_proof: *const u8,
     fcmp_proof_len: usize
 ) -> bool {
-    let inputs: &[*const Input] = inputs.into();
+    let inputs: &[[u8; 4 * 32]] = inputs.into();
     let Ok(inputs) = inputs
         .iter()
-        .cloned()
-        .map(|x|fcmps::Input::new((*x).O_tilde(), (*x).I_tilde(), (*x).R(), (*x).C_tilde()))
+        .map(|i| { let i = input_from_bytes(&mut i.as_slice())?; fcmps::Input::new(i.O_tilde(), i.I_tilde(), i.R(), i.C_tilde())})
         .collect::<Result<Vec<_>, _>>()
         else { return false };
 
