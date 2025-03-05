@@ -122,7 +122,7 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   // Build the tree, keeping track of output's path in the tree
   fcmp_pp::curve_trees::CurveTreesV1::TreeExtension tree_extension;
   std::vector<uint64_t> n_new_leaf_tuples_per_block;
-  tree_cache.sync_blocks(0, {}, new_block_hashes, outs_by_last_locked_blocks, tree_extension, n_new_leaf_tuples_per_block);
+  tree_cache.prepare_to_sync_blocks(0, {}, new_block_hashes, outs_by_last_locked_blocks, tree_extension, n_new_leaf_tuples_per_block);
   tree_cache.process_synced_blocks(0, new_block_hashes, tree_extension, n_new_leaf_tuples_per_block);
   const uint64_t n_synced_blocks = tree_cache.n_synced_blocks();
   if (n_synced_blocks == 0)

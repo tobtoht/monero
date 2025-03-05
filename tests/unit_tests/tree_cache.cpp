@@ -191,7 +191,7 @@ TEST(tree_cache, sync_n_chunks_of_blocks)
         fcmp_pp::curve_trees::CurveTrees<Selene, Helios>::TreeExtension tree_extension;
         std::vector<uint64_t> n_new_leaf_tuples_per_block;
 
-        tree_cache->sync_blocks(start_block_idx,
+        tree_cache->prepare_to_sync_blocks(start_block_idx,
             mock_block_hash,
             chunks_of_block_hashes[i],
             chunks_of_outputs[i],

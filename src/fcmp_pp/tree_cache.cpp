@@ -829,7 +829,7 @@ void TreeCache<C1, C2>::sync_block(const uint64_t block_idx,
     typename fcmp_pp::curve_trees::CurveTrees<C1, C2>::TreeExtension tree_extension;
     std::vector<uint64_t> n_new_leaf_tuples_per_block;
 
-    this->sync_blocks(block_idx,
+    this->prepare_to_sync_blocks(block_idx,
         prev_block_hash,
         new_block_hashes,
         outs,
@@ -846,7 +846,7 @@ template void TreeCache<Selene, Helios>::sync_block(const uint64_t block_idx,
     const fcmp_pp::curve_trees::OutputsByLastLockedBlock &outs_by_last_locked_block);
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
-void TreeCache<C1, C2>::sync_blocks(const uint64_t start_block_idx,
+void TreeCache<C1, C2>::prepare_to_sync_blocks(const uint64_t start_block_idx,
     const crypto::hash &prev_block_hash,
     const std::vector<crypto::hash> &new_block_hashes,
     const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> &outs_by_last_locked_blocks,
@@ -964,7 +964,7 @@ void TreeCache<C1, C2>::sync_blocks(const uint64_t start_block_idx,
 }
 
 // Explicit instantiation
-template void TreeCache<Selene, Helios>::sync_blocks(const uint64_t start_block_idx,
+template void TreeCache<Selene, Helios>::prepare_to_sync_blocks(const uint64_t start_block_idx,
     const crypto::hash &prev_block_hash,
     const std::vector<crypto::hash> &new_block_hashes,
     const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> &outs_by_last_locked_blocks,
@@ -1116,6 +1116,9 @@ bool TreeCache<C1, C2>::pop_block()
     // Pop the top block off the cache, removing refs to last chunks
     const uint64_t old_n_leaf_tuples = m_cached_blocks.back().n_leaf_tuples;
     const BlockIdx pop_block_idx = m_cached_blocks.back().blk_idx;
+
+    LOG_PRINT_L2("Popping block " << pop_block_idx << " , " << m_cached_blocks.back().blk_hash << " from tree cache");
+
     this->deque_block(old_n_leaf_tuples);
     m_cached_blocks.pop_back();
 

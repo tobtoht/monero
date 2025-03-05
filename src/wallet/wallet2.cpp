@@ -3218,7 +3218,7 @@ struct TreeSyncStartParams
   crypto::hash prev_block_hash;
 };
 
-static void top_block_match(const hashchain &blockchain, const tools::wallet2::TreeCacheV1 &tree_sync)
+static void assert_top_block_match(const hashchain &blockchain, const tools::wallet2::TreeCacheV1 &tree_sync)
 {
   if (blockchain.empty())
   {
@@ -3277,7 +3277,7 @@ static TreeSyncStartParams tree_sync_reorg_check(const uint64_t parsed_blocks_st
       << ", n_downloaded_blocks: "     << n_downloaded_blocks);
 
   // Make sure the tree sync cache matches wallet2's blockchain cache
-  top_block_match(blockchain, tree_cache_inout);
+  assert_top_block_match(blockchain, tree_cache_inout);
 
   fcmp_pp::curve_trees::BlockMeta top_synced_block;
   THROW_WALLET_EXCEPTION_IF(!tree_cache_inout.get_top_block(top_synced_block), tools::error::wallet_internal_error,
@@ -3383,7 +3383,7 @@ static void tree_sync_blocks_async(const TreeSyncStartParams &tree_sync_start_pa
   TIME_MEASURE_FINISH(collecting_outs_by_last_locked_block);
 
   // Get a tree extension with the outputs that will unlock in this chunk of blocks
-  tree_cache_inout.sync_blocks(sync_start_block_idx,
+  tree_cache_inout.prepare_to_sync_blocks(sync_start_block_idx,
     prev_block_hash,
     new_block_hashes_out,
     outs_by_last_locked_blocks,
@@ -3442,6 +3442,13 @@ void wallet2::process_parsed_blocks(const uint64_t start_height, const std::vect
       tree_sync_blocks_async(tree_sync_start_params, parsed_blocks, m_tree_cache, m_outs_by_last_locked_time_ms, m_sync_blocks_time_ms, new_block_hashes, tree_extension, new_leaf_tuples_per_block);
     });
 
+  const auto tree_sync_post_check = epee::misc_utils::create_scope_leave_handler([&, this]() {
+    // Check for matching top block in m_blockchain <> m_tree_cache after sync
+    assert_top_block_match(m_blockchain, m_tree_cache);
+  });
+
+  try
+  {
   for (size_t i = 0; i < blocks.size(); ++i)
   {
     if (has_prev_block) {
@@ -3619,6 +3626,35 @@ void wallet2::process_parsed_blocks(const uint64_t start_height, const std::vect
     ++current_index;
     tx_cache_data_offset += 1 + parsed_blocks[i].txes.size();
   }
+  }
+  catch (...)
+  {
+    if (!tree_sync_blocks_waiter.wait())
+    {
+      MERROR("Failed to sync the tree, the wallet may now be in a corrupt state");
+    }
+    else
+    {
+      // Finish processing synced blocks on tree
+      m_tree_cache.process_synced_blocks(tree_sync_start_params.start_block_idx, new_block_hashes, tree_extension, new_leaf_tuples_per_block);
+
+      // We had an error in the scanner. Next time the scanner runs, it starts
+      // from where it left off. We need to make sure the scanner state matches
+      // the tree sync state, so that they start from the same place. Thus, we
+      // pop from the tree sync cache until they've synced the same # of blocks.
+      // The reason we call process_synced_blocks above is because
+      // prepare_to_sync_blocks modifies cache state and requires the
+      // corresponding call to process_synced_blocks to complete before popping.
+      // This could be done in a simpler way.
+      while (m_tree_cache.n_synced_blocks() > m_blockchain.size())
+      {
+        THROW_WALLET_EXCEPTION_IF(!m_tree_cache.pop_block(), error::wallet_internal_error, "Failed to pop block from tree cache");
+      }
+    }
+
+    std::rethrow_exception(std::current_exception());
+    return;
+  }
 
   // Now that we've processed all received outputs, call process_synced_blocks
   // to save the elems we need from the tree, and get rid of the rest of the
@@ -3627,9 +3663,6 @@ void wallet2::process_parsed_blocks(const uint64_t start_height, const std::vect
   THROW_WALLET_EXCEPTION_IF(!tree_sync_blocks_waiter.wait(), error::wallet_internal_error, "Exception in thread pool");
   LOG_PRINT_L3("Done waiting on tree build");
   m_tree_cache.process_synced_blocks(tree_sync_start_params.start_block_idx, new_block_hashes, tree_extension, new_leaf_tuples_per_block);
-
-  // Check for matching top block in m_blockchain <> m_tree_cache after sync
-  top_block_match(m_blockchain, m_tree_cache);
 }
 //----------------------------------------------------------------------------------------------------
 void wallet2::refresh(bool trusted_daemon)

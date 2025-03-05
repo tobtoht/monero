@@ -32,6 +32,7 @@
 #include "cryptonote_config.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "curve_trees.h"
+#include "fcmp_pp_types.h"
 #include "ringct/rctTypes.h"
 #include "serialization/containers.h"
 #include "serialization/crypto.h"
@@ -213,13 +214,15 @@ public:
 
     uint64_t get_output_count() const { return m_output_count; }
 
-    void sync_blocks(const uint64_t start_block_idx,
+    // Add locked outputs to the cache and construct a tree extension from unlocked outputs
+    void prepare_to_sync_blocks(const uint64_t start_block_idx,
         const crypto::hash &prev_block_hash,
         const std::vector<crypto::hash> &new_block_hashes,
         const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> &outs_by_last_locked_blocks,
         typename fcmp_pp::curve_trees::CurveTrees<C1, C2>::TreeExtension &tree_extension_out,
         std::vector<uint64_t> &n_new_leaf_tuples_per_block_out);
 
+    // Advance the cache state, processing the blocks prepared above
     void process_synced_blocks(const uint64_t start_block_idx,
         const std::vector<crypto::hash> &new_block_hashes,
         const typename fcmp_pp::curve_trees::CurveTrees<C1, C2>::TreeExtension &tree_extension,
