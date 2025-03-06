@@ -43,6 +43,11 @@ struct subaddress_index
 {
     std::uint32_t major;
     std::uint32_t minor;
+
+    bool is_subaddress() const
+    {
+        return major || minor;
+    }
 };
 
 enum class AddressDeriveType

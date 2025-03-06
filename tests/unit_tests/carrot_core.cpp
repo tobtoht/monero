@@ -28,208 +28,13 @@
 
 #include "gtest/gtest.h"
 
-#include "carrot_core/account_secrets.h"
-#include "carrot_core/address_utils.h"
-#include "carrot_core/carrot_enote_scan.h"
-#include "carrot_core/device_ram_borrowed.h"
-#include "carrot_core/enote_utils.h"
 #include "carrot_core/output_set_finalization.h"
 #include "carrot_core/payment_proposal.h"
-#include "crypto/crypto.h"
-#include "crypto/generators.h"
-#include "ringct/rctOps.h"
+#include "carrot_mock_helpers.h"
 
 using namespace carrot;
 
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-namespace
-{
-// https://github.com/jedisct1/libsodium/blob/master/src/libsodium/crypto_scalarmult/curve25519/ref10/x25519_ref10.c#L17
-static const mx25519_pubkey x25519_small_order_points[7] = {
-    /* 0 (order 4) */
-    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }},
-    /* 1 (order 1) */
-    {{ 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }},
-    /* 325606250916557431795983626356110631294008115727848805560023387167927233504
-        (order 8) */
-    {{ 0xe0, 0xeb, 0x7a, 0x7c, 0x3b, 0x41, 0xb8, 0xae, 0x16, 0x56, 0xe3,
-        0xfa, 0xf1, 0x9f, 0xc4, 0x6a, 0xda, 0x09, 0x8d, 0xeb, 0x9c, 0x32,
-        0xb1, 0xfd, 0x86, 0x62, 0x05, 0x16, 0x5f, 0x49, 0xb8, 0x00 }},
-    /* 39382357235489614581723060781553021112529911719440698176882885853963445705823
-        (order 8) */
-    {{ 0x5f, 0x9c, 0x95, 0xbc, 0xa3, 0x50, 0x8c, 0x24, 0xb1, 0xd0, 0xb1,
-        0x55, 0x9c, 0x83, 0xef, 0x5b, 0x04, 0x44, 0x5c, 0xc4, 0x58, 0x1c,
-        0x8e, 0x86, 0xd8, 0x22, 0x4e, 0xdd, 0xd0, 0x9f, 0x11, 0x57 }},
-    /* p-1 (order 2) */
-    {{ 0xec, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f }},
-    /* p (=0, order 4) */
-    {{ 0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f }},
-    /* p+1 (=1, order 1) */
-    {{ 0xee, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f }}
-};
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-struct mock_carrot_keys
-{
-    crypto::secret_key s_master;
-    crypto::secret_key k_prove_spend;
-    crypto::secret_key s_view_balance;
-    crypto::secret_key k_generate_image;
-    crypto::secret_key k_view;
-    crypto::secret_key s_generate_address;
-    crypto::public_key account_spend_pubkey;
-    crypto::public_key account_view_pubkey;
-    crypto::public_key main_address_view_pubkey;
-
-    view_incoming_key_ram_borrowed_device k_view_dev;
-    view_balance_secret_ram_borrowed_device s_view_balance_dev;
-    generate_address_secret_ram_borrowed_device s_generate_address_dev;
-
-    mock_carrot_keys(): k_view_dev(k_view),
-        s_view_balance_dev(s_view_balance),
-        s_generate_address_dev(s_generate_address)
-    {}
-
-    static mock_carrot_keys generate()
-    {
-        mock_carrot_keys k;
-        crypto::generate_random_bytes_thread_safe(sizeof(crypto::secret_key), to_bytes(k.s_master));
-        make_carrot_provespend_key(k.s_master, k.k_prove_spend);
-        make_carrot_viewbalance_secret(k.s_master, k.s_view_balance);
-        make_carrot_generateimage_key(k.s_view_balance, k.k_generate_image);
-        make_carrot_viewincoming_key(k.s_view_balance, k.k_view);
-        make_carrot_generateaddress_secret(k.s_view_balance, k.s_generate_address);
-        make_carrot_spend_pubkey(k.k_generate_image, k.k_prove_spend, k.account_spend_pubkey);
-        k.account_view_pubkey = rct::rct2pk(rct::scalarmultKey(rct::pk2rct(k.account_spend_pubkey),
-            rct::sk2rct(k.k_view)));
-        k.main_address_view_pubkey = rct::rct2pk(rct::scalarmultBase(rct::sk2rct(k.k_view)));
-        return k;
-    }
-};
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-static bool can_open_fcmp_onetime_address(const crypto::secret_key &k_prove_spend,
-    const crypto::secret_key &k_generate_image,
-    const crypto::secret_key &subaddr_scalar,
-    const crypto::secret_key &sender_extension_g,
-    const crypto::secret_key &sender_extension_t,
-    const crypto::public_key &onetime_address)
-{
-    // K_s = k_gi G + k_ps T
-    // K^j_s = k^j_subscal * K_s
-    // Ko = K^j_s + k^o_g G + k^o_t T
-    //    = (k^o_g + k^j_subscal * k_gi) G + (k^o_t + k^j_subscal * k_ps) T
-
-    // combined_g = k^o_g + k^j_subscal * k_gi
-    rct::key combined_g;
-    sc_muladd(combined_g.bytes, to_bytes(subaddr_scalar), to_bytes(k_generate_image), to_bytes(sender_extension_g));
-
-    // combined_t = k^o_t + k^j_subscal * k_ps
-    rct::key combined_t;
-    sc_muladd(combined_t.bytes, to_bytes(subaddr_scalar), to_bytes(k_prove_spend), to_bytes(sender_extension_t));
-
-    // Ko' = combined_g G + combined_t T
-    rct::key recomputed_onetime_address;
-    rct::addKeys2(recomputed_onetime_address, combined_g, combined_t, rct::pk2rct(crypto::get_T()));
-
-    // Ko' ?= Ko
-    return recomputed_onetime_address == onetime_address;
-}
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
-struct unittest_carrot_scan_result_t
-{
-    crypto::public_key address_spend_pubkey = rct::rct2pk(rct::I);
-    crypto::secret_key sender_extension_g = rct::rct2sk(rct::I);
-    crypto::secret_key sender_extension_t = rct::rct2sk(rct::I);
-
-    rct::xmr_amount amount = 0;
-    crypto::secret_key amount_blinding_factor = rct::rct2sk(rct::I);
-
-    CarrotEnoteType enote_type = CarrotEnoteType::PAYMENT;
-
-    payment_id_t payment_id = null_payment_id;
-
-    janus_anchor_t internal_message = janus_anchor_t{};
-
-    size_t output_index = 0;
-};
-static void unittest_scan_enote_set(const std::vector<CarrotEnoteV1> &enotes,
-    const encrypted_payment_id_t encrypted_payment_id,
-    const mock_carrot_keys keys,
-    std::vector<unittest_carrot_scan_result_t> &res)
-{
-    res.clear();
-
-    // external scans
-    for (size_t output_index = 0; output_index < enotes.size(); ++output_index)
-    {
-        const CarrotEnoteV1 &enote = enotes.at(output_index);
-
-        // s_sr = k_v D_e
-        mx25519_pubkey s_sr;
-        make_carrot_uncontextualized_shared_key_receiver(keys.k_view, enote.enote_ephemeral_pubkey, s_sr);
-
-        unittest_carrot_scan_result_t scan_result{};
-        const bool r = try_scan_carrot_enote_external(enote,
-            encrypted_payment_id,
-            s_sr,
-            keys.k_view_dev,
-            keys.account_spend_pubkey,
-            scan_result.sender_extension_g,
-            scan_result.sender_extension_t,
-            scan_result.address_spend_pubkey,
-            scan_result.amount,
-            scan_result.amount_blinding_factor,
-            scan_result.payment_id,
-            scan_result.enote_type);
-        
-        scan_result.output_index = output_index;
-
-        if (r)
-            res.push_back(scan_result);
-    }
-
-    // internal scans
-    for (size_t output_index = 0; output_index < enotes.size(); ++output_index)
-    {
-        const CarrotEnoteV1 &enote = enotes.at(output_index);
-
-        unittest_carrot_scan_result_t scan_result{};
-        const bool r = try_scan_carrot_enote_internal(enote,
-            keys.s_view_balance_dev,
-            scan_result.sender_extension_g,
-            scan_result.sender_extension_t,
-            scan_result.address_spend_pubkey,
-            scan_result.amount,
-            scan_result.amount_blinding_factor,
-            scan_result.enote_type,
-            scan_result.internal_message);
-
-        scan_result.output_index = output_index;
-
-        if (r)
-            res.push_back(scan_result);
-    }
-}
-} // namespace
-static inline bool operator==(const mx25519_pubkey &a, const mx25519_pubkey &b)
-{
-    return 0 == memcmp(&a, &b, sizeof(mx25519_pubkey));
-}
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, ECDH_cryptonote_completeness)
 {
     crypto::secret_key k_view = rct::rct2sk(rct::skGen());
@@ -291,10 +96,10 @@ TEST(carrot_core, ECDH_mx25519_convergence)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, main_address_normal_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    CarrotDestinationV1 main_address;
-    make_carrot_main_address_v1(keys.account_spend_pubkey, keys.main_address_view_pubkey, main_address);
+    const CarrotDestinationV1 main_address = keys.cryptonote_address();
 
     const CarrotPaymentProposalV1 proposal = CarrotPaymentProposalV1{
         .destination = main_address,
@@ -316,7 +121,7 @@ TEST(carrot_core, main_address_normal_scan_completeness)
     ASSERT_EQ(enote_proposal.enote.amount_commitment, recomputed_amount_commitment);
 
     mx25519_pubkey s_sender_receiver_unctx;
-    make_carrot_uncontextualized_shared_key_receiver(keys.k_view,
+    make_carrot_uncontextualized_shared_key_receiver(keys.legacy_acb.get_keys().m_view_secret_key,
         enote_proposal.enote.enote_ephemeral_pubkey,
         s_sender_receiver_unctx);
 
@@ -330,8 +135,8 @@ TEST(carrot_core, main_address_normal_scan_completeness)
     const bool scan_success = try_scan_carrot_enote_external(enote_proposal.enote,
         encrypted_payment_id,
         s_sender_receiver_unctx,
-        keys.k_view_dev,
-        keys.account_spend_pubkey,
+        keys.k_view_incoming_dev,
+        keys.carrot_account_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         recovered_address_spend_pubkey,
@@ -350,9 +155,7 @@ TEST(carrot_core, main_address_normal_scan_completeness)
     EXPECT_EQ(CarrotEnoteType::PAYMENT, recovered_enote_type);
 
     // check spendability
-    EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-        keys.k_generate_image,
-        rct::rct2sk(rct::I),
+    EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         enote_proposal.enote.onetime_address));
@@ -360,18 +163,13 @@ TEST(carrot_core, main_address_normal_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, subaddress_normal_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    const uint32_t j_major = crypto::rand<uint32_t>();
-    const uint32_t j_minor = crypto::rand<uint32_t>();
+    const uint32_t j_major = crypto::rand_idx(mock::MAX_SUBADDRESS_MAJOR_INDEX);
+    const uint32_t j_minor = crypto::rand_idx(mock::MAX_SUBADDRESS_MINOR_INDEX);
 
-    CarrotDestinationV1 subaddress;
-    make_carrot_subaddress_v1(keys.account_spend_pubkey,
-        keys.account_view_pubkey,
-        keys.s_generate_address_dev,
-        j_major,
-        j_minor,
-        subaddress);
+    const CarrotDestinationV1 subaddress = keys.subaddress({{j_major, j_minor}});
 
     const CarrotPaymentProposalV1 proposal = CarrotPaymentProposalV1{
         .destination = subaddress,
@@ -393,7 +191,7 @@ TEST(carrot_core, subaddress_normal_scan_completeness)
     ASSERT_EQ(enote_proposal.enote.amount_commitment, recomputed_amount_commitment);
 
     mx25519_pubkey s_sender_receiver_unctx;
-    make_carrot_uncontextualized_shared_key_receiver(keys.k_view,
+    make_carrot_uncontextualized_shared_key_receiver(keys.legacy_acb.get_keys().m_view_secret_key,
         enote_proposal.enote.enote_ephemeral_pubkey,
         s_sender_receiver_unctx);
 
@@ -407,8 +205,8 @@ TEST(carrot_core, subaddress_normal_scan_completeness)
     const bool scan_success = try_scan_carrot_enote_external(enote_proposal.enote,
         encrypted_payment_id,
         s_sender_receiver_unctx,
-        keys.k_view_dev,
-        keys.account_spend_pubkey,
+        keys.k_view_incoming_dev,
+        keys.carrot_account_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         recovered_address_spend_pubkey,
@@ -427,22 +225,7 @@ TEST(carrot_core, subaddress_normal_scan_completeness)
     EXPECT_EQ(CarrotEnoteType::PAYMENT, recovered_enote_type);
 
     // check spendability
-    crypto::secret_key address_generator;
-    make_carrot_index_extension_generator(keys.s_generate_address,
-        j_major,
-        j_minor,
-        address_generator);
-
-    crypto::secret_key subaddr_scalar;
-    make_carrot_subaddress_scalar(keys.account_spend_pubkey,
-        address_generator,
-        j_major,
-        j_minor,
-        subaddr_scalar);
-
-    EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-        keys.k_generate_image,
-        subaddr_scalar,
+    EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         enote_proposal.enote.onetime_address));
@@ -450,13 +233,10 @@ TEST(carrot_core, subaddress_normal_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, integrated_address_normal_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    CarrotDestinationV1 integrated_address;
-    make_carrot_integrated_address_v1(keys.account_spend_pubkey,
-        keys.main_address_view_pubkey,
-        gen_payment_id(),
-        integrated_address);
+    const CarrotDestinationV1 integrated_address = keys.cryptonote_address(gen_payment_id());
 
     const CarrotPaymentProposalV1 proposal = CarrotPaymentProposalV1{
         .destination = integrated_address,
@@ -478,7 +258,7 @@ TEST(carrot_core, integrated_address_normal_scan_completeness)
     ASSERT_EQ(enote_proposal.enote.amount_commitment, recomputed_amount_commitment);
 
     mx25519_pubkey s_sender_receiver_unctx;
-    make_carrot_uncontextualized_shared_key_receiver(keys.k_view,
+    make_carrot_uncontextualized_shared_key_receiver(keys.legacy_acb.get_keys().m_view_secret_key,
         enote_proposal.enote.enote_ephemeral_pubkey,
         s_sender_receiver_unctx);
 
@@ -492,8 +272,8 @@ TEST(carrot_core, integrated_address_normal_scan_completeness)
     const bool scan_success = try_scan_carrot_enote_external(enote_proposal.enote,
         encrypted_payment_id,
         s_sender_receiver_unctx,
-        keys.k_view_dev,
-        keys.account_spend_pubkey,
+        keys.k_view_incoming_dev,
+        keys.carrot_account_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         recovered_address_spend_pubkey,
@@ -512,9 +292,7 @@ TEST(carrot_core, integrated_address_normal_scan_completeness)
     EXPECT_EQ(CarrotEnoteType::PAYMENT, recovered_enote_type);
 
     // check spendability
-    EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-        keys.k_generate_image,
-        rct::rct2sk(rct::I),
+    EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         enote_proposal.enote.onetime_address));
@@ -522,10 +300,8 @@ TEST(carrot_core, integrated_address_normal_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, main_address_special_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
-
-    CarrotDestinationV1 main_address;
-    make_carrot_main_address_v1(keys.account_spend_pubkey, keys.main_address_view_pubkey, main_address);
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
     // try once with PAYMENT, once with CHANGE
     for (int i = 0; i < 2; ++i)
@@ -533,7 +309,7 @@ TEST(carrot_core, main_address_special_scan_completeness)
         const CarrotEnoteType enote_type = i ? CarrotEnoteType::PAYMENT : CarrotEnoteType::CHANGE;
 
         const CarrotPaymentProposalSelfSendV1 proposal = CarrotPaymentProposalSelfSendV1{
-            .destination_address_spend_pubkey = keys.account_spend_pubkey,
+            .destination_address_spend_pubkey = keys.carrot_account_spend_pubkey,
             .amount = crypto::rand<rct::xmr_amount>(),
             .enote_type = enote_type,
             .enote_ephemeral_pubkey = gen_x25519_pubkey(),
@@ -543,8 +319,8 @@ TEST(carrot_core, main_address_special_scan_completeness)
 
         RCTOutputEnoteProposal enote_proposal;
         get_output_proposal_special_v1(proposal,
-            keys.k_view_dev,
-            keys.account_spend_pubkey,
+            keys.k_view_incoming_dev,
+            keys.carrot_account_spend_pubkey,
             tx_first_key_image,
             std::nullopt,
             enote_proposal);
@@ -554,7 +330,7 @@ TEST(carrot_core, main_address_special_scan_completeness)
         ASSERT_EQ(enote_proposal.enote.amount_commitment, recomputed_amount_commitment);
 
         mx25519_pubkey s_sender_receiver_unctx;
-        make_carrot_uncontextualized_shared_key_receiver(keys.k_view,
+        make_carrot_uncontextualized_shared_key_receiver(keys.legacy_acb.get_keys().m_view_secret_key,
             enote_proposal.enote.enote_ephemeral_pubkey,
             s_sender_receiver_unctx);
 
@@ -568,8 +344,8 @@ TEST(carrot_core, main_address_special_scan_completeness)
         const bool scan_success = try_scan_carrot_enote_external(enote_proposal.enote,
             std::nullopt,
             s_sender_receiver_unctx,
-            keys.k_view_dev,
-            keys.account_spend_pubkey,
+            keys.k_view_incoming_dev,
+            keys.carrot_account_spend_pubkey,
             recovered_sender_extension_g,
             recovered_sender_extension_t,
             recovered_address_spend_pubkey,
@@ -588,9 +364,7 @@ TEST(carrot_core, main_address_special_scan_completeness)
         EXPECT_EQ(enote_type, recovered_enote_type);
 
         // check spendability
-        EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-            keys.k_generate_image,
-            rct::rct2sk(rct::I),
+        EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
             recovered_sender_extension_g,
             recovered_sender_extension_t,
             enote_proposal.enote.onetime_address));
@@ -599,18 +373,13 @@ TEST(carrot_core, main_address_special_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, subaddress_special_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    const uint32_t j_major = crypto::rand<uint32_t>();
-    const uint32_t j_minor = crypto::rand<uint32_t>();
+    const uint32_t j_major = crypto::rand_idx(mock::MAX_SUBADDRESS_MAJOR_INDEX);
+    const uint32_t j_minor = crypto::rand_idx(mock::MAX_SUBADDRESS_MINOR_INDEX);
 
-    CarrotDestinationV1 subaddress;
-    make_carrot_subaddress_v1(keys.account_spend_pubkey,
-        keys.account_view_pubkey,
-        keys.s_generate_address_dev,
-        j_major,
-        j_minor,
-        subaddress);
+    const CarrotDestinationV1 subaddress = keys.subaddress({{j_major, j_minor}});
 
     // try once with PAYMENT, once with CHANGE
     for (int i = 0; i < 2; ++i)
@@ -628,8 +397,8 @@ TEST(carrot_core, subaddress_special_scan_completeness)
 
         RCTOutputEnoteProposal enote_proposal;
         get_output_proposal_special_v1(proposal,
-            keys.k_view_dev,
-            keys.account_spend_pubkey,
+            keys.k_view_incoming_dev,
+            keys.carrot_account_spend_pubkey,
             tx_first_key_image,
             std::nullopt,
             enote_proposal);
@@ -639,7 +408,7 @@ TEST(carrot_core, subaddress_special_scan_completeness)
         ASSERT_EQ(enote_proposal.enote.amount_commitment, recomputed_amount_commitment);
 
         mx25519_pubkey s_sender_receiver_unctx;
-        make_carrot_uncontextualized_shared_key_receiver(keys.k_view,
+        make_carrot_uncontextualized_shared_key_receiver(keys.legacy_acb.get_keys().m_view_secret_key,
             enote_proposal.enote.enote_ephemeral_pubkey,
             s_sender_receiver_unctx);
 
@@ -653,8 +422,8 @@ TEST(carrot_core, subaddress_special_scan_completeness)
         const bool scan_success = try_scan_carrot_enote_external(enote_proposal.enote,
             std::nullopt,
             s_sender_receiver_unctx,
-            keys.k_view_dev,
-            keys.account_spend_pubkey,
+            keys.k_view_incoming_dev,
+            keys.carrot_account_spend_pubkey,
             recovered_sender_extension_g,
             recovered_sender_extension_t,
             recovered_address_spend_pubkey,
@@ -673,22 +442,7 @@ TEST(carrot_core, subaddress_special_scan_completeness)
         EXPECT_EQ(enote_type, recovered_enote_type);
 
         // check spendability
-        crypto::secret_key address_generator;
-        make_carrot_index_extension_generator(keys.s_generate_address,
-            j_major,
-            j_minor,
-            address_generator);
-
-        crypto::secret_key subaddr_scalar;
-        make_carrot_subaddress_scalar(keys.account_spend_pubkey,
-            address_generator,
-            j_major,
-            j_minor,
-            subaddr_scalar);
-
-        EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-            keys.k_generate_image,
-            subaddr_scalar,
+        EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
             recovered_sender_extension_g,
             recovered_sender_extension_t,
             enote_proposal.enote.onetime_address));
@@ -697,10 +451,10 @@ TEST(carrot_core, subaddress_special_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, main_address_internal_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    CarrotDestinationV1 main_address;
-    make_carrot_main_address_v1(keys.account_spend_pubkey, keys.main_address_view_pubkey, main_address);
+    const CarrotDestinationV1 main_address = keys.cryptonote_address();
 
     // try once with PAYMENT, once with CHANGE
     for (int i = 0; i < 2; ++i)
@@ -755,9 +509,7 @@ TEST(carrot_core, main_address_internal_scan_completeness)
         EXPECT_EQ(proposal.internal_message, recovered_internal_message);
 
         // check spendability
-        EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-            keys.k_generate_image,
-            rct::rct2sk(rct::I),
+        EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
             recovered_sender_extension_g,
             recovered_sender_extension_t,
             enote_proposal.enote.onetime_address));
@@ -766,18 +518,13 @@ TEST(carrot_core, main_address_internal_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, subaddress_internal_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    const uint32_t j_major = crypto::rand<uint32_t>();
-    const uint32_t j_minor = crypto::rand<uint32_t>();
+    const uint32_t j_major = crypto::rand_idx(mock::MAX_SUBADDRESS_MAJOR_INDEX);
+    const uint32_t j_minor = crypto::rand_idx(mock::MAX_SUBADDRESS_MINOR_INDEX);
 
-    CarrotDestinationV1 subaddress;
-    make_carrot_subaddress_v1(keys.account_spend_pubkey,
-        keys.account_view_pubkey,
-        keys.s_generate_address_dev,
-        j_major,
-        j_minor,
-        subaddress);
+    const CarrotDestinationV1 subaddress = keys.subaddress({{j_major, j_minor}});
 
     // try once with PAYMENT, once with CHANGE
     for (int i = 0; i < 2; ++i)
@@ -832,22 +579,7 @@ TEST(carrot_core, subaddress_internal_scan_completeness)
         EXPECT_EQ(proposal.internal_message, recovered_internal_message);
 
         // check spendability
-        crypto::secret_key address_generator;
-        make_carrot_index_extension_generator(keys.s_generate_address,
-            j_major,
-            j_minor,
-            address_generator);
-
-        crypto::secret_key subaddr_scalar;
-        make_carrot_subaddress_scalar(keys.account_spend_pubkey,
-            address_generator,
-            j_major,
-            j_minor,
-            subaddr_scalar);
-
-        EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-            keys.k_generate_image,
-            subaddr_scalar,
+        EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
             recovered_sender_extension_g,
             recovered_sender_extension_t,
             enote_proposal.enote.onetime_address));
@@ -856,10 +588,10 @@ TEST(carrot_core, subaddress_internal_scan_completeness)
 //----------------------------------------------------------------------------------------------------------------------
 TEST(carrot_core, main_address_coinbase_scan_completeness)
 {
-    const mock_carrot_keys keys = mock_carrot_keys::generate();
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
 
-    CarrotDestinationV1 main_address;
-    make_carrot_main_address_v1(keys.account_spend_pubkey, keys.main_address_view_pubkey, main_address);
+    const CarrotDestinationV1 main_address = keys.cryptonote_address();
 
     const CarrotPaymentProposalV1 proposal = CarrotPaymentProposalV1{
         .destination = main_address,
@@ -877,7 +609,7 @@ TEST(carrot_core, main_address_coinbase_scan_completeness)
     ASSERT_EQ(proposal.amount, enote.amount);
 
     mx25519_pubkey s_sender_receiver_unctx;
-    make_carrot_uncontextualized_shared_key_receiver(keys.k_view,
+    make_carrot_uncontextualized_shared_key_receiver(keys.legacy_acb.get_keys().m_view_secret_key,
         enote.enote_ephemeral_pubkey,
         s_sender_receiver_unctx);
 
@@ -886,8 +618,8 @@ TEST(carrot_core, main_address_coinbase_scan_completeness)
     crypto::public_key recovered_address_spend_pubkey;
     const bool scan_success = try_scan_carrot_coinbase_enote(enote,
         s_sender_receiver_unctx,
-        keys.k_view_dev,
-        keys.account_spend_pubkey,
+        keys.k_view_incoming_dev,
+        keys.carrot_account_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         recovered_address_spend_pubkey);
@@ -898,12 +630,21 @@ TEST(carrot_core, main_address_coinbase_scan_completeness)
     EXPECT_EQ(proposal.destination.address_spend_pubkey, recovered_address_spend_pubkey);
 
     // check spendability
-    EXPECT_TRUE(can_open_fcmp_onetime_address(keys.k_prove_spend,
-        keys.k_generate_image,
-        rct::rct2sk(rct::I),
+    EXPECT_TRUE(keys.can_open_fcmp_onetime_address(recovered_address_spend_pubkey,
         recovered_sender_extension_g,
         recovered_sender_extension_t,
         enote.onetime_address));
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(carrot_core, keys_opening_for_main_address)
+{
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
+    crypto::secret_key x;
+    crypto::secret_key y;
+    crypto::public_key address_spend_pubkey;
+    keys.opening_for_subaddress({{0, 0}}, x, y, address_spend_pubkey);
+    EXPECT_EQ(keys.carrot_account_spend_pubkey, address_spend_pubkey);
 }
 //----------------------------------------------------------------------------------------------------------------------
 static void subtest_2out_transfer_get_output_enote_proposals_completeness(const bool alice_subaddress,
@@ -913,52 +654,37 @@ static void subtest_2out_transfer_get_output_enote_proposals_completeness(const 
     const bool alice_internal_selfsends)
 {
     // generate alice keys and address
-    const mock_carrot_keys alice = mock_carrot_keys::generate();
-    const uint32_t alice_j_major = crypto::rand<uint32_t>();
-    const uint32_t alice_j_minor = crypto::rand<uint32_t>();
+    mock::mock_carrot_and_legacy_keys alice;
+    alice.generate();
+    const uint32_t alice_j_major = crypto::rand_idx(mock::MAX_SUBADDRESS_MAJOR_INDEX);
+    const uint32_t alice_j_minor = crypto::rand_idx(mock::MAX_SUBADDRESS_MINOR_INDEX);
     CarrotDestinationV1 alice_address;
     if (alice_subaddress)
     {
-        make_carrot_subaddress_v1(alice.account_spend_pubkey,
-            alice.account_view_pubkey,
-            alice.s_generate_address_dev,
-            alice_j_major,
-            alice_j_minor,
-            alice_address);
+        alice_address = alice.subaddress({{alice_j_major, alice_j_minor}});
     }
     else // alice main address
     {
-        make_carrot_main_address_v1(alice.account_spend_pubkey,
-            alice.main_address_view_pubkey,
-            alice_address);
+        alice_address = alice.cryptonote_address();
     }
 
     // generate bob keys and address
-    const mock_carrot_keys bob = mock_carrot_keys::generate();
-    const uint32_t bob_j_major = crypto::rand<uint32_t>();
-    const uint32_t bob_j_minor = crypto::rand<uint32_t>();
+    mock::mock_carrot_and_legacy_keys bob;
+    bob.generate();
+    const uint32_t bob_j_major = crypto::rand_idx(mock::MAX_SUBADDRESS_MAJOR_INDEX);
+    const uint32_t bob_j_minor = crypto::rand_idx(mock::MAX_SUBADDRESS_MINOR_INDEX);
     CarrotDestinationV1 bob_address;
     if (bob_subaddress)
     {
-        make_carrot_subaddress_v1(bob.account_spend_pubkey,
-            bob.account_view_pubkey,
-            bob.s_generate_address_dev,
-            bob_j_major,
-            bob_j_minor,
-            bob_address);
+        bob_address = bob.subaddress({{bob_j_major, bob_j_minor}});
     }
     else if (bob_integrated)
     {
-        make_carrot_integrated_address_v1(bob.account_spend_pubkey,
-            bob.main_address_view_pubkey,
-            gen_payment_id(),
-            bob_address);
+        bob_address = bob.cryptonote_address(gen_payment_id());
     }
     else // bob main address
     {
-        make_carrot_main_address_v1(bob.account_spend_pubkey,
-            bob.main_address_view_pubkey,
-            bob_address);
+        bob_address = bob.cryptonote_address();
     }
 
     // generate input context
@@ -994,8 +720,8 @@ static void subtest_2out_transfer_get_output_enote_proposals_completeness(const 
         {alice_payment_proposal},
         dummy_encrypted_pid,
         alice_internal_selfsends ? &alice.s_view_balance_dev : nullptr,
-        &alice.k_view_dev,
-        alice.account_spend_pubkey,
+        &alice.k_view_incoming_dev,
+        alice.carrot_account_spend_pubkey,
         tx_first_key_image,
         enote_proposals,
         encrypted_payment_id);
@@ -1008,16 +734,16 @@ static void subtest_2out_transfer_get_output_enote_proposals_completeness(const 
         enotes.push_back(enote_proposal.enote);
 
     // check that alice scanned 1 enote
-    std::vector<unittest_carrot_scan_result_t> alice_scan_vec;
-    unittest_scan_enote_set(enotes, encrypted_payment_id, alice, alice_scan_vec);
+    std::vector<mock::mock_scan_result_t> alice_scan_vec;
+    mock::mock_scan_enote_set(enotes, encrypted_payment_id, alice, alice_scan_vec);
     ASSERT_EQ(1, alice_scan_vec.size());
-    unittest_carrot_scan_result_t alice_scan = alice_scan_vec.front();
+    mock::mock_scan_result_t alice_scan = alice_scan_vec.front();
 
     // check that bob scanned 1 enote
-    std::vector<unittest_carrot_scan_result_t> bob_scan_vec;
-    unittest_scan_enote_set(enotes, encrypted_payment_id, bob, bob_scan_vec);
+    std::vector<mock::mock_scan_result_t> bob_scan_vec;
+    mock::mock_scan_enote_set(enotes, encrypted_payment_id, bob, bob_scan_vec);
     ASSERT_EQ(1, bob_scan_vec.size());
-    unittest_carrot_scan_result_t bob_scan = bob_scan_vec.front();
+    mock::mock_scan_result_t bob_scan = bob_scan_vec.front();
 
     // set named references to enotes
     ASSERT_TRUE((alice_scan.output_index == 0 && bob_scan.output_index == 1) ||
@@ -1044,43 +770,13 @@ static void subtest_2out_transfer_get_output_enote_proposals_completeness(const 
     EXPECT_EQ(CarrotEnoteType::PAYMENT, bob_scan.enote_type);
 
     // check Alice spendability
-    crypto::secret_key alice_address_generator;
-    make_carrot_index_extension_generator(alice.s_generate_address,
-        alice_j_major,
-        alice_j_minor,
-        alice_address_generator);
-
-    crypto::secret_key alice_subaddr_scalar;
-    make_carrot_subaddress_scalar(alice.account_spend_pubkey,
-        alice_address_generator,
-        alice_j_major,
-        alice_j_minor,
-        alice_subaddr_scalar);
-
-    EXPECT_TRUE(can_open_fcmp_onetime_address(alice.k_prove_spend,
-        alice.k_generate_image,
-        alice_subaddress ? alice_subaddr_scalar : crypto::secret_key{{1}},
+    EXPECT_TRUE(alice.can_open_fcmp_onetime_address(alice_payment_proposal.destination_address_spend_pubkey,
         alice_scan.sender_extension_g,
         alice_scan.sender_extension_t,
         alice_enote.onetime_address));
     
     // check Bob spendability
-    crypto::secret_key bob_address_generator;
-    make_carrot_index_extension_generator(bob.s_generate_address,
-        bob_j_major,
-        bob_j_minor,
-        bob_address_generator);
-
-    crypto::secret_key bob_subaddr_scalar;
-    make_carrot_subaddress_scalar(bob.account_spend_pubkey,
-        bob_address_generator,
-        bob_j_major,
-        bob_j_minor,
-        bob_subaddr_scalar);
-
-    EXPECT_TRUE(can_open_fcmp_onetime_address(bob.k_prove_spend,
-        bob.k_generate_image,
-        bob_subaddress ? bob_subaddr_scalar : crypto::secret_key{{1}},
+    EXPECT_TRUE(bob.can_open_fcmp_onetime_address(bob_payment_proposal.destination.address_spend_pubkey,
         bob_scan.sender_extension_g,
         bob_scan.sender_extension_t,
         bob_enote.onetime_address));

@@ -30,8 +30,14 @@
 #include "carrot_tx_builder_inputs.h"
 
 //local headers
+#include "carrot_core/account_secrets.h"
+#include "carrot_core/address_utils.h"
+#include "carrot_core/carrot_enote_scan.h"
 #include "carrot_core/config.h"
+#include "carrot_core/enote_utils.h"
+#include "crypto/generators.h"
 #include "misc_log_ex.h"
+#include "ringct/rctOps.h"
 
 //third party headers
 
@@ -173,6 +179,183 @@ static std::pair<size_t, boost::multiprecision::int128_t> input_count_for_max_us
     return res;
 }
 //-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+rct::key load_key(const std::uint8_t bytes[32])
+{
+    rct::key k;
+    memcpy(k.bytes, bytes, sizeof(k));
+    return k;
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+static FcmpInputCompressed calculate_fcmp_input_for_rerandomizations(const crypto::public_key &onetime_address,
+    const rct::key &amount_commitment,
+    const rct::key &r_o,
+    const rct::key &r_i,
+    const rct::key &r_r_i,
+    const rct::key &r_c)
+{
+    FcmpInputCompressed res;
+    rct::key temp1, temp2;
+
+    // O~ = O + r_o T
+    temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_T()), r_o);
+    temp1 = rct::addKeys(rct::pk2rct(onetime_address), temp1);
+    memcpy(res.O_tilde, temp1.bytes, sizeof(rct::key));
+
+    // I = Hp(O)
+    crypto::ec_point I;
+    crypto::derive_key_image_generator(rct::rct2pk(temp1), I);
+
+    // I~ = I + r_i U
+    temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), r_i);
+    temp1 = rct::addKeys(rct::pt2rct(I), temp1);
+    memcpy(res.I_tilde, temp1.bytes, sizeof(rct::key));
+
+    // R = r_i V + r_r_i T
+    temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_V()), r_i);
+    temp2 = rct::scalarmultKey(rct::pk2rct(crypto::get_T()), r_r_i);
+    temp1 = rct::addKeys(temp1, temp2);
+    memcpy(res.R, temp1.bytes, sizeof(rct::key));
+
+    // C~ = C + r_c G
+    rct::addKeys1(temp1, r_c, amount_commitment);
+    memcpy(res.C_tilde, temp1.bytes, sizeof(rct::key));
+
+    return res;
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+static void make_sal_proof_nominal_address_naive(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const crypto::secret_key &address_privkey_g,
+    const crypto::secret_key &address_privkey_t,
+    const crypto::secret_key &view_extension_g,
+    const crypto::secret_key &view_extension_t,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+{
+    // O = x G + y T
+
+    crypto::secret_key x;
+    sc_add(to_bytes(x),
+        to_bytes(address_privkey_g),
+        to_bytes(view_extension_g));
+
+    crypto::secret_key y;
+    sc_add(to_bytes(y),
+        to_bytes(address_privkey_t),
+        to_bytes(view_extension_t));
+
+    sal_proof_out = fcmp_pp::prove_sal(signable_tx_hash, x, y, rerandomized_output);
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+static void make_sal_proof_nominal_address_carrot_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &address_privkey_g,
+    const crypto::secret_key &address_privkey_t,
+    const crypto::public_key &account_spend_pubkey,
+    const view_balance_secret_device *s_view_balance_dev,
+    const view_incoming_key_device *k_view_incoming_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+{
+    // We scan scan here as a defensive programming measure against naive-scanner burning bugs,
+    // malicious-scanner burning bugs, and malicious-scanner subaddress swaps. However, if you want
+    // a user to confirm other details about the enote they're spending (e.g. amount, payment ID,
+    // subaddress index, internal message, enote type, TXID), you're going to have to pre-scan this
+    // enote and implement the checks yourself before calling this function. Hardware wallet
+    // developers: if you want your users to keep their hard-earned funds, don't skip cold-side
+    // enote scanning in Carrot enotes! Legacy enotes aren't SAFU from malicious-scanner burning
+    // anyways since K_o doesn't bind to C_a.
+
+    crypto::secret_key sender_extension_g;
+    crypto::secret_key sender_extension_t;
+    crypto::public_key address_spend_pubkey;
+    rct::xmr_amount amount;
+    crypto::secret_key amount_blinding_factor;
+    payment_id_t payment_id;
+    CarrotEnoteType enote_type;
+    janus_anchor_t internal_message;
+
+    // first, try do an internal scan of the enote
+    bool scanned = false;
+    if (s_view_balance_dev)
+    {
+        scanned = try_scan_carrot_enote_internal(opening_hint.source_enote,
+            *s_view_balance_dev,
+            sender_extension_g,
+            sender_extension_t,
+            address_spend_pubkey,
+            amount,
+            amount_blinding_factor,
+            enote_type,
+            internal_message);
+        payment_id = null_payment_id;
+    }
+    else
+    {
+        internal_message = janus_anchor_t{};
+    }
+
+    // if that didn't work, try an external scan
+    if (!scanned && k_view_incoming_dev)
+    {
+        scanned = try_ecdh_and_scan_carrot_enote_external(opening_hint.source_enote,
+            opening_hint.encrypted_payment_id,
+            *k_view_incoming_dev,
+            account_spend_pubkey,
+            sender_extension_g,
+            sender_extension_t,
+            address_spend_pubkey,
+            amount,
+            amount_blinding_factor,
+            payment_id,
+            enote_type);
+    }
+
+    CHECK_AND_ASSERT_THROW_MES(scanned,
+        "make sal proof nominal address carrot v1: cannot spend enote because of a scan failure");
+
+    make_sal_proof_nominal_address_naive(signable_tx_hash,
+        rerandomized_output,
+        address_privkey_t,
+        address_privkey_g,
+        sender_extension_g,
+        sender_extension_t,
+        sal_proof_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+const crypto::public_key &onetime_address_ref(const OutputOpeningHintVariant &opening_hint)
+{
+    struct onetime_address_ref_visitor: public tools::variant_static_visitor<const crypto::public_key &>
+    {
+        const crypto::public_key &operator()(const LegacyOutputOpeningHintV1 &h) const
+        { return h.onetime_address; }
+        const crypto::public_key &operator()(const CarrotOutputOpeningHintV1 &h) const 
+        { return h.source_enote.onetime_address; }
+        const crypto::public_key &operator()(const CarrotCoinbaseOutputOpeningHintV1 &h) const
+        { return h.source_enote.onetime_address; }
+    };
+
+    return opening_hint.visit(onetime_address_ref_visitor{});
+}
+//-------------------------------------------------------------------------------------------------------------------
+rct::key amount_commitment_ref(const OutputOpeningHintVariant &opening_hint)
+{
+    struct amount_commitment_ref_visitor: public tools::variant_static_visitor<rct::key>
+    {
+        rct::key operator()(const LegacyOutputOpeningHintV1 &h) const
+        { return rct::commit(h.amount, rct::sk2rct(h.amount_blinding_factor)); }
+        rct::key operator()(const CarrotOutputOpeningHintV1 &h) const 
+        { return h.source_enote.amount_commitment; }
+        rct::key operator()(const CarrotCoinbaseOutputOpeningHintV1 &h) const
+        { return rct::zeroCommitVartime(h.source_enote.amount); }
+    };
+
+    return opening_hint.visit(amount_commitment_ref_visitor{});
+}
 //-------------------------------------------------------------------------------------------------------------------
 select_inputs_func_t make_single_transfer_input_selector(
     const epee::span<const CarrotPreSelectedInput> input_candidates,
@@ -355,6 +538,148 @@ select_inputs_func_t make_single_transfer_input_selector(
         if (selected_input_indices_out != nullptr)
             *selected_input_indices_out = std::move(selected_inputs_indices);
     };
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool verify_rerandomized_output_basic(const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const crypto::public_key &onetime_address,
+    const rct::key &amount_commitment)
+{
+    const FcmpInputCompressed recomputed_input = calculate_fcmp_input_for_rerandomizations(
+        onetime_address,
+        amount_commitment,
+        load_key(rerandomized_output.r_o),
+        load_key(rerandomized_output.r_i),
+        load_key(rerandomized_output.r_r_i),
+        load_key(rerandomized_output.r_c));
+
+    return 0 == memcmp(&recomputed_input, &rerandomized_output.input, sizeof(FcmpInputCompressed));
+}
+//-------------------------------------------------------------------------------------------------------------------
+bool verify_openable_rerandomized_output_basic(const CarrotOpenableRerandomizedOutputV1 &openable_rerandomized_output)
+{
+    return verify_rerandomized_output_basic(openable_rerandomized_output.rerandomized_output,
+        onetime_address_ref(openable_rerandomized_output.opening_hint),
+        amount_commitment_ref(openable_rerandomized_output.opening_hint));
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_legacy_to_legacy_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const LegacyOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_spend,
+    const cryptonote_hierarchy_address_device &addr_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+{
+    // k^g_v = k^j_subext + k_o
+    crypto::secret_key view_extension_g;
+    addr_dev.make_legacy_subaddress_extension(opening_hint.subaddr_index.major,
+        opening_hint.subaddr_index.minor,
+        view_extension_g);
+    sc_add(to_bytes(view_extension_g),
+        to_bytes(view_extension_g),
+        to_bytes(opening_hint.sender_extension_g));
+
+    // note that we pass k_spend as k_generate_image, and leave k_prove_spend as 0
+    make_sal_proof_nominal_address_naive(signable_tx_hash,
+        rerandomized_output,
+        k_spend,
+        crypto::null_skey,
+        view_extension_g,
+        crypto::null_skey,
+        sal_proof_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_carrot_to_legacy_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_spend,
+    const cryptonote_hierarchy_address_device &addr_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+{
+    // check that the opening hint tells us to open as a legacy address
+    const AddressDeriveType derive_type = opening_hint.subaddr_index.derive_type;
+    CHECK_AND_ASSERT_THROW_MES(derive_type == AddressDeriveType::PreCarrot,
+        "make sal proof carrot to carrot v1: invalid subaddr derive type: " << static_cast<int>(derive_type));
+
+    // k^{j, g}_addr = k_s + k^j_subext
+    crypto::secret_key address_privkey_g;
+    addr_dev.make_legacy_subaddress_extension(opening_hint.subaddr_index.index.major,
+        opening_hint.subaddr_index.index.minor,
+        address_privkey_g);
+    sc_add(to_bytes(address_privkey_g),
+        to_bytes(address_privkey_g),
+        to_bytes(k_spend));
+
+    make_sal_proof_nominal_address_carrot_v1(signable_tx_hash,
+        rerandomized_output,
+        opening_hint,
+        address_privkey_g,
+        /*address_privkey_t=*/crypto::null_skey,
+        addr_dev.get_cryptonote_account_spend_pubkey(),
+        /*s_view_balance_dev=*/nullptr,
+        &addr_dev,
+        sal_proof_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_prove_spend,
+    const crypto::secret_key &k_generate_image,
+    const view_balance_secret_device &s_view_balance_dev,
+    const view_incoming_key_device &k_view_incoming_dev,
+    const generate_address_secret_device &s_generate_address_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+{
+    // check that the opening hint tells us to open as a Carrot address
+    const AddressDeriveType derive_type = opening_hint.subaddr_index.derive_type;
+    CHECK_AND_ASSERT_THROW_MES(derive_type == AddressDeriveType::Carrot,
+        "make sal proof carrot to carrot v1: invalid subaddr derive type: " << static_cast<int>(derive_type));
+
+    // K_s = k_gi G + k_ps T
+    crypto::public_key account_spend_pubkey;
+    make_carrot_spend_pubkey(k_generate_image, k_prove_spend, account_spend_pubkey);
+
+    const std::uint32_t major_index = opening_hint.subaddr_index.index.major;
+    const std::uint32_t minor_index = opening_hint.subaddr_index.index.minor;
+    const bool is_subaddress = major_index || minor_index;
+    crypto::secret_key k_subaddress_scalar;
+    if (is_subaddress)
+    {
+        // s^j_gen = H_32[s_ga](j_major, j_minor)
+        crypto::secret_key s_address_generator;
+        s_generate_address_dev.make_index_extension_generator(major_index, minor_index, s_address_generator);
+
+        // k^j_subscal = H_n(K_s, j_major, j_minor, s^j_gen)
+        make_carrot_subaddress_scalar(account_spend_pubkey,
+            s_address_generator,
+            major_index,
+            minor_index,
+            k_subaddress_scalar);
+    }
+    else
+    {
+        // k^j_subscal = 1
+        sc_0(to_bytes(k_subaddress_scalar));
+        k_subaddress_scalar.data[0] = 1;
+    }
+
+    // k^{j, g}_addr = k_gi * k^j_subscal
+    crypto::secret_key address_privkey_g;
+    sc_mul(to_bytes(address_privkey_g), to_bytes(k_generate_image), to_bytes(k_subaddress_scalar));
+
+    // k^{j, t}_addr = k_ps * k^j_subscal
+    crypto::secret_key address_privkey_t;
+    sc_mul(to_bytes(address_privkey_t), to_bytes(k_prove_spend), to_bytes(k_subaddress_scalar));
+
+    make_sal_proof_nominal_address_carrot_v1(signable_tx_hash,
+        rerandomized_output,
+        opening_hint,
+        address_privkey_g,
+        address_privkey_t,
+        account_spend_pubkey,
+        &s_view_balance_dev,
+        &k_view_incoming_dev,
+        sal_proof_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace carrot

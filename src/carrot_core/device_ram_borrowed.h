@@ -61,7 +61,7 @@ public:
         const crypto::public_key &account_spend_pubkey,
         janus_anchor_t &anchor_special_out) const override;
 
-private:
+protected:
     const crypto::secret_key &m_k_view_incoming;
 };
 
@@ -79,7 +79,7 @@ public:
         const input_context_t &input_context,
         crypto::hash &s_sender_receiver_out) const override;
 
-private:
+protected:
     const crypto::secret_key &m_s_view_balance;
 };
 
@@ -93,7 +93,7 @@ public:
         const std::uint32_t minor_index,
         crypto::secret_key &address_generator_out) const override;
 
-private:
+protected:
     const crypto::secret_key &m_s_generate_address;
 };
 
