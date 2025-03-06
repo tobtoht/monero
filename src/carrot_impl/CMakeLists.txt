@@ -27,6 +27,8 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 set(carrot_impl_sources
+  address_device_ram_borrowed.cpp
+  address_utils_compat.cpp
   carrot_tx_builder_inputs.cpp
   carrot_tx_builder_utils.cpp
   carrot_tx_format_utils.cpp

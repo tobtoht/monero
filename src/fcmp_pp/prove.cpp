@@ -264,7 +264,7 @@ bool verify(const crypto::hash &signable_tx_hash,
 //----------------------------------------------------------------------------------------------------------------------
 bool verify_sal(const crypto::hash &signable_tx_hash,
     const FcmpInputCompressed &input,
-    crypto::key_image &key_image,
+    const crypto::key_image &key_image,
     const FcmpPpSalProof &sal_proof)
 {
     if (sal_proof.size() != FCMP_PP_SAL_PROOF_SIZE_V1)

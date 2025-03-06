@@ -29,8 +29,9 @@
 #pragma once
 
 //local headers
-#include "address_devices.h"
+#include "address_device.h"
 #include "carrot_tx_builder_types.h"
+#include "fcmp_pp/curve_trees.h"
 #include "span.h"
 
 //third party headers
@@ -149,6 +150,12 @@ select_inputs_func_t make_single_transfer_input_selector(
     const epee::span<const InputSelectionPolicy> policies,
     const std::uint32_t flags,
     std::set<size_t> *selected_input_indices_out);
+
+void make_carrot_rerandomized_outputs_nonrefundable(const std::vector<crypto::public_key> &input_onetime_addresses,
+    const std::vector<rct::key> &input_amount_commitments,
+    const std::vector<rct::key> &input_amount_blinding_factors,
+    const std::vector<rct::key> &output_amount_blinding_factors,
+    std::vector<FcmpRerandomizedOutputCompressed> &rerandomized_outputs_out);
 
 bool verify_rerandomized_output_basic(const FcmpRerandomizedOutputCompressed &rerandomized_output,
     const crypto::public_key &onetime_address,

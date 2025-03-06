@@ -43,7 +43,7 @@
 namespace carrot
 {
 
-class view_incoming_key_ram_borrowed_device: public view_incoming_key_device
+class view_incoming_key_ram_borrowed_device: virtual public view_incoming_key_device
 {
 public:
     view_incoming_key_ram_borrowed_device(const crypto::secret_key &k_view_incoming):

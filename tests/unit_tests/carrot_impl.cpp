@@ -49,12 +49,6 @@ namespace
 {
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
-static crypto::key_image gen_key_image()
-{
-    return rct::rct2ki(rct::pkGen());
-}
-//----------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------------------
 static void unittest_scan_enote_set_multi_account(const std::vector<CarrotEnoteV1> &enotes,
     const encrypted_payment_id_t encrypted_payment_id,
     const epee::span<const mock::mock_carrot_and_legacy_keys * const> accounts,
@@ -1174,7 +1168,7 @@ TEST(carrot_impl, make_single_transfer_input_selector_TwoInputsPreferOldest_1)
         CarrotPreSelectedInput {
             .core = CarrotSelectedInput {
                 .amount = 500,
-                .key_image = gen_key_image(),
+                .key_image = mock::gen_key_image(),
             },
             .is_external = false,
             .block_index = 72
@@ -1182,7 +1176,7 @@ TEST(carrot_impl, make_single_transfer_input_selector_TwoInputsPreferOldest_1)
         CarrotPreSelectedInput {
             .core = CarrotSelectedInput {
                 .amount = 200,
-                .key_image = gen_key_image(),
+                .key_image = mock::gen_key_image(),
             },
             .is_external = false,
             .block_index = 34

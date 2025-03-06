@@ -103,7 +103,18 @@ struct mock_carrot_and_legacy_keys
         crypto::secret_key &address_privkey_g_out,
         crypto::secret_key &address_privkey_t_out) const;
 
+    bool try_searching_for_opening_for_onetime_address(const crypto::public_key &address_spend_pubkey,
+        const crypto::secret_key &sender_extension_g,
+        const crypto::secret_key &sender_extension_t,
+        crypto::secret_key &x_out,
+        crypto::secret_key &y_out) const;
+
     bool can_open_fcmp_onetime_address(const crypto::public_key &address_spend_pubkey,
+        const crypto::secret_key &sender_extension_g,
+        const crypto::secret_key &sender_extension_t,
+        const crypto::public_key &onetime_address) const;
+
+    crypto::key_image derive_key_image(const crypto::public_key &address_spend_pubkey,
         const crypto::secret_key &sender_extension_g,
         const crypto::secret_key &sender_extension_t,
         const crypto::public_key &onetime_address) const;
@@ -145,6 +156,10 @@ bool compare_scan_result(const mock_scan_result_t &scan_res,
 bool compare_scan_result(const mock_scan_result_t &scan_res,
     const CarrotPaymentProposalSelfSendV1 &selfsend_payment_proposal,
     const rct::xmr_amount allowed_fee_margin_opt = 0);
+//----------------------------------------------------------------------------------------------------------------------
+crypto::key_image gen_key_image();
+//----------------------------------------------------------------------------------------------------------------------
+crypto::secret_key gen_secret_key();
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock
 } //namespace carrot

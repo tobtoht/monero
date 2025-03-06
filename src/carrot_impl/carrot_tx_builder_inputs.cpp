@@ -188,6 +188,12 @@ rct::key load_key(const std::uint8_t bytes[32])
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+void store_key(std::uint8_t bytes[32], const rct::key &k)
+{
+    memcpy(bytes, k.bytes, 32);
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 static FcmpInputCompressed calculate_fcmp_input_for_rerandomizations(const crypto::public_key &onetime_address,
     const rct::key &amount_commitment,
     const rct::key &r_o,
@@ -205,7 +211,7 @@ static FcmpInputCompressed calculate_fcmp_input_for_rerandomizations(const crypt
 
     // I = Hp(O)
     crypto::ec_point I;
-    crypto::derive_key_image_generator(rct::rct2pk(temp1), I);
+    crypto::derive_key_image_generator(onetime_address, I);
 
     // I~ = I + r_i U
     temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), r_i);
@@ -226,25 +232,55 @@ static FcmpInputCompressed calculate_fcmp_input_for_rerandomizations(const crypt
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static FcmpRerandomizedOutputCompressed calculate_rerandomized_output(
+    const crypto::public_key &onetime_address,
+    const rct::key &amount_commitment,
+    const rct::key &r_o,
+    const rct::key &r_i,
+    const rct::key &r_r_i,
+    const rct::key &r_c)
+{
+    FcmpRerandomizedOutputCompressed res;
+
+    // calculate O~, I~, R, C~
+    res.input = calculate_fcmp_input_for_rerandomizations(onetime_address,
+        amount_commitment,
+        r_o,
+        r_i,
+        r_r_i,
+        r_c);
+
+    // copy r_o, r_i, r_r_i, r_c
+    store_key(res.r_o, r_o);
+    store_key(res.r_i, r_i);
+    store_key(res.r_r_i, r_r_i);
+    store_key(res.r_c, r_c);
+
+    return res;
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 static void make_sal_proof_nominal_address_naive(const crypto::hash &signable_tx_hash,
     const FcmpRerandomizedOutputCompressed &rerandomized_output,
     const crypto::secret_key &address_privkey_g,
     const crypto::secret_key &address_privkey_t,
-    const crypto::secret_key &view_extension_g,
-    const crypto::secret_key &view_extension_t,
+    const crypto::secret_key &sender_extension_g,
+    const crypto::secret_key &sender_extension_t,
     fcmp_pp::FcmpPpSalProof &sal_proof_out)
 {
     // O = x G + y T
 
+    // x = k^{j,g}_addr + k^g_o
     crypto::secret_key x;
     sc_add(to_bytes(x),
         to_bytes(address_privkey_g),
-        to_bytes(view_extension_g));
+        to_bytes(sender_extension_g));
 
+    // y = k^{j,t}_addr + k^t_o
     crypto::secret_key y;
     sc_add(to_bytes(y),
         to_bytes(address_privkey_t),
-        to_bytes(view_extension_t));
+        to_bytes(sender_extension_t));
 
     sal_proof_out = fcmp_pp::prove_sal(signable_tx_hash, x, y, rerandomized_output);
 }
@@ -260,6 +296,11 @@ static void make_sal_proof_nominal_address_carrot_v1(const crypto::hash &signabl
     const view_incoming_key_device *k_view_incoming_dev,
     fcmp_pp::FcmpPpSalProof &sal_proof_out)
 {
+    CHECK_AND_ASSERT_THROW_MES(verify_rerandomized_output_basic(rerandomized_output,
+            opening_hint.source_enote.onetime_address,
+            opening_hint.source_enote.amount_commitment),
+        "make sal proof nominal address carrot v1: rerandomized output does not verify");
+
     // We scan scan here as a defensive programming measure against naive-scanner burning bugs,
     // malicious-scanner burning bugs, and malicious-scanner subaddress swaps. However, if you want
     // a user to confirm other details about the enote they're spending (e.g. amount, payment ID,
@@ -540,6 +581,67 @@ select_inputs_func_t make_single_transfer_input_selector(
     };
 }
 //-------------------------------------------------------------------------------------------------------------------
+void make_carrot_rerandomized_outputs_nonrefundable(const std::vector<crypto::public_key> &input_onetime_addresses,
+    const std::vector<rct::key> &input_amount_commitments,
+    const std::vector<rct::key> &input_amount_blinding_factors,
+    const std::vector<rct::key> &output_amount_blinding_factors,
+    std::vector<FcmpRerandomizedOutputCompressed> &rerandomized_outputs_out)
+{
+    rerandomized_outputs_out.clear();
+
+    const size_t nins = input_onetime_addresses.size();
+    CHECK_AND_ASSERT_THROW_MES(nins, "make carrot rerandomized outputs nonrefundable: no inputs provided");
+    CHECK_AND_ASSERT_THROW_MES(input_amount_commitments.size() == nins,
+        "make carrot rerandomized outputs nonrefundable: wrong input amount commitments size");
+    CHECK_AND_ASSERT_THROW_MES(input_amount_blinding_factors.size() == nins,
+        "make carrot rerandomized outputs nonrefundable: wrong input amount blinding factors size");
+
+    // set blinding_factor_imbalance to sum(output amount blinding factors) - sum(input amount blinding factors)
+    rct::key blinding_factor_imbalance;
+    sc_0(blinding_factor_imbalance.bytes);
+    blinding_factor_imbalance.bytes[0] = 1; // we start off with 1 to account for the fee amount commitment
+    for (const rct::key &obf : output_amount_blinding_factors)
+        sc_add(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, obf.bytes);
+    for (const rct::key &ibf : input_amount_blinding_factors)
+        sc_sub(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, ibf.bytes);
+
+    rerandomized_outputs_out.reserve(nins);
+    for (size_t i = 0; i < nins; ++i)
+    {
+        const bool last = i == nins - 1;
+
+        // O
+        const crypto::public_key &onetime_address = input_onetime_addresses.at(i);
+        // C
+        const rct::key &amount_commitment = input_amount_commitments.at(i);
+
+        // I = Hp(O)
+        crypto::ec_point I;
+        crypto::derive_key_image_generator(onetime_address, I);
+
+        // sample r_o, r_i, r_r_i randomly
+        const rct::key r_o = rct::skGen();
+        const rct::key r_i = rct::skGen();
+        const rct::key r_r_i = rct::skGen();
+
+        // sample r_c for all inputs except for the last one, set that one such that the tx balances
+        const rct::key r_c = last ? blinding_factor_imbalance : rct::skGen();
+
+        // update blinding_factor_imbalance with new rerandomization
+        sc_sub(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, r_c.bytes);
+
+        // calculate rerandomized output and push
+        rerandomized_outputs_out.push_back(calculate_rerandomized_output(
+            onetime_address,
+            amount_commitment,
+            r_o,
+            r_i,
+            r_r_i,
+            r_c
+        ));
+    }
+}
+//-------------------------------------------------------------------------------------------------------------------
 bool verify_rerandomized_output_basic(const FcmpRerandomizedOutputCompressed &rerandomized_output,
     const crypto::public_key &onetime_address,
     const rct::key &amount_commitment)
@@ -569,21 +671,33 @@ void make_sal_proof_legacy_to_legacy_v1(const crypto::hash &signable_tx_hash,
     const cryptonote_hierarchy_address_device &addr_dev,
     fcmp_pp::FcmpPpSalProof &sal_proof_out)
 {
-    // k^g_v = k^j_subext + k_o
-    crypto::secret_key view_extension_g;
-    addr_dev.make_legacy_subaddress_extension(opening_hint.subaddr_index.major,
-        opening_hint.subaddr_index.minor,
-        view_extension_g);
-    sc_add(to_bytes(view_extension_g),
-        to_bytes(view_extension_g),
-        to_bytes(opening_hint.sender_extension_g));
+    CHECK_AND_ASSERT_THROW_MES(verify_rerandomized_output_basic(rerandomized_output,
+            opening_hint.onetime_address,
+            rct::commit(opening_hint.amount, rct::sk2rct(opening_hint.amount_blinding_factor))),
+        "make sal proof legacy to legacy v1: rerandomized output does not verify");
+
+    // k^{j,}g_addr = k_s + k^j_subext
+    crypto::secret_key address_privkey_g;
+    if (opening_hint.subaddr_index.is_subaddress())
+    {
+        addr_dev.make_legacy_subaddress_extension(opening_hint.subaddr_index.major,
+            opening_hint.subaddr_index.minor,
+            address_privkey_g);
+    }
+    else
+    {
+        sc_0(to_bytes(address_privkey_g));
+    }
+    sc_add(to_bytes(address_privkey_g),
+        to_bytes(address_privkey_g),
+        to_bytes(k_spend));
 
     // note that we pass k_spend as k_generate_image, and leave k_prove_spend as 0
     make_sal_proof_nominal_address_naive(signable_tx_hash,
         rerandomized_output,
-        k_spend,
+        address_privkey_g,
         crypto::null_skey,
-        view_extension_g,
+        opening_hint.sender_extension_g,
         crypto::null_skey,
         sal_proof_out);
 }

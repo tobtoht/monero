@@ -35,6 +35,9 @@
 
 //standard headers
 
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "carrot.mock"
+
 namespace carrot
 {
 namespace mock
@@ -180,11 +183,11 @@ bool mock_carrot_and_legacy_keys::try_searching_for_opening_for_subaddress(const
 
     return address_spend_pubkey == recomputed_address_spend_pubkey;
 }
-//----------------------------------------------------------------------------------------------------------------------
-bool mock_carrot_and_legacy_keys::can_open_fcmp_onetime_address(const crypto::public_key &address_spend_pubkey,
+bool mock_carrot_and_legacy_keys::try_searching_for_opening_for_onetime_address(const crypto::public_key &address_spend_pubkey,
     const crypto::secret_key &sender_extension_g,
     const crypto::secret_key &sender_extension_t,
-    const crypto::public_key &onetime_address) const
+    crypto::secret_key &x_out,
+    crypto::secret_key &y_out) const
 {
     // k^{j,g}_addr, k^{j,t}_addr
     crypto::secret_key address_privkey_g;
@@ -195,19 +198,60 @@ bool mock_carrot_and_legacy_keys::can_open_fcmp_onetime_address(const crypto::pu
         return false;
 
     // x = k^{j,g}_addr + k^g_o
-    rct::key x;
-    sc_add(x.bytes, to_bytes(address_privkey_g), to_bytes(sender_extension_g));
+    sc_add(to_bytes(x_out), to_bytes(address_privkey_g), to_bytes(sender_extension_g));
 
     // y = k^{j,t}_addr + k^t_o
-    rct::key y;
-    sc_add(y.bytes, to_bytes(address_privkey_t), to_bytes(sender_extension_t));
+    sc_add(to_bytes(y_out), to_bytes(address_privkey_t), to_bytes(sender_extension_t));
+
+    return true;
+}
+//----------------------------------------------------------------------------------------------------------------------
+bool mock_carrot_and_legacy_keys::can_open_fcmp_onetime_address(const crypto::public_key &address_spend_pubkey,
+    const crypto::secret_key &sender_extension_g,
+    const crypto::secret_key &sender_extension_t,
+    const crypto::public_key &onetime_address) const
+{
+    crypto::secret_key x, y;
+    if (!try_searching_for_opening_for_onetime_address(address_spend_pubkey,
+            sender_extension_g,
+            sender_extension_t,
+            x,
+            y))
+        return false;
 
     // O' = x G + y T
     rct::key recomputed_onetime_address;
-    rct::addKeys2(recomputed_onetime_address, x, y, rct::pk2rct(crypto::get_T()));
+    rct::addKeys2(recomputed_onetime_address,
+        rct::sk2rct(x),
+        rct::sk2rct(y),
+        rct::pk2rct(crypto::get_T()));
 
     // O' ?= O
     return 0 == memcmp(&recomputed_onetime_address, &onetime_address, sizeof(rct::key));
+}
+//----------------------------------------------------------------------------------------------------------------------
+crypto::key_image mock_carrot_and_legacy_keys::derive_key_image(const crypto::public_key &address_spend_pubkey,
+    const crypto::secret_key &sender_extension_g,
+    const crypto::secret_key &sender_extension_t,
+    const crypto::public_key &onetime_address) const
+{
+    CHECK_AND_ASSERT_THROW_MES(can_open_fcmp_onetime_address(
+            address_spend_pubkey,
+            sender_extension_g,
+            sender_extension_t,
+            onetime_address),
+        "mock carrot and legacy keys: derive key image: cannot open onetime address");
+
+    crypto::secret_key x, y;
+    try_searching_for_opening_for_onetime_address(address_spend_pubkey,
+        sender_extension_g,
+        sender_extension_t,
+        x,
+        y);
+
+    crypto::key_image L;
+    crypto::generate_key_image(onetime_address, x, L);
+    return L;
 }
 //----------------------------------------------------------------------------------------------------------------------
 void mock_carrot_and_legacy_keys::generate_subaddress_map()
@@ -384,6 +428,16 @@ bool compare_scan_result(const mock_scan_result_t &scan_res,
         return false;
 
     return true;
+}
+//----------------------------------------------------------------------------------------------------------------------
+crypto::key_image gen_key_image()
+{
+    return rct::rct2ki(rct::pkGen());
+}
+//----------------------------------------------------------------------------------------------------------------------
+crypto::secret_key gen_secret_key()
+{
+    return rct::rct2sk(rct::skGen());
 }
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock
