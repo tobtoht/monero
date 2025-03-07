@@ -202,21 +202,23 @@ static bool check_e_u_w(const fe e, const fe u, const fe w)
     fe_sq(w_sq, w);
     fe_mul(u_w_sq, u, w_sq);
 
-    fe u_sq, A_u_mul_e_sq, e_sq, e_sq_sq, B_mul_e_sq_sq, sum;
+    fe u_sq, e_sq, e_sq_sq;
     fe_sq(u_sq, u);
-    fe_mul(A_u_mul_e_sq, A, u);
     fe_sq(e_sq, e);
-    fe_mul(A_u_mul_e_sq, A_u_mul_e_sq, e_sq);
     fe_sq(e_sq_sq, e_sq);
+
+    fe A_u_mul_e_sq, B_mul_e_sq_sq;
+    fe_mul(A_u_mul_e_sq, A, u);
+    fe_mul(A_u_mul_e_sq, A_u_mul_e_sq, e_sq);
     fe_mul(B_mul_e_sq_sq, B, e_sq_sq);
 
     fe_reduce(A_u_mul_e_sq, A_u_mul_e_sq);
-    fe_add(sum, u_sq, A_u_mul_e_sq);
-
-    fe_reduce(sum, sum);
     fe_reduce(B_mul_e_sq_sq, B_mul_e_sq_sq);
-    fe_add(sum, sum, B_mul_e_sq_sq);
 
+    fe sum;
+    fe_add(sum, u_sq, A_u_mul_e_sq);
+    fe_reduce(sum, sum);
+    fe_add(sum, sum, B_mul_e_sq_sq);
     fe_reduce(sum, sum);
 
     if (memcmp(u_w_sq, sum, sizeof(fe)) != 0) {
