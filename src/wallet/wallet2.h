@@ -366,6 +366,13 @@ private:
         return output_public_key;
       };
 
+      const fcmp_pp::curve_trees::OutputPair get_output_pair() const {
+        return {
+          .output_pubkey = get_public_key(),
+          .commitment = this->is_rct() ? rct::commit(this->amount(), m_mask) : rct::zeroCommitVartime(this->amount())
+        };
+      };
+
       BEGIN_SERIALIZE_OBJECT()
         FIELD(m_block_height)
         FIELD(m_tx)
@@ -898,9 +905,8 @@ private:
       tx_entry_data(): lowest_height((uint64_t)-1), highest_height(0) {}
     };
 
-    using Selene = fcmp_pp::curve_trees::Selene;
-    using Helios = fcmp_pp::curve_trees::Helios;
-    using TreeCacheV1 = fcmp_pp::curve_trees::TreeCache<Selene, Helios>;
+    using CurveTreesV1 = fcmp_pp::curve_trees::CurveTreesV1;
+    using TreeCacheV1 = fcmp_pp::curve_trees::TreeCacheV1;
 
     /*!
      * \brief  Generates a wallet or restores one. Assumes the multisig setup
@@ -2062,6 +2068,7 @@ private:
     bool m_processing_background_cache;
     background_sync_data_t m_background_sync_data;
 
+    std::shared_ptr<CurveTreesV1> m_curve_trees;
     TreeCacheV1 m_tree_cache;
   };
 }

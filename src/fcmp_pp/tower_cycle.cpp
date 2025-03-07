@@ -278,6 +278,26 @@ template void extend_scalars_from_cycle_points<Selene, Helios>(const std::unique
     const std::vector<Selene::Point> &points,
     std::vector<Helios::Scalar> &scalars_out);
 //----------------------------------------------------------------------------------------------------------------------
+template<typename C>
+std::vector<typename C::Chunk> scalar_chunks_to_chunk_vector(
+    const std::vector<std::vector<typename C::Scalar>> &scalar_chunks)
+{
+    std::vector<typename C::Chunk> scalar_chunk_vector;
+    scalar_chunk_vector.reserve(scalar_chunks.size());
+    for (const auto &scalar_chunk : scalar_chunks)
+    {
+        scalar_chunk_vector.push_back({ scalar_chunk.data(), scalar_chunk.size() });
+    }
+    return scalar_chunk_vector;
+}
+
+// Explicit instantiations
+template std::vector<HeliosT::Chunk> scalar_chunks_to_chunk_vector<HeliosT>(
+    const std::vector<std::vector<HeliosT::Scalar>> &scalar_chunks);
+
+template std::vector<SeleneT::Chunk> scalar_chunks_to_chunk_vector<SeleneT>(
+    const std::vector<std::vector<SeleneT::Scalar>> &scalar_chunks);
+//----------------------------------------------------------------------------------------------------------------------
 uint8_t *selene_tree_root(const Selene::Point &point) { return ::selene_tree_root(point); }
 uint8_t *helios_tree_root(const Helios::Point &point) { return ::helios_tree_root(point); }
 //----------------------------------------------------------------------------------------------------------------------

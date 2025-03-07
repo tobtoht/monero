@@ -31,6 +31,7 @@
 #include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_basic.h"
 #include "fcmp_pp_crypto.h"
+#include "fcmp_pp_types.h"
 #include "misc_log_ex.h"
 #include "serialization/keyvalue_serialization.h"
 #include "tower_cycle.h"
@@ -197,6 +198,8 @@ struct OutputTuple final
     rct::key O;
     rct::key I;
     rct::key C;
+
+    const OutputBytes to_output_bytes() const { return OutputBytes { O.bytes, I.bytes, C.bytes }; }
 };
 
 // Struct composed of ec elems needed to get a full-fledged leaf tuple
@@ -343,6 +346,7 @@ public:
     struct Path final
     {
         std::vector<OutputTuple> leaves;
+        // TODO: std::size_t idx_in_leaves;
         std::vector<std::vector<typename C1::Point>> c1_layers;
         std::vector<std::vector<typename C2::Point>> c2_layers;
 
@@ -356,6 +360,14 @@ public:
         bool empty() { return leaves.empty() && c1_layers.empty() && c2_layers.empty(); }
     };
 
+    // A path ready to be used to construct an FCMP++ proof
+    struct PathForProof final
+    {
+        std::vector<fcmp_pp::OutputBytes> leaves;
+        std::size_t output_idx;
+        std::vector<std::vector<typename C2::Scalar>> c2_scalar_chunks;
+        std::vector<std::vector<typename C1::Scalar>> c1_scalar_chunks;
+    };
 //member functions
 public:
     // Convert output pairs into leaf tuples, from {output pubkey,commitment} -> {O,C} -> {O.x,I.x,C.x}
@@ -403,6 +415,7 @@ public:
 
     uint8_t *get_tree_root_from_bytes(const std::size_t n_layers, const crypto::ec_point &tree_root) const;
 
+    PathForProof path_for_proof(const Path &path, const OutputTuple &output_tuple) const;
 private:
     // Multithreaded helper function to convert outputs to leaf tuples and set leaves on tree extension
     void set_valid_leaves(

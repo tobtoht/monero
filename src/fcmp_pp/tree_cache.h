@@ -295,6 +295,8 @@ public:
         // This is ok as implemented. m_cached_blocks.size() will stay constant while syncing in this case.
     END_SERIALIZE()
 };
+
+using TreeCacheV1 = TreeCache<Selene, Helios>;
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 }//namespace curve_trees

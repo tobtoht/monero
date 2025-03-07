@@ -1693,6 +1693,81 @@ uint8_t *CurveTrees<Selene, Helios>::get_tree_root_from_bytes(const std::size_t 
         return fcmp_pp::tower_cycle::selene_tree_root(m_c1->from_bytes(tree_root));
 }
 //----------------------------------------------------------------------------------------------------------------------
+template<>
+CurveTrees<Selene, Helios>::PathForProof CurveTrees<Selene, Helios>::path_for_proof(
+    const CurveTrees<Selene, Helios>::Path &path,
+    const OutputTuple &output_tuple) const
+{
+    // Get output's index in the path
+    std::size_t output_idx_in_path = 0;
+    {
+        bool found = false;
+        for (const auto &leaf : path.leaves)
+        {
+            found = output_tuple.O == leaf.O && output_tuple.I == leaf.I && output_tuple.C == leaf.C;
+            if (found)
+                break;
+            ++output_idx_in_path;
+        }
+        CHECK_AND_ASSERT_THROW_MES(found, "failed to find output in path");
+    }
+
+    // Set up OutputBytes compatible with Rust FFI
+    std::vector<fcmp_pp::OutputBytes> output_bytes;
+    {
+        output_bytes.reserve(path.leaves.size());
+        for (const auto &leaf : path.leaves)
+        {
+            output_bytes.push_back({
+                    .O_bytes = (uint8_t *)&leaf.O.bytes,
+                    .I_bytes = (uint8_t *)&leaf.I.bytes,
+                    .C_bytes = (uint8_t *)&leaf.C.bytes,
+                });
+        }
+    }
+
+    // helios scalars from selene points
+    std::vector<std::vector<fcmp_pp::HeliosScalar>> helios_scalars;
+    for (const auto &selene_points : path.c1_layers)
+    {
+      // Exclude the root
+      if (selene_points.size() == 1)
+        break;
+      helios_scalars.emplace_back();
+      auto &helios_layer = helios_scalars.back();
+      helios_layer.reserve(selene_points.size());
+      for (const auto &c1_point : selene_points)
+        helios_layer.emplace_back(m_c1->point_to_cycle_scalar(c1_point));
+      // Padding with 0's
+      for (std::size_t i = selene_points.size(); i < m_c2_width; ++i)
+        helios_layer.emplace_back(m_c2->zero_scalar());
+    }
+
+    // selene scalars from helios points
+    std::vector<std::vector<fcmp_pp::SeleneScalar>> selene_scalars;
+    for (const auto &helios_points : path.c2_layers)
+    {
+      // Exclude the root
+      if (helios_points.size() == 1)
+          break;
+      selene_scalars.emplace_back();
+      auto &selene_layer = selene_scalars.back();
+      selene_layer.reserve(helios_points.size());
+      for (const auto &c2_point : helios_points)
+        selene_layer.emplace_back(m_c2->point_to_cycle_scalar(c2_point));
+      // Padding with 0's
+      for (std::size_t i = helios_points.size(); i < m_c1_width; ++i)
+        selene_layer.emplace_back(m_c1->zero_scalar());
+    }
+
+    return PathForProof {
+            .leaves              = std::move(output_bytes),
+            .output_idx          = output_idx_in_path,
+            .c2_scalar_chunks    = std::move(helios_scalars),
+            .c1_scalar_chunks    = std::move(selene_scalars),
+        };
+}
+//----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace curve_trees
 } //namespace fcmp_pp

@@ -34,8 +34,11 @@
 #include "ringct/bulletproofs_plus.h"
 #include "chaingen.h"
 #include "blockchain_db/blockchain_db_utils.h"
+#include "fcmp_pp/curve_trees.h"
+#include "fcmp_pp/fcmp_pp_types.h"
 #include "fcmp_pp/prove.h"
 #include "fcmp_pp/tree_cache.h"
+#include "fcmp_pp/tx_utils.h"
 #include "device/device.hpp"
 
 using namespace epee;
@@ -167,127 +170,15 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
     return false;
   }
 
+  // Re-randomize output
+  const auto output_tuple = fcmp_pp::curve_trees::output_to_tuple(output_pair);
+  src.rerandomized_output = fcmp_pp::rerandomize_output(output_tuple.to_output_bytes());
+
   // Set FCMP++ params
   fcmp_pp_params.proof_inputs.emplace_back();
-  auto &proof_input = fcmp_pp_params.proof_inputs.back();
-
-  // Get output's path in the tree
-  fcmp_pp::curve_trees::CurveTreesV1::Path path;
-  bool r = tree_cache.get_output_path(output_pair, path);
-  CHECK_AND_ASSERT_MES(r, false, "failed to get output path");
-  CHECK_AND_ASSERT_MES(!path.empty(), false, "path empty");
-
-  // Get output's index in the path
-  r = false;
-  const auto output_tuple = fcmp_pp::curve_trees::output_to_tuple(output_pair);
-  std::size_t output_idx_in_path = 0;
-  for (const auto &leaf : path.leaves)
-  {
-    r = output_tuple.O == leaf.O && output_tuple.I == leaf.I && output_tuple.C == leaf.C;
-    if (r)
-      break;
-    ++output_idx_in_path;
-  }
-  CHECK_AND_ASSERT_MES(r, false, "failed to find output in path");
-
-  // Set up OutputBytes compatible with Rust FFI
-  std::vector<fcmp_pp::OutputBytes> output_bytes;
-  output_bytes.reserve(path.leaves.size());
-  for (const auto &leaf : path.leaves)
-  {
-      output_bytes.push_back({
-              .O_bytes = (uint8_t *)&leaf.O.bytes,
-              .I_bytes = (uint8_t *)&leaf.I.bytes,
-              .C_bytes = (uint8_t *)&leaf.C.bytes,
-          });
-  }
-  const fcmp_pp::OutputChunk leaves{output_bytes.data(), output_bytes.size()};
-
-  src.rerandomized_output = fcmp_pp::rerandomize_output(output_bytes[output_idx_in_path]);
-
-  // Set the path
-  {
-    const auto curve_trees = fcmp_pp::curve_trees::curve_trees_v1();
-
-    // selene scalars from helios points
-    std::vector<std::vector<fcmp_pp::SeleneScalar>> selene_scalars;
-    std::vector<Selene::Chunk> selene_chunks;
-    for (const auto &helios_points : path.c2_layers)
-    {
-      // Exclude the root
-      if (helios_points.size() == 1)
-          break;
-      selene_scalars.emplace_back();
-      auto &selene_layer = selene_scalars.back();
-      selene_layer.reserve(helios_points.size());
-      for (const auto &c2_point : helios_points)
-        selene_layer.emplace_back(curve_trees->m_c2->point_to_cycle_scalar(c2_point));
-      // Padding with 0's
-      for (std::size_t i = helios_points.size(); i < curve_trees->m_c1_width; ++i)
-        selene_layer.emplace_back(curve_trees->m_c1->zero_scalar());
-      selene_chunks.emplace_back(Selene::Chunk{selene_layer.data(), selene_layer.size()});
-    }
-    const Selene::ScalarChunks selene_scalar_chunks{selene_chunks.data(), selene_chunks.size()};
-
-    // helios scalars from selene points
-    std::vector<std::vector<fcmp_pp::HeliosScalar>> helios_scalars;
-    std::vector<Helios::Chunk> helios_chunks;
-    for (const auto &selene_points : path.c1_layers)
-    {
-      // Exclude the root
-      if (selene_points.size() == 1)
-        break;
-      helios_scalars.emplace_back();
-      auto &helios_layer = helios_scalars.back();
-      helios_layer.reserve(selene_points.size());
-      for (const auto &c1_point : selene_points)
-        helios_layer.emplace_back(curve_trees->m_c1->point_to_cycle_scalar(c1_point));
-      // Padding with 0's
-      for (std::size_t i = selene_points.size(); i < curve_trees->m_c2_width; ++i)
-        helios_layer.emplace_back(curve_trees->m_c2->zero_scalar());
-      helios_chunks.emplace_back(Helios::Chunk{helios_layer.data(), helios_layer.size()});
-    }
-    const Helios::ScalarChunks helios_scalar_chunks{helios_chunks.data(), helios_chunks.size()};
-
-    proof_input.path = fcmp_pp::path_new(leaves,
-      output_idx_in_path,
-      helios_scalar_chunks,
-      selene_scalar_chunks);
-  }
-
-  // Collect blinds for rerandomized output
-  {
-    const auto o_blind = fcmp_pp::o_blind(src.rerandomized_output);
-    const auto i_blind = fcmp_pp::i_blind(src.rerandomized_output);
-    const auto i_blind_blind = fcmp_pp::i_blind_blind(src.rerandomized_output);
-    const auto c_blind = fcmp_pp::c_blind(src.rerandomized_output);
-
-    const auto blinded_o_blind = fcmp_pp::blind_o_blind(o_blind);
-    const auto blinded_i_blind = fcmp_pp::blind_i_blind(i_blind);
-    const auto blinded_i_blind_blind = fcmp_pp::blind_i_blind_blind(i_blind_blind);
-    const auto blinded_c_blind = fcmp_pp::blind_c_blind(c_blind);
-
-    proof_input.output_blinds = fcmp_pp::output_blinds_new(blinded_o_blind,
-        blinded_i_blind,
-        blinded_i_blind_blind,
-        blinded_c_blind);
-  }
-
-  // Collect branch blinds
-  {
-    const std::size_t n_selene_layers = path.c1_layers.size();
-    const std::size_t n_helios_layers = path.c2_layers.size();
-
-    const bool is_selene_root = n_selene_layers > n_helios_layers;
-
-    const std::size_t n_selene_layers_excl_root = n_selene_layers - (is_selene_root ? 1 : 0);
-    const std::size_t n_helios_layers_excl_root = n_helios_layers - (is_selene_root ? 0 : 1);
-
-    for (std::size_t i = 0; i < n_selene_layers_excl_root; ++i)
-      proof_input.selene_branch_blinds.emplace_back(fcmp_pp::selene_branch_blind());
-    for (std::size_t i = 0; i < n_helios_layers_excl_root; ++i)
-      proof_input.helios_branch_blinds.emplace_back(fcmp_pp::helios_branch_blind());
-  }
+  const auto curve_trees = fcmp_pp::curve_trees::curve_trees_v1();
+  bool r = fcmp_pp::set_fcmp_pp_proof_input(output_pair, tree_cache, src.rerandomized_output, curve_trees, fcmp_pp_params.proof_inputs.back());
+  CHECK_AND_ASSERT_MES(r, false, "failed to set FCMP++ prove input");
 
   crypto::secret_key tx_key;
   std::vector<crypto::secret_key> additional_tx_keys;
