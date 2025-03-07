@@ -189,7 +189,7 @@ static bool inv_psi2(fe u_out, fe w_out, const fe e, const fe u, const fe w)
 
 static bool check_e_u_w(const fe e, const fe u, const fe w)
 {
-    static fe a;
+    fe a;
     fe_1(a);
     fe_neg(a, a);
     fe A;
