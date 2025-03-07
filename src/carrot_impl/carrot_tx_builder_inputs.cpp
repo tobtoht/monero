@@ -266,7 +266,8 @@ static void make_sal_proof_nominal_address_naive(const crypto::hash &signable_tx
     const crypto::secret_key &address_privkey_t,
     const crypto::secret_key &sender_extension_g,
     const crypto::secret_key &sender_extension_t,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
 {
     // O = x G + y T
 
@@ -282,7 +283,10 @@ static void make_sal_proof_nominal_address_naive(const crypto::hash &signable_tx
         to_bytes(address_privkey_t),
         to_bytes(sender_extension_t));
 
-    sal_proof_out = fcmp_pp::prove_sal(signable_tx_hash, x, y, rerandomized_output);
+    std::tie(sal_proof_out, key_image_out) = fcmp_pp::prove_sal(signable_tx_hash,
+        x,
+        y,
+        rerandomized_output);
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
@@ -294,7 +298,8 @@ static void make_sal_proof_nominal_address_carrot_v1(const crypto::hash &signabl
     const crypto::public_key &account_spend_pubkey,
     const view_balance_secret_device *s_view_balance_dev,
     const view_incoming_key_device *k_view_incoming_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
 {
     CHECK_AND_ASSERT_THROW_MES(verify_rerandomized_output_basic(rerandomized_output,
             opening_hint.source_enote.onetime_address,
@@ -360,11 +365,12 @@ static void make_sal_proof_nominal_address_carrot_v1(const crypto::hash &signabl
 
     make_sal_proof_nominal_address_naive(signable_tx_hash,
         rerandomized_output,
-        address_privkey_t,
         address_privkey_g,
+        address_privkey_t,
         sender_extension_g,
         sender_extension_t,
-        sal_proof_out);
+        sal_proof_out,
+        key_image_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
@@ -669,7 +675,8 @@ void make_sal_proof_legacy_to_legacy_v1(const crypto::hash &signable_tx_hash,
     const LegacyOutputOpeningHintV1 &opening_hint,
     const crypto::secret_key &k_spend,
     const cryptonote_hierarchy_address_device &addr_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
 {
     CHECK_AND_ASSERT_THROW_MES(verify_rerandomized_output_basic(rerandomized_output,
             opening_hint.onetime_address,
@@ -678,16 +685,9 @@ void make_sal_proof_legacy_to_legacy_v1(const crypto::hash &signable_tx_hash,
 
     // k^{j,}g_addr = k_s + k^j_subext
     crypto::secret_key address_privkey_g;
-    if (opening_hint.subaddr_index.is_subaddress())
-    {
-        addr_dev.make_legacy_subaddress_extension(opening_hint.subaddr_index.major,
-            opening_hint.subaddr_index.minor,
-            address_privkey_g);
-    }
-    else
-    {
-        sc_0(to_bytes(address_privkey_g));
-    }
+    addr_dev.make_legacy_subaddress_extension(opening_hint.subaddr_index.major,
+        opening_hint.subaddr_index.minor,
+        address_privkey_g);
     sc_add(to_bytes(address_privkey_g),
         to_bytes(address_privkey_g),
         to_bytes(k_spend));
@@ -699,7 +699,8 @@ void make_sal_proof_legacy_to_legacy_v1(const crypto::hash &signable_tx_hash,
         crypto::null_skey,
         opening_hint.sender_extension_g,
         crypto::null_skey,
-        sal_proof_out);
+        sal_proof_out,
+        key_image_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_sal_proof_carrot_to_legacy_v1(const crypto::hash &signable_tx_hash,
@@ -707,7 +708,8 @@ void make_sal_proof_carrot_to_legacy_v1(const crypto::hash &signable_tx_hash,
     const CarrotOutputOpeningHintV1 &opening_hint,
     const crypto::secret_key &k_spend,
     const cryptonote_hierarchy_address_device &addr_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
 {
     // check that the opening hint tells us to open as a legacy address
     const AddressDeriveType derive_type = opening_hint.subaddr_index.derive_type;
@@ -731,7 +733,8 @@ void make_sal_proof_carrot_to_legacy_v1(const crypto::hash &signable_tx_hash,
         addr_dev.get_cryptonote_account_spend_pubkey(),
         /*s_view_balance_dev=*/nullptr,
         &addr_dev,
-        sal_proof_out);
+        sal_proof_out,
+        key_image_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
@@ -742,7 +745,8 @@ void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
     const view_balance_secret_device &s_view_balance_dev,
     const view_incoming_key_device &k_view_incoming_dev,
     const generate_address_secret_device &s_generate_address_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out)
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
 {
     // check that the opening hint tells us to open as a Carrot address
     const AddressDeriveType derive_type = opening_hint.subaddr_index.derive_type;
@@ -793,7 +797,8 @@ void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
         account_spend_pubkey,
         &s_view_balance_dev,
         &k_view_incoming_dev,
-        sal_proof_out);
+        sal_proof_out,
+        key_image_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace carrot

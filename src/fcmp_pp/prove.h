@@ -96,7 +96,7 @@ FcmpPpProof prove(const crypto::hash &signable_tx_hash,
     const std::vector<const uint8_t *> &fcmp_prove_inputs,
     const std::size_t n_tree_layers);
 
-FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
+std::pair<FcmpPpSalProof, crypto::key_image> prove_sal(const crypto::hash &signable_tx_hash,
     const crypto::secret_key &x,
     const crypto::secret_key &y,
     const FcmpRerandomizedOutputCompressed &rerandomized_output);

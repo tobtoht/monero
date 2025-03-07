@@ -161,6 +161,12 @@ crypto::key_image gen_key_image();
 //----------------------------------------------------------------------------------------------------------------------
 crypto::secret_key gen_secret_key();
 //----------------------------------------------------------------------------------------------------------------------
+subaddress_index gen_subaddress_index();
+//----------------------------------------------------------------------------------------------------------------------
+subaddress_index_extended gen_subaddress_index_extended(const AddressDeriveType derive_type = AddressDeriveType::Auto);
+//----------------------------------------------------------------------------------------------------------------------
+std::vector<CarrotEnoteV1> collect_enotes(const std::vector<RCTOutputEnoteProposal> &output_enote_proposals);
+//----------------------------------------------------------------------------------------------------------------------
 } //namespace mock
 } //namespace carrot
 static inline bool operator==(const mx25519_pubkey &a, const mx25519_pubkey &b)

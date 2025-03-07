@@ -440,5 +440,25 @@ crypto::secret_key gen_secret_key()
     return rct::rct2sk(rct::skGen());
 }
 //----------------------------------------------------------------------------------------------------------------------
+subaddress_index gen_subaddress_index()
+{
+    return {crypto::rand_range<uint32_t>(0, MAX_SUBADDRESS_MAJOR_INDEX),
+            crypto::rand_range<uint32_t>(0, MAX_SUBADDRESS_MINOR_INDEX)};
+}
+//----------------------------------------------------------------------------------------------------------------------
+subaddress_index_extended gen_subaddress_index_extended(const AddressDeriveType derive_type)
+{
+    return {gen_subaddress_index(), derive_type};
+}
+//----------------------------------------------------------------------------------------------------------------------
+std::vector<CarrotEnoteV1> collect_enotes(const std::vector<RCTOutputEnoteProposal> &output_enote_proposals)
+{
+    std::vector<CarrotEnoteV1> res;
+    res.reserve(output_enote_proposals.size());
+    for (const RCTOutputEnoteProposal &output_enote_proposal : output_enote_proposals)
+        res.push_back(output_enote_proposal.enote);
+    return res;
+}
+//----------------------------------------------------------------------------------------------------------------------
 } //namespace mock
 } //namespace carrot

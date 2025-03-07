@@ -767,32 +767,37 @@ pub unsafe extern "C" fn fcmp_pp_prove_sal(signable_tx_hash: *const u8,
     x: *const u8,
     y: *const u8,
     rerandomized_output_bytes: *const u8,
-    sal_proof_out: *mut u8
-) -> CResult<(), ()> {
+    sal_proof_out: *mut u8,
+    key_image_out: *mut u8
+) -> c_int {
     let signable_tx_hash = hash_array_from_bytes(signable_tx_hash);
 
     let mut rerandomized_output_bytes = core::slice::from_raw_parts(rerandomized_output_bytes, 8 * 32);
     let Ok(rerandomized_output) = RerandomizedOutput::read(&mut rerandomized_output_bytes) else {
-        return CResult::err(());
+        return -1;
     };
 
     let Some(opening) = OpenedInputTuple::open(rerandomized_output,
         &ed25519_scalar_from_bytes(x),
         &ed25519_scalar_from_bytes(y)
     ) else {
-        return CResult::err(());
+        return -2;
     };
 
-    let (_, proof) = SpendAuthAndLinkability::prove(&mut OsRng,
+    let (key_image, proof) = SpendAuthAndLinkability::prove(&mut OsRng,
         signable_tx_hash,
         opening);
 
-    let mut sal_proof_out: &mut [u8] = unsafe { core::slice::from_raw_parts_mut(sal_proof_out, 12*32) }; // @TODO: remove magic number
+    let mut sal_proof_out = &mut core::slice::from_raw_parts_mut(sal_proof_out, 12*32); // @TODO: remove magic number
+    let mut key_image_out = &mut core::slice::from_raw_parts_mut(key_image_out, 32);
 
-    match proof.write(&mut sal_proof_out) {
-        Ok(_) => CResult::ok(()),
-        Err(_) => CResult::err(()) 
+    if let Err(_) = proof.write(sal_proof_out) {
+        return -3;
     }
+
+    key_image_out.copy_from_slice(&key_image.to_bytes());
+
+    0
 }
 
 #[no_mangle]

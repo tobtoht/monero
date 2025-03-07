@@ -47,6 +47,8 @@ struct CarrotPreSelectedInput
 {
     CarrotSelectedInput core;
 
+    // @TODO: `is_carrot` feature. Pre-carrot enotes are not safe from tracing
+    // by quantum computers even with 0 knowledge about public addresses
     bool is_external;
     uint64_t block_index;
 };
@@ -169,7 +171,8 @@ void make_sal_proof_legacy_to_legacy_v1(const crypto::hash &signable_tx_hash,
     const LegacyOutputOpeningHintV1 &opening_hint,
     const crypto::secret_key &k_spend,
     const cryptonote_hierarchy_address_device &addr_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out);
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out);
 
 // spend carrot enote addressed to legacy address
 void make_sal_proof_carrot_to_legacy_v1(const crypto::hash &signable_tx_hash,
@@ -177,7 +180,8 @@ void make_sal_proof_carrot_to_legacy_v1(const crypto::hash &signable_tx_hash,
     const CarrotOutputOpeningHintV1 &opening_hint,
     const crypto::secret_key &k_spend,
     const cryptonote_hierarchy_address_device &addr_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out);
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out);
 
 // spend carrot enote addressed to carrot address
 void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
@@ -188,6 +192,7 @@ void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
     const view_balance_secret_device &s_view_balance_dev,
     const view_incoming_key_device &k_view_incoming_dev,
     const generate_address_secret_device &s_generate_address_dev,
-    fcmp_pp::FcmpPpSalProof &sal_proof_out);
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out);
 
 } //namespace carrot

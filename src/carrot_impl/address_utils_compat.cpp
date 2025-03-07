@@ -49,6 +49,12 @@ void make_legacy_subaddress_extension(const crypto::secret_key &k_view,
     const std::uint32_t minor_index,
     crypto::secret_key &legacy_subaddress_extension_out)
 {
+    if (!major_index && !minor_index)
+    {
+        sc_0(to_bytes(legacy_subaddress_extension_out));
+        return;
+    }
+
     char data[sizeof(config::HASH_KEY_SUBADDRESS) + sizeof(crypto::secret_key) + 2 * sizeof(uint32_t)];
 
     // "Subaddr" || IntToBytes(0)

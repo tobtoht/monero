@@ -192,7 +192,7 @@ FcmpPpProof prove(const crypto::hash &signable_tx_hash,
     return proof;
 }
 //----------------------------------------------------------------------------------------------------------------------
-FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
+std::pair<FcmpPpSalProof, crypto::key_image> prove_sal(const crypto::hash &signable_tx_hash,
     const crypto::secret_key &x,
     const crypto::secret_key &y,
     const FcmpRerandomizedOutputCompressed &rerandomized_output)
@@ -200,17 +200,19 @@ FcmpPpSalProof prove_sal(const crypto::hash &signable_tx_hash,
     FcmpPpSalProof p;
     p.resize(FCMP_PP_SAL_PROOF_SIZE_V1);
 
-    const ::CResult res = ::fcmp_pp_prove_sal(to_bytes(signable_tx_hash),
-        to_bytes(x),
-        to_bytes(y),
-        &rerandomized_output,
-        &p[0]);
+    crypto::key_image L;
 
-    handle_res_ptr(__func__, res);
+    const int r = ::fcmp_pp_prove_sal(to_bytes(signable_tx_hash),
+            to_bytes(x),
+            to_bytes(y),
+            &rerandomized_output,
+            &p[0],
+            to_bytes(L));
 
-    // No `free()` since result type `()` is zero-sized
+    if (r < 0)
+        throw std::runtime_error("fcmp_pp_prove_sal failed with code: " + std::to_string(r));
 
-    return p;
+    return {std::move(p), L};
 }
 //----------------------------------------------------------------------------------------------------------------------
 FcmpMembershipProof prove_membership(const std::vector<const uint8_t *> &fcmp_prove_inputs,

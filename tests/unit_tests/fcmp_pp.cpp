@@ -369,13 +369,19 @@ TEST(fcmp_pp, sal_completeness)
     const crypto::hash signable_tx_hash = crypto::rand<crypto::hash>();
 
     // Prove
-    const fcmp_pp::FcmpPpSalProof sal_proof = fcmp_pp::prove_sal(signable_tx_hash,
+    const std::pair<fcmp_pp::FcmpPpSalProof, crypto::key_image> sal_proof = fcmp_pp::prove_sal(
+        signable_tx_hash,
         rct::rct2sk(x),
         rct::rct2sk(y),
         rerandomized_output);
 
+    EXPECT_EQ(L, sal_proof.second);
+
     // Verify
-    const bool ver = fcmp_pp::verify_sal(signable_tx_hash, rerandomized_output.input, L, sal_proof);
+    const bool ver = fcmp_pp::verify_sal(signable_tx_hash,
+        rerandomized_output.input,
+        L,
+        sal_proof.first);
 
     EXPECT_TRUE(ver);
 }

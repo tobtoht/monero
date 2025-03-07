@@ -252,18 +252,19 @@ CResult prove(const uint8_t *signable_tx_hash,
  * param: y - ed25519 scalar s.t. O~ = x G + y T
  * param: rerandomized_output - used for input tuple, r_i, and r_r_i
  * outparam: sal_proof_out - a buffer of size FCMP_PP_SAL_PROOF_SIZE_V1 where resultant SAL proof is stored
- * return: an error on failure, nothing otherwise
+ * return: 0 on success, a negative value on failure
  * 
  * note: This call can technically be stripped down even more because `rerandomized_output` contains
  *       more information than we need: we can discard r_o and r_c. However, in practice, these
  *       values will always be known before a call to this function since O~ and C~ are added to the
  *       challenge transcript, so passing `rerandomized_output` is more ergonomic.
  */
-CResult fcmp_pp_prove_sal(const uint8_t signable_tx_hash[32],
+int fcmp_pp_prove_sal(const uint8_t signable_tx_hash[32],
                                              const uint8_t x[32],
                                              const uint8_t y[32],
                                              const struct FcmpRerandomizedOutputCompressed *rerandomized_output,
-                                             uint8_t sal_proof_out[FCMP_PP_SAL_PROOF_SIZE_V1]);
+                                             uint8_t sal_proof_out[FCMP_PP_SAL_PROOF_SIZE_V1],
+                                             uint8_t key_image_out[32]);
 
 /**
  * brief: fcmp_pp_prove_membership - Make a FCMP++ membership proof for N inputs
