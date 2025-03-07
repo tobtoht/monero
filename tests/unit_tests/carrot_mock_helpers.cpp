@@ -258,9 +258,9 @@ void mock_carrot_and_legacy_keys::generate_subaddress_map()
 {
     const std::vector<AddressDeriveType> derive_types{AddressDeriveType::Carrot, AddressDeriveType::PreCarrot};
 
-    for (uint32_t major_index = 0; major_index < MAX_SUBADDRESS_MAJOR_INDEX; ++major_index)
+    for (uint32_t major_index = 0; major_index <= MAX_SUBADDRESS_MAJOR_INDEX; ++major_index)
     {
-        for (uint32_t minor_index = 0; minor_index < MAX_SUBADDRESS_MINOR_INDEX; ++minor_index)
+        for (uint32_t minor_index = 0; minor_index <= MAX_SUBADDRESS_MINOR_INDEX; ++minor_index)
         {
             for (const AddressDeriveType derive_type : derive_types)
             {
@@ -442,8 +442,9 @@ crypto::secret_key gen_secret_key()
 //----------------------------------------------------------------------------------------------------------------------
 subaddress_index gen_subaddress_index()
 {
-    return {crypto::rand_range<uint32_t>(0, MAX_SUBADDRESS_MAJOR_INDEX),
-            crypto::rand_range<uint32_t>(0, MAX_SUBADDRESS_MINOR_INDEX)};
+    // guaranteed not to return the main address index
+    return {crypto::rand_range<uint32_t>(1, MAX_SUBADDRESS_MAJOR_INDEX),
+            crypto::rand_range<uint32_t>(1, MAX_SUBADDRESS_MINOR_INDEX)};
 }
 //----------------------------------------------------------------------------------------------------------------------
 subaddress_index_extended gen_subaddress_index_extended(const AddressDeriveType derive_type)
