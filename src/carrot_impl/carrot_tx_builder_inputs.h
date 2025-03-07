@@ -195,4 +195,23 @@ void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
     fcmp_pp::FcmpPpSalProof &sal_proof_out,
     crypto::key_image &key_image_out);
 
+// spend carrot coinbase enote addressed to legacy address
+void make_sal_proof_carrot_coinbase_to_legacy_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotCoinbaseOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_spend,
+    const cryptonote_hierarchy_address_device &addr_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out);
+
+// spend carrot coinbase enote addressed to carrot address
+void make_sal_proof_carrot_coinbase_to_carrot_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotCoinbaseOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_prove_spend,
+    const crypto::secret_key &k_generate_image,
+    const view_incoming_key_device &k_view_incoming_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out);
+
 } //namespace carrot

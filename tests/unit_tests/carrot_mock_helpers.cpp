@@ -379,6 +379,53 @@ void mock_scan_enote_set(const std::vector<CarrotEnoteV1> &enotes,
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
+void mock_scan_coinbase_enote_set(const std::vector<CarrotCoinbaseEnoteV1> &coinbase_enotes,
+    const mock_carrot_and_legacy_keys &keys,
+    std::vector<mock_scan_result_t> &res)
+{
+    res.clear();
+
+    for (size_t output_index = 0; output_index < coinbase_enotes.size(); ++output_index)
+    {
+        const CarrotCoinbaseEnoteV1 &enote = coinbase_enotes.at(output_index);
+
+        mock_scan_result_t scan_result{};
+        scan_result.output_index = output_index;
+        scan_result.amount = enote.amount;
+        scan_result.amount_blinding_factor = rct::rct2sk(rct::I);
+        scan_result.payment_id = null_payment_id;
+        scan_result.enote_type = CarrotEnoteType::PAYMENT;
+        scan_result.internal_message = janus_anchor_t{};
+
+        if (try_ecdh_and_scan_carrot_coinbase_enote(enote,
+            keys.k_view_incoming_dev,
+            keys.carrot_account_spend_pubkey,
+            scan_result.sender_extension_g,
+            scan_result.sender_extension_t,
+            scan_result.address_spend_pubkey))
+        {
+            res.push_back(scan_result);
+            continue;
+        }
+
+        // We do a double external scan here to check anchor_sp against both the legacy K_s
+        // and new K_s. This is inefficient and less secure against Janus attacks, but it allows
+        // completeness for now when we use hybrid key structures
+        // @TODO: change Carrot's anchor_sp definition to exclude K_s
+        if (try_ecdh_and_scan_carrot_coinbase_enote(coinbase_enotes.at(output_index),
+            keys.k_view_incoming_dev,
+            keys.legacy_acb.get_keys().m_account_address.m_spend_public_key,
+            scan_result.sender_extension_g,
+            scan_result.sender_extension_t,
+            scan_result.address_spend_pubkey))
+        {
+            res.push_back(scan_result);
+            continue;
+        }
+    }
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
 bool compare_scan_result(const mock_scan_result_t &scan_res,
     const CarrotPaymentProposalV1 &normal_payment_proposal,
     const rct::xmr_amount allowed_fee_margin_opt)
@@ -459,6 +506,11 @@ std::vector<CarrotEnoteV1> collect_enotes(const std::vector<RCTOutputEnotePropos
     for (const RCTOutputEnoteProposal &output_enote_proposal : output_enote_proposals)
         res.push_back(output_enote_proposal.enote);
     return res;
+}
+//----------------------------------------------------------------------------------------------------------------------
+std::uint64_t gen_block_index()
+{
+    return crypto::rand_idx<std::uint64_t>(CRYPTONOTE_MAX_BLOCK_NUMBER);
 }
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock

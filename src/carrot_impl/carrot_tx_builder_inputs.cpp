@@ -374,6 +374,57 @@ static void make_sal_proof_nominal_address_carrot_v1(const crypto::hash &signabl
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static void make_sal_proof_nominal_address_carrot_coinbase_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotCoinbaseOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &address_privkey_g,
+    const crypto::secret_key &address_privkey_t,
+    const crypto::public_key &account_spend_pubkey,
+    const view_incoming_key_device &k_view_incoming_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
+{
+    const rct::key coinbase_amount_commitment = rct::zeroCommitVartime(opening_hint.source_enote.amount);
+
+    CHECK_AND_ASSERT_THROW_MES(verify_rerandomized_output_basic(rerandomized_output,
+            opening_hint.source_enote.onetime_address,
+            coinbase_amount_commitment),
+        "make sal proof nominal address carrot coinbase v1: rerandomized output does not verify");
+
+    // We scan scan here as a defensive programming measure against naive-scanner burning bugs and
+    // malicious-scanner burning bugs. However, if you want a user to confirm other details about
+    // the coinbase enote they're spending (e.g. amount, block index), you're going to have to
+    // pre-scan this enote and implement the checks yourself before calling this function. Hardware
+    // wallet developers: if you want your users to keep their hard-earned funds, don't skip
+    // cold-side enote scanning in Carrot enotes! Legacy enotes aren't SAFU from malicious-scanner
+    // burning anyways since K_o doesn't bind to C_a.
+
+    crypto::secret_key sender_extension_g;
+    crypto::secret_key sender_extension_t;
+    crypto::public_key address_spend_pubkey;
+
+    // first, try do an internal scan of the enote
+    const bool scanned = try_ecdh_and_scan_carrot_coinbase_enote(opening_hint.source_enote,
+        k_view_incoming_dev,
+        account_spend_pubkey,
+        sender_extension_g,
+        sender_extension_t,
+        address_spend_pubkey);
+
+    CHECK_AND_ASSERT_THROW_MES(scanned,
+        "make sal proof nominal address carrot coinbase v1: cannot spend enote because of a scan failure");
+
+    make_sal_proof_nominal_address_naive(signable_tx_hash,
+        rerandomized_output,
+        address_privkey_g,
+        address_privkey_t,
+        sender_extension_g,
+        sender_extension_t,
+        sal_proof_out,
+        key_image_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 const crypto::public_key &onetime_address_ref(const OutputOpeningHintVariant &opening_hint)
 {
     struct onetime_address_ref_visitor: public tools::variant_static_visitor<const crypto::public_key &>
@@ -797,6 +848,59 @@ void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
         account_spend_pubkey,
         &s_view_balance_dev,
         &k_view_incoming_dev,
+        sal_proof_out,
+        key_image_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_carrot_coinbase_to_legacy_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotCoinbaseOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_spend,
+    const cryptonote_hierarchy_address_device &addr_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
+{
+    // check that the opening hint tells us to open as a legacy address
+    const AddressDeriveType derive_type = opening_hint.derive_type;
+    CHECK_AND_ASSERT_THROW_MES(derive_type == AddressDeriveType::PreCarrot,
+        "make sal proof carrot coinbase to legacy v1: invalid subaddr derive type: " << static_cast<int>(derive_type));
+
+    make_sal_proof_nominal_address_carrot_coinbase_v1(signable_tx_hash,
+        rerandomized_output,
+        opening_hint,
+        k_spend,
+        crypto::null_skey,
+        addr_dev.get_cryptonote_account_spend_pubkey(),
+        addr_dev,
+        sal_proof_out,
+        key_image_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_carrot_coinbase_to_carrot_v1(const crypto::hash &signable_tx_hash,
+    const FcmpRerandomizedOutputCompressed &rerandomized_output,
+    const CarrotCoinbaseOutputOpeningHintV1 &opening_hint,
+    const crypto::secret_key &k_prove_spend,
+    const crypto::secret_key &k_generate_image,
+    const view_incoming_key_device &k_view_incoming_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
+{
+    // check that the opening hint tells us to open as a Carrot address
+    const AddressDeriveType derive_type = opening_hint.derive_type;
+    CHECK_AND_ASSERT_THROW_MES(derive_type == AddressDeriveType::Carrot,
+        "make sal proof carrot coinbase to carrot v1: invalid subaddr derive type: " << static_cast<int>(derive_type));
+
+    // K_s = k_gi G + k_ps T
+    crypto::public_key account_spend_pubkey;
+    make_carrot_spend_pubkey(k_generate_image, k_prove_spend, account_spend_pubkey);
+
+    make_sal_proof_nominal_address_carrot_coinbase_v1(signable_tx_hash,
+        rerandomized_output,
+        opening_hint,
+        k_generate_image,
+        k_prove_spend,
+        account_spend_pubkey,
+        k_view_incoming_dev,
         sal_proof_out,
         key_image_out);
 }

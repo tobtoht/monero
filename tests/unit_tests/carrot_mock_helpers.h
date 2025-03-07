@@ -149,6 +149,11 @@ void mock_scan_enote_set(const std::vector<CarrotEnoteV1> &enotes,
     const mock_carrot_and_legacy_keys &keys,
     std::vector<mock_scan_result_t> &res);
 //----------------------------------------------------------------------------------------------------------------------
+void mock_scan_coinbase_enote_set(
+    const std::vector<CarrotCoinbaseEnoteV1> &coinbase_enotes,
+    const mock_carrot_and_legacy_keys &keys,
+    std::vector<mock_scan_result_t> &res);
+//----------------------------------------------------------------------------------------------------------------------
 bool compare_scan_result(const mock_scan_result_t &scan_res,
     const CarrotPaymentProposalV1 &normal_payment_proposal,
     const rct::xmr_amount allowed_fee_margin_opt = 0);
@@ -166,6 +171,8 @@ subaddress_index gen_subaddress_index();
 subaddress_index_extended gen_subaddress_index_extended(const AddressDeriveType derive_type = AddressDeriveType::Auto);
 //----------------------------------------------------------------------------------------------------------------------
 std::vector<CarrotEnoteV1> collect_enotes(const std::vector<RCTOutputEnoteProposal> &output_enote_proposals);
+//----------------------------------------------------------------------------------------------------------------------
+std::uint64_t gen_block_index();
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock
 } //namespace carrot

@@ -1073,3 +1073,160 @@ TEST(carrot_tx_builder, make_sal_proof_carrot_to_carrot_v1_subaddr_internal)
         sal_proof));
 }
 //----------------------------------------------------------------------------------------------------------------------
+TEST(carrot_tx_builder, make_sal_proof_carrot_coinbase_to_legacy_v1)
+{
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate(AddressDeriveType::PreCarrot);
+
+    const cryptonote_hierarchy_address_device_ram_borrowed addr_dev(
+        keys.legacy_acb.get_keys().m_account_address.m_spend_public_key,
+        keys.legacy_acb.get_keys().m_view_secret_key);
+
+    // (K^0_s, K^0_v)
+    const CarrotDestinationV1 addr = keys.cryptonote_address();
+
+    const CarrotPaymentProposalV1 normal_payment_proposal{
+        .destination = addr,
+        .amount = crypto::rand<rct::xmr_amount>(),
+        .randomness = gen_janus_anchor()
+    };
+
+    const uint64_t block_index = mock::gen_block_index();
+
+    CarrotCoinbaseEnoteV1 coinbase_enote;
+    get_coinbase_output_proposal_v1(normal_payment_proposal,
+        block_index,
+        coinbase_enote);
+    const rct::key coinbase_enote_amount_commitment = rct::zeroCommitVartime(coinbase_enote.amount);
+
+    // scan enote to get sender extensions and calculate expected key image
+    std::vector<mock::mock_scan_result_t> scan_results;
+    mock::mock_scan_coinbase_enote_set({coinbase_enote}, keys, scan_results);
+
+    ASSERT_EQ(1, scan_results.size());
+
+    const mock::mock_scan_result_t &scan_result = scan_results.front();
+
+    ASSERT_EQ(addr.address_spend_pubkey, scan_result.address_spend_pubkey);
+
+    const CarrotCoinbaseOutputOpeningHintV1 opening_hint{
+        .source_enote = coinbase_enote,
+        .derive_type = keys.default_derive_type
+    };
+
+    const crypto::key_image expected_key_image = keys.derive_key_image(addr.address_spend_pubkey,
+        scan_result.sender_extension_g,
+        scan_result.sender_extension_t,
+        coinbase_enote.onetime_address);
+
+    // fake output amount blinding factor in a hypothetical tx where we spent the aforementioned output
+    const rct::key output_amount_blinding_factor = rct::skGen();
+    const crypto::hash signable_tx_hash = crypto::rand<crypto::hash>();
+
+    // make rerandomized outputs
+    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs;
+    make_carrot_rerandomized_outputs_nonrefundable({coinbase_enote.onetime_address},
+        {coinbase_enote_amount_commitment},
+        {rct::sk2rct(scan_result.amount_blinding_factor)},
+        {output_amount_blinding_factor},
+        rerandomized_outputs);
+
+    ASSERT_EQ(1, rerandomized_outputs.size());
+
+    // make SA/L proof for spending aforementioned enote
+    fcmp_pp::FcmpPpSalProof sal_proof;
+    crypto::key_image actual_key_image;
+    make_sal_proof_carrot_coinbase_to_legacy_v1(signable_tx_hash,
+        rerandomized_outputs.front(),
+        opening_hint,
+        keys.legacy_acb.get_keys().m_spend_secret_key,
+        addr_dev,
+        sal_proof,
+        actual_key_image);
+
+    ASSERT_EQ(expected_key_image, actual_key_image);
+
+    // verify SA/L
+    EXPECT_TRUE(fcmp_pp::verify_sal(signable_tx_hash,
+        rerandomized_outputs.front().input,
+        actual_key_image,
+        sal_proof));
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(carrot_tx_builder, make_sal_proof_carrot_coinbase_to_carrot_v1)
+{
+    mock::mock_carrot_and_legacy_keys keys;
+    keys.generate();
+
+    // (K^0_s, K^0_v)
+    const CarrotDestinationV1 addr = keys.cryptonote_address();
+
+    const CarrotPaymentProposalV1 normal_payment_proposal{
+        .destination = addr,
+        .amount = crypto::rand<rct::xmr_amount>(),
+        .randomness = gen_janus_anchor()
+    };
+
+    const uint64_t block_index = mock::gen_block_index();
+
+    CarrotCoinbaseEnoteV1 coinbase_enote;
+    get_coinbase_output_proposal_v1(normal_payment_proposal,
+        block_index,
+        coinbase_enote);
+    const rct::key coinbase_enote_amount_commitment = rct::zeroCommitVartime(coinbase_enote.amount);
+
+    // scan enote to get sender extensions and calculate expected key image
+    std::vector<mock::mock_scan_result_t> scan_results;
+    mock::mock_scan_coinbase_enote_set({coinbase_enote}, keys, scan_results);
+
+    ASSERT_EQ(1, scan_results.size());
+
+    const mock::mock_scan_result_t &scan_result = scan_results.front();
+
+    ASSERT_EQ(addr.address_spend_pubkey, scan_result.address_spend_pubkey);
+
+    const CarrotCoinbaseOutputOpeningHintV1 opening_hint{
+        .source_enote = coinbase_enote,
+        .derive_type = keys.default_derive_type
+    };
+
+    const crypto::key_image expected_key_image = keys.derive_key_image(addr.address_spend_pubkey,
+        scan_result.sender_extension_g,
+        scan_result.sender_extension_t,
+        coinbase_enote.onetime_address);
+
+    // fake output amount blinding factor in a hypothetical tx where we spent the aforementioned output
+    const rct::key output_amount_blinding_factor = rct::skGen();
+    const crypto::hash signable_tx_hash = crypto::rand<crypto::hash>();
+
+    // make rerandomized outputs
+    std::vector<FcmpRerandomizedOutputCompressed> rerandomized_outputs;
+    make_carrot_rerandomized_outputs_nonrefundable({coinbase_enote.onetime_address},
+        {coinbase_enote_amount_commitment},
+        {rct::sk2rct(scan_result.amount_blinding_factor)},
+        {output_amount_blinding_factor},
+        rerandomized_outputs);
+
+    ASSERT_EQ(1, rerandomized_outputs.size());
+
+    // make SA/L proof for spending aforementioned enote
+    fcmp_pp::FcmpPpSalProof sal_proof;
+    crypto::key_image actual_key_image;
+    make_sal_proof_carrot_coinbase_to_carrot_v1(signable_tx_hash,
+        rerandomized_outputs.front(),
+        opening_hint,
+        keys.k_prove_spend,
+        keys.k_generate_image,
+        keys.k_view_incoming_dev,
+        sal_proof,
+        actual_key_image);
+
+    ASSERT_EQ(expected_key_image, actual_key_image);
+
+    // verify SA/L
+    EXPECT_TRUE(fcmp_pp::verify_sal(signable_tx_hash,
+        rerandomized_outputs.front().input,
+        actual_key_image,
+        sal_proof));
+}
+//----------------------------------------------------------------------------------------------------------------------

@@ -331,6 +331,28 @@ bool try_scan_carrot_enote_internal(const CarrotEnoteV1 &enote,
     return true;
 }
 //-------------------------------------------------------------------------------------------------------------------
+bool try_ecdh_and_scan_carrot_coinbase_enote(const CarrotCoinbaseEnoteV1 &enote,
+    const view_incoming_key_device &k_view_dev,
+    const crypto::public_key &account_spend_pubkey,
+    crypto::secret_key &sender_extension_g_out,
+    crypto::secret_key &sender_extension_t_out,
+    crypto::public_key &address_spend_pubkey_out)
+{
+    // s_sr = k_v D_e
+    mx25519_pubkey s_sender_receiver_unctx;
+    if (!k_view_dev.view_key_scalar_mult_x25519(enote.enote_ephemeral_pubkey,
+            s_sender_receiver_unctx))
+        return false;
+
+    return try_scan_carrot_coinbase_enote(enote,
+        s_sender_receiver_unctx,
+        k_view_dev,
+        account_spend_pubkey,
+        sender_extension_g_out,
+        sender_extension_t_out,
+        address_spend_pubkey_out);
+}
+//-------------------------------------------------------------------------------------------------------------------
 bool try_ecdh_and_scan_carrot_enote_external(const CarrotEnoteV1 &enote,
     const std::optional<encrypted_payment_id_t> encrypted_payment_id,
     const view_incoming_key_device &k_view_dev,
