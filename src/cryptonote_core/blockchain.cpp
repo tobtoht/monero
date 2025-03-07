@@ -3171,6 +3171,30 @@ bool Blockchain::check_tx_outputs(const transaction& tx, tx_verification_context
     }
   }
 
+  // from v17, allow FCMP++
+  if (hf_version < HF_VERSION_FCMP_PLUS_PLUS) {
+    if (tx.version >= 2) {
+      const bool is_fcmp_pp = tx.rct_signatures.type == rct::RCTTypeFcmpPlusPlus;
+      if (is_fcmp_pp || !tx.rct_signatures.p.fcmp_pp.empty() || tx.rct_signatures.p.reference_block != 0 || tx.rct_signatures.p.n_tree_layers != 0)
+      {
+        MERROR("FCMP++ not allowed before v" << std::to_string(HF_VERSION_FCMP_PLUS_PLUS));
+        tvc.m_invalid_output = true;
+        return false;
+      }
+    }
+  }
+
+  // from v18, allow only FCMP++
+  if (hf_version > HF_VERSION_FCMP_PLUS_PLUS) {
+    const bool is_fcmp_pp = tx.rct_signatures.type == rct::RCTTypeFcmpPlusPlus;
+    if (!is_fcmp_pp)
+    {
+      MERROR("FCMP++ required after v" << std::to_string(HF_VERSION_FCMP_PLUS_PLUS));
+      tvc.m_invalid_output = true;
+      return false;
+    }
+  }
+
   // from v15, require view tags on outputs
   if (!check_output_types(tx, hf_version))
   {
