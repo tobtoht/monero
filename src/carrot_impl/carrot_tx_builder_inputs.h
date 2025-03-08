@@ -47,8 +47,7 @@ struct CarrotPreSelectedInput
 {
     CarrotSelectedInput core;
 
-    // @TODO: `is_carrot` feature. Pre-carrot enotes are not safe from tracing
-    // by quantum computers even with 0 knowledge about public addresses
+    bool is_pre_carrot;
     bool is_external;
     uint64_t block_index;
 };
@@ -67,10 +66,15 @@ enum class InputSelectionPolicy
 
 namespace InputSelectionFlags
 {
-    static constexpr std::uint32_t ALLOW_EXTERNAL_INPUTS_IN_NORMAL_TRANSFERS = 1 << 0;
-    static constexpr std::uint32_t ALLOW_MIXED_INTERNAL_EXTERNAL             = 1 << 1;
-    static constexpr std::uint32_t IS_KNOWN_FEE_SUBTRACTABLE                 = 1 << 2;
-    static constexpr std::uint32_t ALLOW_DUST                                = 1 << 3;
+    // Quantum forward secrecy (ON = unsafe)
+    static constexpr std::uint32_t ALLOW_EXTERNAL_INPUTS_IN_NORMAL_TRANSFERS   = 1 << 0;
+    static constexpr std::uint32_t ALLOW_PRE_CARROT_INPUTS_IN_NORMAL_TRANSFERS = 1 << 1;
+    static constexpr std::uint32_t ALLOW_MIXED_INTERNAL_EXTERNAL               = 1 << 2;
+    static constexpr std::uint32_t ALLOW_MIXED_CARROT_PRE_CARROT               = 1 << 3;
+
+    // Amount handling
+    static constexpr std::uint32_t IS_KNOWN_FEE_SUBTRACTABLE                   = 1 << 4;
+    static constexpr std::uint32_t ALLOW_DUST                                  = 1 << 5;
 }
 
 struct LegacyOutputOpeningHintV1

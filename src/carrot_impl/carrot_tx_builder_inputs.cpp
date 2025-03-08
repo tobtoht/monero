@@ -143,6 +143,26 @@ static void select_two_inputs_prefer_oldest(const epee::span<const CarrotPreSele
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static std::vector<size_t> combine_and_sort_input_partitions(
+    const epee::span<const CarrotPreSelectedInput> input_candidates,
+    const std::vector<size_t> &a,
+    const std::vector<size_t> &b)
+{
+    std::vector<size_t> z;
+    z.reserve(a.size() + b.size());
+    z.insert(z.end(), a.cbegin(), a.cend());
+    z.insert(z.end(), b.cbegin(), b.cend());
+
+    //! @TODO: there's a faster algorithm for merging sorted lists
+    std::sort(z.begin(), z.end(),
+        [input_candidates](size_t a, size_t b) -> bool {
+            return input_candidates[a].core.amount < input_candidates[b].core.amount;
+        });
+
+    return z;
+};
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 static std::pair<size_t, boost::multiprecision::int128_t> input_count_for_max_usable_money(
     const epee::span<const CarrotPreSelectedInput> input_candidates,
     const std::vector<size_t> selectable_inputs,
@@ -461,10 +481,19 @@ select_inputs_func_t make_single_transfer_input_selector(
     const std::uint32_t flags,
     std::set<size_t> *selected_input_indices_out)
 {
+    using namespace InputSelectionFlags;
+
     CHECK_AND_ASSERT_THROW_MES(!policies.empty(),
         "make_single_transfer_input_selector: no input selection policies provided");
 
-    // input selector
+    // Sanity check flags
+    const bool confused_qfs = (flags & ALLOW_PRE_CARROT_INPUTS_IN_NORMAL_TRANSFERS) &&
+        !(flags & ALLOW_EXTERNAL_INPUTS_IN_NORMAL_TRANSFERS);
+    CHECK_AND_ASSERT_THROW_MES(!confused_qfs,
+        "make single transfer input selector: It does not make sense to allow pre-carrot inputs in normal transfers, "
+        "but not external carrot inputs.");
+
+    // input selector :)
     return [=](const boost::multiprecision::int128_t &nominal_output_sum,
         const std::map<std::size_t, rct::xmr_amount> &fee_by_input_count,
         const std::size_t num_normal_payment_proposals,
@@ -490,29 +519,37 @@ select_inputs_func_t make_single_transfer_input_selector(
         }
 
         // 2. Collect list of non-burned inputs and sort by amount
-        std::vector<size_t> sorted_inputs;
-        sorted_inputs.reserve(best_input_by_key_image.size());
+        std::vector<size_t> all_non_burned_inputs;
+        all_non_burned_inputs.reserve(best_input_by_key_image.size());
         for (const auto &best_input : best_input_by_key_image)
-            sorted_inputs.push_back(best_input.second);
-        std::sort(sorted_inputs.begin(), sorted_inputs.end(), [input_candidates](size_t a, size_t b) -> bool {
-            return input_candidates[a].core.amount < input_candidates[b].core.amount;
+            all_non_burned_inputs.push_back(best_input.second);
+        std::sort(all_non_burned_inputs.begin(), all_non_burned_inputs.end(),
+            [input_candidates](size_t a, size_t b) -> bool {
+                return input_candidates[a].core.amount < input_candidates[b].core.amount;
         });
 
-        // 3. Collect into internal and external lists
-        std::vector<size_t> external_sorted_inputs;
-        external_sorted_inputs.reserve(sorted_inputs.size());
-        std::vector<size_t> internal_sorted_inputs;
-        internal_sorted_inputs.reserve(sorted_inputs.size());
-        for (size_t candidate_idx : sorted_inputs)
+        // 3. Partition into:
+        //      a) Pre-carrot (no quantum forward secrecy)
+        //      b) External carrot (quantum forward secret if public address not known)
+        //      c) Internal carrot (always quantum forward secret unless secret keys known)
+        std::vector<size_t> pre_carrot_inputs;
+        pre_carrot_inputs.reserve(all_non_burned_inputs.size());
+        std::vector<size_t> external_carrot_inputs;
+        external_carrot_inputs.reserve(all_non_burned_inputs.size());
+        std::vector<size_t> internal_inputs;
+        internal_inputs.reserve(all_non_burned_inputs.size());
+        for (size_t candidate_idx : all_non_burned_inputs)
         {
-            if (input_candidates[candidate_idx].is_external)
-                external_sorted_inputs.push_back(candidate_idx);
+            if (input_candidates[candidate_idx].is_pre_carrot)
+                pre_carrot_inputs.push_back(candidate_idx);
+            else if (input_candidates[candidate_idx].is_external)
+                external_carrot_inputs.push_back(candidate_idx);
             else
-                internal_sorted_inputs.push_back(candidate_idx);
+                internal_inputs.push_back(candidate_idx);
         }
 
         // 4. Calculate minimum required input money sum for a given input count
-        const bool subtract_fee = flags & InputSelectionFlags::IS_KNOWN_FEE_SUBTRACTABLE;
+        const bool subtract_fee = flags & IS_KNOWN_FEE_SUBTRACTABLE;
         std::map<size_t, boost::multiprecision::int128_t> required_money_by_input_count;
         for (const auto &fee_and_input_count : fee_by_input_count)
         {
@@ -521,22 +558,40 @@ select_inputs_func_t make_single_transfer_input_selector(
         }
 
         // 5. Calculate misc features
-        const bool must_use_internal = !(flags & InputSelectionFlags::ALLOW_EXTERNAL_INPUTS_IN_NORMAL_TRANSFERS) &&
+        const bool must_use_internal = !(flags & ALLOW_EXTERNAL_INPUTS_IN_NORMAL_TRANSFERS) &&
             (num_normal_payment_proposals != 0);
-        const bool prefer_external = num_normal_payment_proposals == 0;
-        CHECK_AND_ASSERT_THROW_MES(!must_use_internal || !prefer_external,
-            "make_single_transfer_input_selector: bug: must_use_internal AND prefer_external are true");
-        const bool allow_mixed = (flags & InputSelectionFlags::ALLOW_MIXED_INTERNAL_EXTERNAL) && !must_use_internal;
+        const bool allow_mixed_externality = (flags & ALLOW_MIXED_INTERNAL_EXTERNAL) &&
+            !must_use_internal;
+        const bool must_use_carrot = !(flags & ALLOW_PRE_CARROT_INPUTS_IN_NORMAL_TRANSFERS) &&
+            (num_normal_payment_proposals != 0);
+        const bool allow_mixed_carrotness = (flags & ALLOW_MIXED_CARROT_PRE_CARROT) &&
+            !must_use_carrot;
+
+        // We should prefer to spend non-forward-secret enotes in transactions where all the outputs are going back to
+        // ourself. Otherwise, if we spend these enotes while transferring money to another entity, an external observer
+        // who A) has a quantum computer, and B) knows one of their public addresses, will be able to trace the money
+        // transfer. Such an observer will always be able to tell which view-incoming keys / accounts these
+        // non-forward-secrets enotes belong to, their amounts, and where they're spent. So since they already know that
+        // information, churning back to oneself doesn't actually reveal that much more additional information.
+        const bool prefer_non_fs = num_normal_payment_proposals == 0;
+        CHECK_AND_ASSERT_THROW_MES(!must_use_internal || !prefer_non_fs,
+            "make_single_transfer_input_selector: bug: must_use_internal AND prefer_non_fs are true");
+
+        // There is no "prefer pre-carrot" variable since in the case that we prefer spending non-forward-secret, we
+        // always prefer first spending pre-carrot over carrot, if it is allowed
 
         // 6. Short-hand functor for dispatching input selection on a subset of inputs
-        //    Note: Result goes into `selected_inputs_indices`. If empty, then selection failed
+        //    Note: Result goes into `selected_inputs_indices`. If already populated, then this functor does nothing
         std::set<size_t> selected_inputs_indices;
-        const auto try_dispatch_input_selection_policy = 
-            [&](const std::vector<size_t> &selectable_indices, const InputSelectionPolicy policy)
+        const auto try_dispatch_input_selection =
+            [&](const std::vector<size_t> &selectable_indices)
         {
-            selected_inputs_indices.clear();
+            // Return early if already selected inputs or no available selectable
+            const bool already_selected = !selected_inputs_indices.empty();
+            if (already_selected || selectable_indices.empty())
+                return;
 
-            // Return false if not enough money in this selectable set...
+            // Return early if not enough money in this selectable set...
             const auto max_usable_money = input_count_for_max_usable_money(input_candidates,
                     selectable_indices,
                     required_money_by_input_count);
@@ -544,57 +599,91 @@ select_inputs_func_t make_single_transfer_input_selector(
             if (!enough_money)
                 return;
 
-            switch (policy)
+            // for each passed policy and while not already selected inputs...
+            for (size_t policy_idx = 0; policy_idx < policies.size() && selected_inputs_indices.empty(); ++policy_idx)
             {
-            case InputSelectionPolicy::TwoInputsPreferOldest:
-                select_two_inputs_prefer_oldest(input_candidates,
-                        selectable_indices,
-                        required_money_by_input_count,
-                        selected_inputs_indices);
-                break;
-            case InputSelectionPolicy::HighestUnlockedBalance:
-            case InputSelectionPolicy::LowestInputCountAndFee:
-            case InputSelectionPolicy::ConsolidateDiscretized:
-            case InputSelectionPolicy::OldestInputs:
-            default:
-                ASSERT_MES_AND_THROW("dispatch_input_selection_policy: unrecognized input selection policy");
+                switch (policies[policy_idx])
+                {
+                case InputSelectionPolicy::TwoInputsPreferOldest:
+                    select_two_inputs_prefer_oldest(input_candidates,
+                            selectable_indices,
+                            required_money_by_input_count,
+                            selected_inputs_indices);
+                    break;
+                case InputSelectionPolicy::HighestUnlockedBalance:
+                case InputSelectionPolicy::LowestInputCountAndFee:
+                case InputSelectionPolicy::ConsolidateDiscretized:
+                case InputSelectionPolicy::OldestInputs:
+                default:
+                    ASSERT_MES_AND_THROW("dispatch_input_selection_policy: unrecognized input selection policy");
+                }
             }
         };
 
-        // 7. Try dispatching input selection policies in order first for external (if preferred)
-        if (prefer_external)
+        // 8. Try dispatching for non-forward-secret input subsets, if preferred in this context
+        if (prefer_non_fs)
         {
-            for (size_t policy_idx = 0; policy_idx < policies.size() && selected_inputs_indices.empty(); ++policy_idx)
-                try_dispatch_input_selection_policy(external_sorted_inputs, policies[policy_idx]);
+            // try getting rid of pre-carrot enotes first, if allowed
+            if (!must_use_carrot)
+                try_dispatch_input_selection(pre_carrot_inputs);
+
+            // ... then external carrot
+            try_dispatch_input_selection(external_carrot_inputs);
         }
 
-        // 8. Try dispatching input selection policies in order for internal
-        for (size_t policy_idx = 0; policy_idx < policies.size() && selected_inputs_indices.empty(); ++policy_idx)
-                try_dispatch_input_selection_policy(internal_sorted_inputs, policies[policy_idx]);
+        // 9. Try dispatching for internal
+        try_dispatch_input_selection(internal_inputs);
 
-        // 9. Try dispatching input selection policies in order for external after internal (if not already tried)
-        if (!must_use_internal || !prefer_external)
+        // 10. Try dispatching for non-FS *after* internal, if allowed and not already tried
+        if (!must_use_internal || !prefer_non_fs)
         {
-            for (size_t policy_idx = 0; policy_idx < policies.size() && selected_inputs_indices.empty(); ++policy_idx)
-                try_dispatch_input_selection_policy(external_sorted_inputs, policies[policy_idx]);
+            // Spending non-FS inputs in a normal transfer transaction is not ideal, but at least
+            // when partition it like this, we aren't "dirtying" the carrot with the pre-carrot, and
+            // the internal with the external
+            if (!must_use_carrot)
+                try_dispatch_input_selection(pre_carrot_inputs);
+            try_dispatch_input_selection(external_carrot_inputs);
         }
 
-        // 10. Try dispatching input selection policies in order for mixed (if allowed)
-        if (allow_mixed)
+        // 11. Try dispatching for all non-FS (mixed pre-carrot & carrot external), if allowed
+        if (allow_mixed_carrotness)
         {
-            for (size_t policy_idx = 0; policy_idx < policies.size() && selected_inputs_indices.empty(); ++policy_idx)
-                try_dispatch_input_selection_policy(sorted_inputs, policies[policy_idx]);
+            // We're mixing carrot/pre-carrot spends here, but avoiding "dirtying" the internal
+            try_dispatch_input_selection(
+                combine_and_sort_input_partitions(input_candidates, pre_carrot_inputs, external_carrot_inputs));
         }
 
-        // 11. Sanity check indices
+        // 12. Try dispatching for all carrot, if allowed
+        if (allow_mixed_externality)
+        {
+            // We're mixing internal & external carrot spends here, but avoiding "dirtying" the
+            // carrot spends with pre-carrot spends. This will be quantum forward secret iff the
+            // adversary doesn't know one of your public addresses
+            try_dispatch_input_selection(
+                combine_and_sort_input_partitions(input_candidates, external_carrot_inputs, internal_inputs));
+        }
+
+        //! @TODO: MRL discussion about whether step 11 or step 12 should go first. In other words,
+        //         do we prefer to avoid dirtying internal, and protect against quantum adversaries
+        //         who know your public addresses? Or do we prefer to avoid dirtying w/ pre-carrot,
+        //         and protect against quantum adversaries with no special knowledge of your public
+        //         addresses, but whose attacks are only relevant when spending pre-FCMP++ enotes?
+
+        // 13. Try dispatching for everything, if allowed
+        if (allow_mixed_carrotness && allow_mixed_externality)
+            try_dispatch_input_selection(all_non_burned_inputs);
+
+        // Notice that we don't combine just the pre_carrot_inputs and internal_inputs by themselves
+
+        // 14. Sanity check indices
         CHECK_AND_ASSERT_THROW_MES(!selected_inputs_indices.empty(),
             "make_single_transfer_input_selector: input selection failed");
         CHECK_AND_ASSERT_THROW_MES(*selected_inputs_indices.crbegin() < input_candidates.size(),
             "make_single_transfer_input_selector: bug: selected inputs index out of range");
 
-        // 12. Do a greedy search for inputs whose amount doesn't pay for itself and drop them, logging debug messages
+        // 15. Do a greedy search for inputs whose amount doesn't pay for itself and drop them, logging debug messages
         //     Note: this also happens to be optimal if the fee difference between each input count is constant
-        bool should_search_for_dust = !(flags & InputSelectionFlags::ALLOW_DUST);
+        bool should_search_for_dust = !(flags & ALLOW_DUST);
         while (should_search_for_dust && selected_inputs_indices.size() > CARROT_MIN_TX_INPUTS)
         {
             should_search_for_dust = false; // only loop again if we remove an input below
@@ -618,7 +707,7 @@ select_inputs_func_t make_single_transfer_input_selector(
             }
         }
 
-        // 13. Check the sum of input amounts is great enough
+        // 16. Check the sum of input amounts is great enough
         const size_t num_selected = selected_inputs_indices.size();
         const boost::multiprecision::int128_t required_money = required_money_by_input_count.at(num_selected);
         boost::multiprecision::int128_t input_amount_sum = 0;
@@ -627,7 +716,7 @@ select_inputs_func_t make_single_transfer_input_selector(
         CHECK_AND_ASSERT_THROW_MES(input_amount_sum >= required_money,
             "make_single_transfer_input_selector: bug: input selection returned successful without enough funds");
 
-        // 14. Collect selected inputs
+        // 17. Collect selected inputs
         selected_inputs_out.clear();
         selected_inputs_out.reserve(num_selected);
         for (size_t selected_input_index : selected_inputs_indices)
