@@ -114,7 +114,7 @@ void mock_carrot_and_legacy_keys::opening_for_subaddress(const subaddress_index_
     const cryptonote::account_keys &lkeys = legacy_acb.get_keys();
 
     crypto::secret_key address_index_generator;
-    crypto::secret_key subaddress_scalar{};
+    crypto::secret_key subaddress_scalar;
     crypto::secret_key subaddress_extension;
 
     switch (resolve_derive_type(subaddress_index.derive_type))
@@ -130,7 +130,8 @@ void mock_carrot_and_legacy_keys::opening_for_subaddress(const subaddress_index_
         }
         else
         {
-            subaddress_scalar.data[0] = 1;
+            // k^j_subscal = 1
+            sc_1(to_bytes(subaddress_scalar));
         }
 
         // k^g_a = k_gi * k^j_subscal
@@ -392,7 +393,7 @@ void mock_scan_coinbase_enote_set(const std::vector<CarrotCoinbaseEnoteV1> &coin
         mock_scan_result_t scan_result{};
         scan_result.output_index = output_index;
         scan_result.amount = enote.amount;
-        scan_result.amount_blinding_factor = rct::rct2sk(rct::I);
+        sc_1(to_bytes(scan_result.amount_blinding_factor));
         scan_result.payment_id = null_payment_id;
         scan_result.enote_type = CarrotEnoteType::PAYMENT;
         scan_result.internal_message = janus_anchor_t{};

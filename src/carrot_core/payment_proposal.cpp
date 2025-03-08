@@ -136,7 +136,7 @@ static void get_output_proposal_parts(const crypto::hash &s_sender_receiver,
 {
     // 1. k_a = H_n(s^ctx_sr, enote_type) if !coinbase, else 1
     if (coinbase_amount_commitment)
-        amount_blinding_factor_out = rct::rct2sk(rct::I);
+        sc_1(to_bytes(amount_blinding_factor_out));
     else
         make_carrot_amount_blinding_factor(s_sender_receiver,
             amount,

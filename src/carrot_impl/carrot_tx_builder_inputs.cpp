@@ -744,8 +744,7 @@ void make_carrot_rerandomized_outputs_nonrefundable(const std::vector<crypto::pu
 
     // set blinding_factor_imbalance to sum(output amount blinding factors) - sum(input amount blinding factors)
     rct::key blinding_factor_imbalance;
-    sc_0(blinding_factor_imbalance.bytes);
-    blinding_factor_imbalance.bytes[0] = 1; // we start off with 1 to account for the fee amount commitment
+    sc_1(blinding_factor_imbalance.bytes); // we start off with 1 to account for the fee amount commitment
     for (const rct::key &obf : output_amount_blinding_factors)
         sc_add(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, obf.bytes);
     for (const rct::key &ibf : input_amount_blinding_factors)
@@ -917,8 +916,7 @@ void make_sal_proof_carrot_to_carrot_v1(const crypto::hash &signable_tx_hash,
     else
     {
         // k^j_subscal = 1
-        sc_0(to_bytes(k_subaddress_scalar));
-        k_subaddress_scalar.data[0] = 1;
+        sc_1(to_bytes(k_subaddress_scalar));
     }
 
     // k^{j, g}_addr = k_gi * k^j_subscal

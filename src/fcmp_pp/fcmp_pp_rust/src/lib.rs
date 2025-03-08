@@ -788,8 +788,8 @@ pub unsafe extern "C" fn fcmp_pp_prove_sal(signable_tx_hash: *const u8,
         signable_tx_hash,
         opening);
 
-    let mut sal_proof_out = &mut core::slice::from_raw_parts_mut(sal_proof_out, 12*32); // @TODO: remove magic number
-    let mut key_image_out = &mut core::slice::from_raw_parts_mut(key_image_out, 32);
+    let sal_proof_out = &mut core::slice::from_raw_parts_mut(sal_proof_out, 12*32); // @TODO: remove magic number
+    let key_image_out = &mut core::slice::from_raw_parts_mut(key_image_out, 32);
 
     if let Err(_) = proof.write(sal_proof_out) {
         return -3;

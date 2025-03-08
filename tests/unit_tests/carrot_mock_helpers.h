@@ -128,20 +128,20 @@ struct mock_carrot_and_legacy_keys
 //----------------------------------------------------------------------------------------------------------------------
 struct mock_scan_result_t
 {
-    crypto::public_key address_spend_pubkey = rct::rct2pk(rct::I);
-    crypto::secret_key sender_extension_g = rct::rct2sk(rct::I);
-    crypto::secret_key sender_extension_t = rct::rct2sk(rct::I);
+    crypto::public_key address_spend_pubkey;
+    crypto::secret_key sender_extension_g;
+    crypto::secret_key sender_extension_t;
 
-    rct::xmr_amount amount = 0;
-    crypto::secret_key amount_blinding_factor = rct::rct2sk(rct::I);
+    rct::xmr_amount amount;
+    crypto::secret_key amount_blinding_factor;
 
-    CarrotEnoteType enote_type = CarrotEnoteType::PAYMENT;
+    CarrotEnoteType enote_type;
 
-    payment_id_t payment_id = null_payment_id;
+    payment_id_t payment_id;
 
-    janus_anchor_t internal_message = janus_anchor_t{};
+    janus_anchor_t internal_message;
 
-    size_t output_index = 0;
+    size_t output_index;
 };
 //----------------------------------------------------------------------------------------------------------------------
 void mock_scan_enote_set(const std::vector<CarrotEnoteV1> &enotes,
