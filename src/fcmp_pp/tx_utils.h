@@ -40,7 +40,7 @@ namespace fcmp_pp
 //----------------------------------------------------------------------------------------------------------------------
 bool set_fcmp_pp_proof_input(const curve_trees::OutputPair &output_pair,
     const curve_trees::TreeCacheV1 &tree_cache,
-    const uint8_t *rerandomized_output,
+    const FcmpRerandomizedOutputCompressed &randomized_output,
     const std::shared_ptr<curve_trees::CurveTreesV1> &curve_trees,
     ProofInput &proof_input_out);
 //----------------------------------------------------------------------------------------------------------------------

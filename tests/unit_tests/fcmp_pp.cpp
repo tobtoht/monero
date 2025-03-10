@@ -222,7 +222,11 @@ TEST(fcmp_pp, prove)
         // Leaves
         const auto path_for_proof = curve_trees->path_for_proof(path, output_tuple);
 
-        const FcmpRerandomizedOutputCompressed rerandomized_output = fcmp_pp::rerandomize_output(output_bytes[output_idx]);
+        const FcmpRerandomizedOutputCompressed rerandomized_output = fcmp_pp::rerandomize_output(OutputBytes{
+            .O_bytes = output_tuple.O.bytes,
+            .I_bytes = output_tuple.I.bytes,
+            .C_bytes = output_tuple.C.bytes
+        });
 
         pseudo_outs.emplace_back(rct::rct2pt(load_key(rerandomized_output.input.C_tilde)));
 
