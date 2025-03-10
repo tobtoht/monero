@@ -1248,6 +1248,7 @@ done:
           // FIXME: the last pseudo out (rerandomized output's C_tilde) must be updated to make sure the sum of input masks == sum of output masks
 
           // TODO: separate function once this is finalized
+          rct::key r_c_imbalance = sumout;
           std::vector<const uint8_t *> fcmp_prove_inputs;
           fcmp_prove_inputs.reserve(inamounts.size());
           for (i = 0; i < inamounts.size(); i++)
@@ -1260,10 +1261,25 @@ done:
             sc_0((unsigned char *)ySk.data);
             const uint8_t *y = (uint8_t *) ySk.data;
 
-            const auto &rerandomized_output = rerandomized_outputs[i];
+            FcmpRerandomizedOutputCompressed rerandomized_output = rerandomized_outputs[i];
             const auto &fcmp_pp_input = fcmp_pp_params.proof_inputs[i];
 
+            // store C~
             memcpy(&pseudoOuts[i], &rerandomized_output.input.C_tilde, sizeof(rct::key));
+
+            // r_c_imbalance -= (z[i] + r_c[i])
+            sc_sub(r_c_imbalance.bytes, r_c_imbalance.bytes, inSk[i].mask.bytes);
+            sc_sub(r_c_imbalance.bytes, r_c_imbalance.bytes, rerandomized_output.r_c);
+
+            // if last input in set...
+            if (i + 1 == inamounts.size())
+            {
+              // set r_c, C~ such that the input masks balance the output masks
+              // r_c[i] += r_c_imbalance
+              sc_add(rerandomized_output.r_c, rerandomized_output.r_c, r_c_imbalance.bytes);
+              // C~[i] += r_c_imbalance G
+              rct::addKeys1(pseudoOuts[i], r_c_imbalance, pseudoOuts[i]);
+            }
 
             // TODO: separate SAL from membership proof. Implement SAL in hw device interface
             auto fcmp_prove_input = fcmp_pp::fcmp_pp_prove_input_new(x,
