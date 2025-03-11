@@ -284,8 +284,8 @@ void mock_carrot_and_legacy_keys::generate(const AddressDeriveType default_deriv
     make_carrot_generateaddress_secret(s_view_balance, s_generate_address);
 
     make_carrot_spend_pubkey(k_generate_image, k_prove_spend, carrot_account_spend_pubkey);
-    assert(k_view_incoming_dev.view_key_scalar_mult_ed25519(carrot_account_spend_pubkey,
-        carrot_account_view_pubkey));
+    k_view_incoming_dev.view_key_scalar_mult_ed25519(carrot_account_spend_pubkey,
+        carrot_account_view_pubkey);
 
     this->default_derive_type = default_derive_type;
 
