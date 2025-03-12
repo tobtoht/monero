@@ -289,6 +289,14 @@ uintptr_t fcmp_proof_size(uintptr_t n_inputs, uintptr_t n_tree_layers);
 
 uintptr_t fcmp_pp_proof_size(uintptr_t n_inputs, uintptr_t n_tree_layers);
 
+CResult fcmp_pp_verify_input_new(const uint8_t *signable_tx_hash,
+                                             const uint8_t *fcmp_pp_proof,
+                                             uintptr_t fcmp_pp_proof_len,
+                                             uintptr_t n_tree_layers,
+                                             const uint8_t *tree_root,
+                                             struct ObjectSlice pseudo_outs,
+                                             struct ObjectSlice key_images);
+
 bool verify(const uint8_t *signable_tx_hash,
                                              const uint8_t *fcmp_pp_proof,
                                              uintptr_t fcmp_pp_proof_len,
@@ -322,6 +330,8 @@ bool fcmp_pp_verify_membership(struct InputSlice inputs,
   const uintptr_t n_tree_layers,
   const uint8_t fcmp_proof[],
   const uintptr_t fcmp_proof_len);
+
+bool fcmp_pp_batch_verify(struct ObjectSlice fcmp_pp_verify_inputs);
 
 #ifdef __cplusplus
 } //extern "C"

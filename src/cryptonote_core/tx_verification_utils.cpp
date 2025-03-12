@@ -137,6 +137,20 @@ static bool expand_post_fcmp_tx(transaction& tx, const crypto::hash& tx_prefix_h
     return check_post_fcmp_expanded_tx(tx);
 }
 
+static bool expand_fcmp_pp_tx(cryptonote::transaction& tx, uint8_t *tree_root)
+{
+    // Pruned transactions can not be expanded and verified because they are missing RCT data
+    VER_ASSERT(!tx.pruned, "Pruned transaction will not pass verification");
+    const crypto::hash tx_prefix_hash = get_transaction_prefix_hash(tx);
+
+    // Expand tree_root, tx inputs, tx key images, prefix hash message, etc into the RCT sig
+    const bool exp_res = Blockchain::expand_transaction_2(tx, tx_prefix_hash, {}/*mixRing*/, tree_root);
+    VER_ASSERT(exp_res, "Failed to expand rct signatures!");
+
+    // Do sanity checks after expansion
+    return check_post_fcmp_expanded_tx(tx);
+}
+
 // Create a unique identifier for pair of tx blob + mix ring
 static crypto::hash calc_tx_mixring_hash(const transaction& tx, const rct::ctkeyM& mix_ring)
 {
@@ -318,6 +332,89 @@ static crypto::hash calc_tx_anon_set_hash(const cryptonote::transaction& tx,
         : calc_tx_mixring_hash(tx, mix_ring);
 }
 
+static bool collect_fcmp_pp_tx_verify_inputs(cryptonote::transaction &tx,
+    rct_ver_cache_t& cache,
+    const std::unordered_map<uint64_t, std::pair<crypto::ec_point, uint8_t>>& tree_root_by_block_index,
+    std::unordered_map<uint64_t, uint8_t *> &decompressed_tree_roots_by_block_index,
+    std::vector<const uint8_t*> &fcmp_pp_verify_inputs,
+    std::vector<crypto::hash> &new_cache_hashes)
+{
+    VER_ASSERT(tx.rct_signatures.type == rct::RCTTypeFcmpPlusPlus, "expected FCMP++ RCT Type");
+    VER_ASSERT(!tx.pruned, "expected unpruned FCMP++ tx");
+
+    // Make sure tree metadata is correct
+    const uint64_t ref_block_index = tx.rct_signatures.p.reference_block;
+    const uint8_t n_tree_layers = tx.rct_signatures.p.n_tree_layers;
+
+    VER_ASSERT(ref_block_index > 0, "tx reference_block must be > 0");
+    VER_ASSERT(n_tree_layers > 0, "tx n_tree_layers must be > 0");
+
+    const auto tree_root_it = tree_root_by_block_index.find(tx.rct_signatures.p.reference_block);
+
+    VER_ASSERT(tree_root_it != tree_root_by_block_index.end(), "Did not find tree root by ref block");
+    VER_ASSERT(n_tree_layers == tree_root_it->second.second, "Unexpected tx n tree layers");
+
+    const crypto::ec_point &tree_root = tree_root_it->second.first;
+
+    // Generate unique hash for tx+anon set identifier
+    const crypto::hash cache_hash = calc_tx_anon_set_hash(tx, {}, tree_root);
+
+    // Search cache for successful verification of same TX + mix set hash combination
+    if (cache.has(cache_hash))
+    {
+        MDEBUG("RCT cache: FCMP++ tx " << get_transaction_hash(tx) << " hit");
+        return true;
+    }
+
+    // We had a cache miss, so now we prepare the FCMP++ tx for batch verification
+    MDEBUG("RCT cache: FCMP++ tx " << get_transaction_hash(tx) << " missed");
+
+    // De-compress the tree root
+    const auto tree_root_decompressed_it = decompressed_tree_roots_by_block_index.find(ref_block_index);
+    if (tree_root_decompressed_it == decompressed_tree_roots_by_block_index.end())
+    {
+        const auto curve_trees = fcmp_pp::curve_trees::curve_trees_v1();
+        auto decompressed_root = curve_trees->get_tree_root_from_bytes(n_tree_layers, tree_root);
+        VER_ASSERT(decompressed_root != nullptr, "Failed to decompress root");
+
+        decompressed_tree_roots_by_block_index[ref_block_index] = std::move(decompressed_root);
+    }
+
+    // Get decompressed tree root from map
+    uint8_t *decompressed_tree_root = decompressed_tree_roots_by_block_index[ref_block_index];
+
+    if (!expand_fcmp_pp_tx(tx, decompressed_tree_root))
+    {
+        MERROR("Failed to expand FCMP++ tx");
+        return false;
+    }
+
+    // Now instantiate the FCMP++ verify input
+    const auto &rv = tx.rct_signatures;
+    const rct::key signable_tx_hash = rct::get_pre_mlsag_hash(rv, hw::get_device("default"));
+
+    // Type conversion on pseudo outs
+    const auto &pseudoOuts = rv.p.pseudoOuts;
+    std::vector<crypto::ec_point> pseudo_outs;
+    pseudo_outs.reserve(pseudoOuts.size());
+    for (const auto &po : pseudoOuts)
+        pseudo_outs.emplace_back(rct::rct2pt(po));
+
+    uint8_t *fcmp_pp_verify_input = fcmp_pp::fcmp_pp_verify_input_new(
+            rct::rct2hash(signable_tx_hash),
+            rv.p.fcmp_pp,
+            n_tree_layers,
+            rv.p.fcmp_ver_helper_data.tree_root,
+            pseudo_outs,
+            rv.p.fcmp_ver_helper_data.key_images
+        );
+
+    fcmp_pp_verify_inputs.emplace_back(std::move(fcmp_pp_verify_input));
+    new_cache_hashes.emplace_back(cache_hash);
+
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace cryptonote
@@ -468,6 +565,77 @@ bool ver_mixed_rct_semantics(std::vector<const rct::rctSig*> rvv)
             MERROR("rct signature semantics check failed: simple-style batch verification failed");
             return false;
         }
+    }
+
+    return true;
+}
+
+bool batch_ver_fcmp_pp_consensus
+(
+    pool_supplement& ps,
+    const std::unordered_map<uint64_t, std::pair<crypto::ec_point, uint8_t>>& tree_root_by_block_index,
+    rct_ver_cache_t& cache,
+    const std::uint8_t rct_type_to_cache
+)
+{
+    if (ps.txs_by_txid.empty())
+    {
+        return true;
+    }
+
+    // We expect to be caching FCMP++ txs. If not, then we need to re-work
+    // verification to batch verify FCMP++ txs AND whatever future txs we're
+    // trying to batch verify.
+    const bool caching_fcmp_pp_txs = rct_type_to_cache == rct::RCTTypeFcmpPlusPlus;
+    VER_ASSERT(!caching_fcmp_pp_txs, "Make sure batch verification works correctly with this type and then enable it in the code here.");
+
+    // Collect unverified FCMP++ txs for batch verfication
+    std::unordered_map<uint64_t, uint8_t *> decompressed_tree_roots_by_block_index;
+    std::vector<const uint8_t*> fcmp_pp_verify_inputs;
+    std::vector<crypto::hash> new_cache_hashes;
+
+    fcmp_pp_verify_inputs.reserve(ps.txs_by_txid.size());
+    new_cache_hashes.reserve(ps.txs_by_txid.size());
+
+    for (auto &tx_entry : ps.txs_by_txid)
+    {
+        cryptonote::transaction &tx = tx_entry.second.first;
+        if (tx.pruned || tx.rct_signatures.type != rct_type_to_cache)
+        {
+            MDEBUG("RCT cache: tx " << get_transaction_hash(tx) << " skipped");
+            continue;
+        }
+
+        const bool r = collect_fcmp_pp_tx_verify_inputs(tx,
+            cache,
+            tree_root_by_block_index,
+            decompressed_tree_roots_by_block_index,
+            fcmp_pp_verify_inputs,
+            new_cache_hashes);
+
+        if (!r)
+        {
+            return false;
+        }
+    }
+
+    if (fcmp_pp_verify_inputs.empty())
+    {
+        return true;
+    }
+
+    // Ok, we're ready to batch verify all FCMP++ txs now
+    MDEBUG("Batch verifying " << fcmp_pp_verify_inputs.size() << " FCMP++ txs");
+    if (!fcmp_pp::batch_verify(fcmp_pp_verify_inputs))
+    {
+        return false;
+    }
+    MDEBUG("Successfully batch verified " << fcmp_pp_verify_inputs.size() << " FCMP++ txs");
+
+    // At this point, the FCMP++ txs all verified successfully. Add them to the cache
+    for (const auto &cache_hash : new_cache_hashes)
+    {
+        cache.add(cache_hash);
     }
 
     return true;

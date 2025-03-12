@@ -891,12 +891,16 @@ pub extern "C" fn fcmp_pp_proof_size(n_inputs: usize, n_tree_layers: usize) -> u
     FcmpPlusPlus::proof_size(n_inputs, n_tree_layers)
 }
 
-/// # Safety
-///
-/// This function assumes that the signable tx hash is 32 bytes, the tree root is heap
-/// allocated via a CResult, and pseudo outs and key images are 32 bytes each
-#[no_mangle]
-pub unsafe extern "C" fn verify(
+pub struct FcmpPpVerifyInput
+{
+    fcmp_pp: FcmpPlusPlus,
+    tree_root: TreeRoot<Selene, Helios>,
+    n_tree_layers: usize,
+    signable_tx_hash: [u8; 32],
+    key_images: Vec<EdwardsPoint>,
+}
+
+unsafe fn fcmp_pp_verify_input_new_inner(
     signable_tx_hash: *const u8,
     proof: *const u8,
     proof_len: usize,
@@ -904,14 +908,17 @@ pub unsafe extern "C" fn verify(
     tree_root: *const TreeRoot<Selene, Helios>,
     pseudo_outs: Slice<*const u8>,
     key_images: Slice<*const u8>,
-) -> bool {
+) -> std::io::Result<FcmpPpVerifyInput> {
     // Early checks
     let n_inputs = pseudo_outs.len;
-    if n_inputs == 0 || n_inputs != key_images.len {
-        return false;
+    if n_inputs == 0 {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "passed in 0 inputs"));
+    }
+    if n_inputs != key_images.len {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "passed invalid number of inputs"));
     }
     if proof_len != fcmp_pp_proof_size(n_inputs, n_tree_layers) {
-        return false;
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid proof len"));
     }
 
     let signable_tx_hash = unsafe { core::slice::from_raw_parts(signable_tx_hash, 32) };
@@ -943,20 +950,58 @@ pub unsafe extern "C" fn verify(
         .map(|&x| ed25519_point_from_bytes(x))
         .collect();
 
+    let fcmp_pp_verify_input = FcmpPpVerifyInput {
+        fcmp_pp: fcmp_plus_plus,
+        tree_root,
+        n_tree_layers,
+        signable_tx_hash,
+        key_images,
+    };
+    Ok(fcmp_pp_verify_input)
+}
+
+/// # Safety
+///
+/// This function assumes that the signable tx hash is 32 bytes, the tree root is heap
+/// allocated via a CResult, and pseudo outs and key images are 32 bytes each
+#[no_mangle]
+pub unsafe extern "C" fn verify(
+    signable_tx_hash: *const u8,
+    proof: *const u8,
+    proof_len: usize,
+    n_tree_layers: usize,
+    tree_root: *const TreeRoot<Selene, Helios>,
+    pseudo_outs: Slice<*const u8>,
+    key_images: Slice<*const u8>,
+) -> bool {
+    let Ok(fcmp_pp_verify_input) = fcmp_pp_verify_input_new_inner(
+        signable_tx_hash,
+        proof,
+        proof_len,
+        n_tree_layers,
+        tree_root,
+        pseudo_outs,
+        key_images
+    ) else {
+        return false;
+    };
+
+    let n_inputs = fcmp_pp_verify_input.key_images.len();
+
     let mut ed_verifier = multiexp::BatchVerifier::new(n_inputs);
     let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
     let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
 
-    match fcmp_plus_plus
+    match fcmp_pp_verify_input.fcmp_pp
         .verify(
             &mut OsRng,
             &mut ed_verifier,
             &mut c1_verifier,
             &mut c2_verifier,
-            tree_root,
-            n_tree_layers,
-            signable_tx_hash,
-            key_images,
+            fcmp_pp_verify_input.tree_root,
+            fcmp_pp_verify_input.n_tree_layers,
+            fcmp_pp_verify_input.signable_tx_hash,
+            fcmp_pp_verify_input.key_images,
         )
     {
         Ok(()) => ed_verifier.verify_vartime()
@@ -964,6 +1009,35 @@ pub unsafe extern "C" fn verify(
             && HELIOS_GENERATORS().verify(c2_verifier),
         Err(_) => false
     }    
+}
+
+/// # Safety
+///
+/// This function assumes that the signable tx hash is 32 bytes, the tree root is heap
+/// allocated via a CResult, and pseudo outs and key images are 32 bytes each
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_verify_input_new(
+    signable_tx_hash: *const u8,
+    proof: *const u8,
+    proof_len: usize,
+    n_tree_layers: usize,
+    tree_root: *const TreeRoot<Selene, Helios>,
+    pseudo_outs: Slice<*const u8>,
+    key_images: Slice<*const u8>,
+) -> CResult<FcmpPpVerifyInput, ()> {
+    match fcmp_pp_verify_input_new_inner(
+        signable_tx_hash,
+        proof,
+        proof_len,
+        n_tree_layers,
+        tree_root,
+        pseudo_outs,
+        key_images
+    )
+    {
+        Ok(res) => CResult::ok(res),
+        Err(_) => CResult::err(())
+    }
 }
 
 /// # Safety
@@ -1037,6 +1111,42 @@ pub unsafe extern "C" fn fcmp_pp_verify_membership(inputs: Slice<[u8; 4 * 32]>,
             && HELIOS_GENERATORS().verify(c2_verifier),
         Err(_) => false
     }
+}
+
+/// # Safety
+///
+/// This function assumes that the inputs are from fcmp_pp_verify_input_new
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_batch_verify(inputs: Slice<*const FcmpPpVerifyInput>) -> bool {
+    let inputs: &[*const FcmpPpVerifyInput] = inputs.into();
+    let inputs: Vec<FcmpPpVerifyInput> = inputs.iter().map(|x| unsafe { x.read() }).collect();
+
+    let mut ed_verifier = multiexp::BatchVerifier::new(inputs.len());
+    let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
+    let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
+
+    // TODO: consider multithreading verify individual proofs, needs internal re-work
+    for i in 0..inputs.len() {
+        let fcmp_pp_verify_input = &inputs[i];
+
+        let Ok(_) = fcmp_pp_verify_input.fcmp_pp.verify(
+            &mut OsRng,
+            &mut ed_verifier,
+            &mut c1_verifier,
+            &mut c2_verifier,
+            fcmp_pp_verify_input.tree_root,
+            fcmp_pp_verify_input.n_tree_layers,
+            fcmp_pp_verify_input.signable_tx_hash,
+            fcmp_pp_verify_input.key_images.clone(),
+        ) else {
+            return false;
+        };
+    }
+
+    // TODO: consider multithreading
+    ed_verifier.verify_vartime()
+        && SELENE_GENERATORS().verify(c1_verifier)
+        && HELIOS_GENERATORS().verify(c2_verifier)
 }
 
 // https://github.com/rust-lang/rust/issues/79609
