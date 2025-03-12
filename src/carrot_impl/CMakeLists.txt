@@ -44,6 +44,7 @@ target_link_libraries(carrot_impl
   PUBLIC
     carrot_core
     cryptonote_format_utils_basic
+    fcmp_pp
   PRIVATE
     ${EXTRA_LIBRARIES})
 

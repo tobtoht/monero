@@ -36,6 +36,7 @@
 #include "carrot_core/config.h"
 #include "carrot_core/enote_utils.h"
 #include "crypto/generators.h"
+#include "fcmp_pp/prove.h"
 #include "misc_log_ex.h"
 #include "ringct/rctOps.h"
 
@@ -221,62 +222,12 @@ static FcmpInputCompressed calculate_fcmp_input_for_rerandomizations(const crypt
     const rct::key &r_r_i,
     const rct::key &r_c)
 {
-    FcmpInputCompressed res;
-    rct::key temp1, temp2;
-
-    // O~ = O + r_o T
-    temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_T()), r_o);
-    temp1 = rct::addKeys(rct::pk2rct(onetime_address), temp1);
-    memcpy(res.O_tilde, temp1.bytes, sizeof(rct::key));
-
-    // I = Hp(O)
-    crypto::ec_point I;
-    crypto::derive_key_image_generator(onetime_address, I);
-
-    // I~ = I + r_i U
-    temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_U()), r_i);
-    temp1 = rct::addKeys(rct::pt2rct(I), temp1);
-    memcpy(res.I_tilde, temp1.bytes, sizeof(rct::key));
-
-    // R = r_i V + r_r_i T
-    temp1 = rct::scalarmultKey(rct::pk2rct(crypto::get_V()), r_i);
-    temp2 = rct::scalarmultKey(rct::pk2rct(crypto::get_T()), r_r_i);
-    temp1 = rct::addKeys(temp1, temp2);
-    memcpy(res.R, temp1.bytes, sizeof(rct::key));
-
-    // C~ = C + r_c G
-    rct::addKeys1(temp1, r_c, amount_commitment);
-    memcpy(res.C_tilde, temp1.bytes, sizeof(rct::key));
-
-    return res;
-}
-//-------------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------
-static FcmpRerandomizedOutputCompressed calculate_rerandomized_output(
-    const crypto::public_key &onetime_address,
-    const rct::key &amount_commitment,
-    const rct::key &r_o,
-    const rct::key &r_i,
-    const rct::key &r_r_i,
-    const rct::key &r_c)
-{
-    FcmpRerandomizedOutputCompressed res;
-
-    // calculate O~, I~, R, C~
-    res.input = calculate_fcmp_input_for_rerandomizations(onetime_address,
-        amount_commitment,
-        r_o,
-        r_i,
-        r_r_i,
-        r_c);
-
-    // copy r_o, r_i, r_r_i, r_c
-    store_key(res.r_o, r_o);
-    store_key(res.r_i, r_i);
-    store_key(res.r_r_i, r_r_i);
-    store_key(res.r_c, r_c);
-
-    return res;
+    return fcmp_pp::calculate_fcmp_input_for_rerandomizations(onetime_address,
+        rct::rct2pt(amount_commitment),
+        rct::rct2sk(r_o),
+        rct::rct2sk(r_i),
+        rct::rct2sk(r_r_i),
+        rct::rct2sk(r_c));
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
@@ -733,58 +684,37 @@ void make_carrot_rerandomized_outputs_nonrefundable(const std::vector<crypto::pu
     const std::vector<rct::key> &output_amount_blinding_factors,
     std::vector<FcmpRerandomizedOutputCompressed> &rerandomized_outputs_out)
 {
-    rerandomized_outputs_out.clear();
+    // collect input_amount_commitments as crypto::ec_point
+    std::vector<crypto::ec_point> input_amount_commitments_pt;
+    input_amount_commitments_pt.reserve(input_amount_commitments.size());
+    for (const rct::key &input_amount_commitment : input_amount_commitments)
+        input_amount_commitments_pt.push_back(rct::rct2pt(input_amount_commitment));
 
-    const size_t nins = input_onetime_addresses.size();
-    CHECK_AND_ASSERT_THROW_MES(nins, "make carrot rerandomized outputs nonrefundable: no inputs provided");
-    CHECK_AND_ASSERT_THROW_MES(input_amount_commitments.size() == nins,
-        "make carrot rerandomized outputs nonrefundable: wrong input amount commitments size");
-    CHECK_AND_ASSERT_THROW_MES(input_amount_blinding_factors.size() == nins,
-        "make carrot rerandomized outputs nonrefundable: wrong input amount blinding factors size");
+    // collect input_amount_blinding_factors as crypto::secret_key
+    std::vector<crypto::secret_key> input_amount_blinding_factors_sk;
+    input_amount_blinding_factors_sk.reserve(input_amount_blinding_factors_sk.size());
+    for (const rct::key &input_amount_blinding_factor : input_amount_blinding_factors)
+        input_amount_blinding_factors_sk.push_back(rct::rct2sk(input_amount_blinding_factor));
 
-    // set blinding_factor_imbalance to sum(output amount blinding factors) - sum(input amount blinding factors)
-    rct::key blinding_factor_imbalance;
-    sc_1(blinding_factor_imbalance.bytes); // we start off with 1 to account for the fee amount commitment
-    for (const rct::key &obf : output_amount_blinding_factors)
-        sc_add(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, obf.bytes);
-    for (const rct::key &ibf : input_amount_blinding_factors)
-        sc_sub(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, ibf.bytes);
+    // generate random r_o
+    std::vector<crypto::secret_key> r_o(input_onetime_addresses.size());
+    for (size_t i = 0; i < input_onetime_addresses.size(); ++i)
+        crypto::random32_unbiased(to_bytes(r_o[i]));
 
-    rerandomized_outputs_out.reserve(nins);
-    for (size_t i = 0; i < nins; ++i)
-    {
-        const bool last = i == nins - 1;
+    // calculate output_amount_blinding_factor_sum = sum(output_amount_blinding_factors)
+    crypto::secret_key output_amount_blinding_factor_sum;
+    sc_0(to_bytes(output_amount_blinding_factor_sum));
+    for (const rct::key &output_amount_blinding_factor : output_amount_blinding_factors)
+        sc_add(to_bytes(output_amount_blinding_factor_sum),
+            to_bytes(output_amount_blinding_factor_sum),
+            output_amount_blinding_factor.bytes);
 
-        // O
-        const crypto::public_key &onetime_address = input_onetime_addresses.at(i);
-        // C
-        const rct::key &amount_commitment = input_amount_commitments.at(i);
-
-        // I = Hp(O)
-        crypto::ec_point I;
-        crypto::derive_key_image_generator(onetime_address, I);
-
-        // sample r_o, r_i, r_r_i randomly
-        const rct::key r_o = rct::skGen();
-        const rct::key r_i = rct::skGen();
-        const rct::key r_r_i = rct::skGen();
-
-        // sample r_c for all inputs except for the last one, set that one such that the tx balances
-        const rct::key r_c = last ? blinding_factor_imbalance : rct::skGen();
-
-        // update blinding_factor_imbalance with new rerandomization
-        sc_sub(blinding_factor_imbalance.bytes, blinding_factor_imbalance.bytes, r_c.bytes);
-
-        // calculate rerandomized output and push
-        rerandomized_outputs_out.push_back(calculate_rerandomized_output(
-            onetime_address,
-            amount_commitment,
-            r_o,
-            r_i,
-            r_r_i,
-            r_c
-        ));
-    }
+    fcmp_pp::make_balanced_rerandomized_output_set(input_onetime_addresses,
+        input_amount_commitments_pt,
+        input_amount_blinding_factors_sk,
+        r_o,
+        output_amount_blinding_factor_sum,
+        rerandomized_outputs_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
 bool verify_rerandomized_output_basic(const FcmpRerandomizedOutputCompressed &rerandomized_output,

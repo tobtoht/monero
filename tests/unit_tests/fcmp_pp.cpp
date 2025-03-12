@@ -71,6 +71,14 @@ static rct::key load_key(const uint8_t b[32])
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
+static crypto::secret_key load_sk(const uint8_t b[32])
+{
+    crypto::secret_key sk;
+    memcpy(sk.data, b, sizeof(sk));
+    return sk;
+}
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
 static FcmpRerandomizedOutputCompressed rerandomize_output_manual(const rct::key &O, const rct::key &C)
 {
     FcmpRerandomizedOutputCompressed res;
@@ -552,5 +560,28 @@ TEST(fcmp_pp, force_init_gen_u_v)
     const ge_cached V_cached = crypto::get_V_cached();
 
     (void) U_p3, (void) V_p3, (void) U_cached, (void) V_cached;
+}
+//----------------------------------------------------------------------------------------------------------------------
+TEST(fcmp_pp, calculate_fcmp_input_for_rerandomizations_convergence)
+{
+    const crypto::public_key onetime_address = rct::rct2pk(rct::pkGen());
+    const crypto::ec_point amount_commitment = rct::rct2pt(rct::pkGen());
+    const rct::key I = derive_key_image_generator(rct::pk2rct(onetime_address));
+
+    const FcmpRerandomizedOutputCompressed rerandomized_output = fcmp_pp::rerandomize_output(OutputBytes{
+        .O_bytes = to_bytes(onetime_address),
+        .I_bytes = I.bytes,
+        .C_bytes = to_bytes(amount_commitment)
+    });
+
+    const FcmpInputCompressed recomputed_input = fcmp_pp::calculate_fcmp_input_for_rerandomizations(
+        onetime_address,
+        amount_commitment,
+        load_sk(rerandomized_output.r_o),
+        load_sk(rerandomized_output.r_i),
+        load_sk(rerandomized_output.r_r_i),
+        load_sk(rerandomized_output.r_c));
+
+    EXPECT_EQ(0, memcmp(&rerandomized_output.input, &recomputed_input, sizeof(FcmpInputCompressed)));
 }
 //----------------------------------------------------------------------------------------------------------------------

@@ -52,6 +52,10 @@ rct::key clear_torsion(const ge_p3 &point);
 bool point_to_ed_y_derivatives(const rct::key &pub, EdYDerivatives &ed_y_derivatives);
 void ed_y_derivatives_to_wei_x(const EdYDerivatives &ed_y_derivatives, rct::key &wei_x);
 bool point_to_wei_x(const rct::key &pub, rct::key &wei_x);
+/**
+ * brief - scalarmult_and_add - Q = P + a * A
+ */
+void scalarmult_and_add(unsigned char *Q, const ge_p3 &P, const unsigned char *a, const ge_p3 &A);
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 }//namespace fcmp_pp
