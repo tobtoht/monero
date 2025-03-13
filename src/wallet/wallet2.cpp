@@ -11725,6 +11725,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     // TODO: fees for FCMP++
     const size_t estimated_rct_tx_weight = estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size() + 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags);
     bool try_tx = (unused_dust_indices.empty() && unused_transfers_indices.empty()) || ( estimated_rct_tx_weight >= TX_WEIGHT_TARGET(upper_transaction_weight_limit));
+    try_tx |= (use_fcmp && tx.selected_transfers.size() == FCMP_PLUS_PLUS_MAX_INPUTS);
 
     if (try_tx) {
       cryptonote::transaction test_tx;
