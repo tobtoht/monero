@@ -380,7 +380,8 @@ void make_carrot_transaction_proposal_v1_transfer(
 }
 //-------------------------------------------------------------------------------------------------------------------
 void make_carrot_transaction_proposal_v1_sweep(
-    const CarrotPaymentProposalVariant &payment_proposal,
+    const std::vector<CarrotPaymentProposalV1> &normal_payment_proposals,
+    const std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals,
     const rct::xmr_amount fee_per_weight,
     const std::vector<uint8_t> &extra,
     std::vector<CarrotSelectedInput> &&selected_inputs,
@@ -389,17 +390,17 @@ void make_carrot_transaction_proposal_v1_sweep(
     const crypto::public_key &account_spend_pubkey,
     CarrotTransactionProposalV1 &tx_proposal_out)
 {
-    // initialize payment proposals list from `payment_proposal`
-    std::vector<CarrotPaymentProposalV1> normal_payment_proposals;
-    std::vector<CarrotPaymentProposalVerifiableSelfSendV1> selfsend_payment_proposals;
-    struct add_payment_proposal_visitor
+    // sanity check that all payment proposal amounts are 0
+    for (const CarrotPaymentProposalV1 &normal_payment_proposal : normal_payment_proposals)
     {
-        void operator()(const CarrotPaymentProposalV1 &p) const { normal_payment_proposals.push_back(p); }
-        void operator()(const CarrotPaymentProposalVerifiableSelfSendV1 &p) const { selfsend_payment_proposals.push_back(p); }
-        std::vector<CarrotPaymentProposalV1> &normal_payment_proposals;
-        std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals;
-    };
-    payment_proposal.visit(add_payment_proposal_visitor{normal_payment_proposals, selfsend_payment_proposals});
+        CHECK_AND_ASSERT_THROW_MES(normal_payment_proposal.amount == 0,
+            "make carrot transaction proposal v1 sweep: payment proposal amount not 0");
+    }
+    for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
+    {
+        CHECK_AND_ASSERT_THROW_MES(selfsend_payment_proposal.proposal.amount == 0,
+            "make carrot transaction proposal v1 sweep: payment proposal amount not 0");
+    }
 
     const bool is_selfsend_sweep = !selfsend_payment_proposals.empty();
 
@@ -425,24 +426,27 @@ void make_carrot_transaction_proposal_v1_sweep(
         std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals
     )
     {
-        // get pointer to sweep destination amount
-        rct::xmr_amount *amount_ptr = nullptr;
+        // get pointers to proposal amounts and shuffle, excluding implicit selfsend
+        const size_t n_outputs = normal_payment_proposals.size() + selfsend_payment_proposals.size();
+        std::vector<rct::xmr_amount*> amount_ptrs;
+        amount_ptrs.reserve(n_outputs);
+        for (CarrotPaymentProposalV1 &normal_payment_proposal : normal_payment_proposals)
+            amount_ptrs.push_back(&normal_payment_proposal.amount);
         if (is_selfsend_sweep)
-        {
-            CHECK_AND_ASSERT_THROW_MES(!selfsend_payment_proposals.empty(),
-                "make unsigned transaction sweep: bug: missing selfsend proposal");
-            amount_ptr = &selfsend_payment_proposals.front().proposal.amount;
-        }
-        else
-        {
-            CHECK_AND_ASSERT_THROW_MES(!normal_payment_proposals.empty(),
-                "make unsigned transaction sweep: bug: missing normal proposal");
-            amount_ptr = &normal_payment_proposals.front().amount;
-        }
+            for (CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
+                amount_ptrs.push_back(&selfsend_payment_proposal.proposal.amount);
+        std::shuffle(amount_ptrs.begin(), amount_ptrs.end(), crypto::random_device{});
 
-        // set amount
-        const boost::multiprecision::int128_t sweep_output_amount = input_sum_amount - fee;
-        *amount_ptr = boost::numeric_cast<rct::xmr_amount>(sweep_output_amount);
+        // disburse amount equally amongst modifiable amounts
+        const boost::multiprecision::int128_t output_sum_amount = input_sum_amount - fee;
+        const rct::xmr_amount minimum_sweep_amount =
+            boost::numeric_cast<rct::xmr_amount>(output_sum_amount / amount_ptrs.size());
+        const size_t num_remaining =
+            boost::numeric_cast<rct::xmr_amount>(output_sum_amount % amount_ptrs.size());
+        CHECK_AND_ASSERT_THROW_MES(num_remaining < amount_ptrs.size(),
+            "make carrot transaction proposal v1 sweep: bug: num_remaining >= n_outputs");
+        for (size_t i = 0; i < amount_ptrs.size(); ++i)
+            *amount_ptrs.at(i) = minimum_sweep_amount + (i < num_remaining ? 1 : 0);
     }; //end carve_fees_and_balance
 
     // make unsigned transaction with sweep carving callback and selected inputs

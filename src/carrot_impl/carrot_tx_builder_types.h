@@ -65,11 +65,6 @@ struct CarrotPaymentProposalVerifiableSelfSendV1
     subaddress_index_extended subaddr_index;
 };
 
-using CarrotPaymentProposalVariant = tools::variant<
-        CarrotPaymentProposalV1,
-        CarrotPaymentProposalVerifiableSelfSendV1
-    >;
-
 using select_inputs_func_t = std::function<void(
         const boost::multiprecision::int128_t&,        // nominal output sum, w/o fee
         const std::map<std::size_t, rct::xmr_amount>&, // absolute fee per input count

@@ -97,7 +97,8 @@ void make_carrot_transaction_proposal_v1_transfer(
     CarrotTransactionProposalV1 &tx_proposal_out);
 
 void make_carrot_transaction_proposal_v1_sweep(
-    const CarrotPaymentProposalVariant &payment_proposal,
+    const std::vector<CarrotPaymentProposalV1> &normal_payment_proposals,
+    const std::vector<CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals,
     const rct::xmr_amount fee_per_weight,
     const std::vector<uint8_t> &extra,
     std::vector<CarrotSelectedInput> &&selected_inputs,

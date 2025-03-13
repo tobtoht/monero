@@ -42,6 +42,9 @@ namespace tools
 {
 namespace wallet
 {
+std::unordered_map<crypto::key_image, size_t> collect_non_burned_transfers_by_key_image(
+    const wallet2::transfer_container &transfers);
+
 carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
     const wallet2::transfer_container &transfers,
     const std::uint32_t from_account,
@@ -50,7 +53,20 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
     const rct::xmr_amount ignore_below,
     const std::uint64_t top_block_index,
     const bool allow_carrot_external_inputs_in_normal_transfers,
+    const bool allow_pre_carrot_inputs_in_normal_transfers,
     std::set<size_t> &selected_transfer_indices_out);
+
+carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_sweep(
+    const wallet2::transfer_container &transfers,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,
+    const std::vector<crypto::key_image> &input_key_images,
+    const cryptonote::account_public_address &address,
+    const bool is_subaddress,
+    const size_t n_dests,
+    const rct::xmr_amount fee_per_weight,
+    const std::vector<uint8_t>& extra,
+    const std::uint64_t top_block_index,
+    const cryptonote::account_base &acb);
 
 carrot::OutputOpeningHintVariant make_sal_opening_hint_from_transfer_details(
     const wallet2::transfer_details &td,
