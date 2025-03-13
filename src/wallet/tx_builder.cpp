@@ -38,7 +38,7 @@
 //standard headers
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
-#define MONERO_DEFAULT_LOG_CATEGORY "wallet"
+#define MONERO_DEFAULT_LOG_CATEGORY "wallet.tx_builder"
 
 namespace tools
 {
@@ -110,7 +110,8 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
                     .amount = td.amount(),
                     .key_image = td.m_key_image
                 },
-                .is_external = true, // @TODO: derive this info from field in transfer_details
+                .is_pre_carrot = true, //! @TODO: handle post-Carrot enotes in transfer_details
+                .is_external = true, //! @TODO: derive this info from field in transfer_details
                 .block_index = td.m_block_height
             });
             input_candidates_transfer_indices.push_back(i);
@@ -157,6 +158,75 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
                 for (const size_t input_index : selected_input_indices)
                     selected_transfer_indices_out.insert(input_candidates_transfer_indices.at(input_index));
             };
+}
+//-------------------------------------------------------------------------------------------------------------------
+carrot::OutputOpeningHintVariant make_sal_opening_hint_from_transfer_details(
+    const wallet2::transfer_details &td,
+    const crypto::secret_key &k_view,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses_map,
+    hw::device &hwdev)
+{
+    //! @TODO: handle Carrot coinbase and non-coinbase enotes
+
+    // K_o
+    const crypto::public_key onetime_address = td.get_public_key();
+
+    // R
+    const crypto::public_key main_tx_pubkey = cryptonote::get_tx_pub_key_from_extra(td.m_tx, td.m_pk_index);
+    const std::vector<crypto::public_key> additional_tx_pubkeys =
+        cryptonote::get_additional_tx_pub_keys_from_extra(td.m_tx);
+
+    //! @TODO: reject too many additional tx pubkeys??
+
+    std::vector<crypto::key_derivation> ecdhs;
+    ecdhs.reserve(additional_tx_pubkeys.size() + 1);
+
+    // 8 * k_v * R
+    crypto::key_derivation ecdh;
+    if (hwdev.generate_key_derivation(main_tx_pubkey, k_view, ecdh))
+        ecdhs.push_back(ecdh);
+
+    // 8 * k_v * R
+    for (const crypto::public_key &additional_tx_pubkey : additional_tx_pubkeys)
+        if (hwdev.generate_key_derivation(additional_tx_pubkey, k_view, ecdh))
+            ecdhs.push_back(ecdh);
+
+    // Search for (j, K^j_s, k^g_o) s.t. K^j_s = K_o + H_n(8 * k_v * R, output_index)
+    for (const crypto::key_derivation &ecdh : ecdhs)
+    {
+        // K^j_s' = K_o - k^g_o G
+        crypto::public_key nominal_address_spend_pubkey;
+        if (!hwdev.derive_subaddress_public_key(onetime_address,
+                ecdh,
+                td.m_internal_output_index,
+                nominal_address_spend_pubkey))
+            continue;
+
+        // Know about K^j_s?
+        const auto subaddr_it = subaddresses_map.find(nominal_address_spend_pubkey);
+        if (subaddr_it == subaddresses_map.cend())
+            continue;
+
+        // k^g_o = H_n(8 * k_v * R, output_index)
+        //! @TODO: find out if any mainline HWs "conceal" the derived scalar
+        crypto::secret_key sender_extension_g;
+        if (!hwdev.derivation_to_scalar(ecdh, td.m_internal_output_index, sender_extension_g))
+            continue;
+
+        // j
+        const carrot::subaddress_index subaddr_index = {subaddr_it->second.major, subaddr_it->second.minor};
+
+        return carrot::LegacyOutputOpeningHintV1{
+            .onetime_address = onetime_address,
+            .sender_extension_g = sender_extension_g,
+            .subaddr_index = subaddr_index,
+            .amount = td.amount(),
+            .amount_blinding_factor = rct::rct2sk(td.m_mask)
+        };
+    }
+
+    ASSERT_MES_AND_THROW("make sal opening hint from transfer details: cannot find subaddress and sender extension "
+        "for given transfer info");
 }
 //-------------------------------------------------------------------------------------------------------------------
 } //namespace wallet

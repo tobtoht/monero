@@ -922,4 +922,135 @@ void make_sal_proof_carrot_coinbase_to_carrot_v1(const crypto::hash &signable_tx
         key_image_out);
 }
 //-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_any_to_legacy_v1(const crypto::hash &signable_tx_hash,
+    const CarrotOpenableRerandomizedOutputV1 &openable_rerandomized_output,
+    const crypto::secret_key &k_spend,
+    const cryptonote_hierarchy_address_device &addr_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
+{
+    struct make_sal_proof_any_to_legacy_v1_visitor
+    {
+        void operator()(const LegacyOutputOpeningHintV1 &hint)
+        {
+            make_sal_proof_legacy_to_legacy_v1(signable_tx_hash,
+                rerandomized_output,
+                hint,
+                k_spend,
+                addr_dev,
+                sal_proof_out,
+                key_image_out);
+        }
+
+        void operator()(const CarrotOutputOpeningHintV1 &hint)
+        {
+            make_sal_proof_carrot_to_legacy_v1(signable_tx_hash,
+                rerandomized_output,
+                hint,
+                k_spend,
+                addr_dev,
+                sal_proof_out,
+                key_image_out);
+        }
+
+        void operator()(const CarrotCoinbaseOutputOpeningHintV1 &hint)
+        {
+            make_sal_proof_carrot_coinbase_to_legacy_v1(signable_tx_hash,
+                rerandomized_output,
+                hint,
+                k_spend,
+                addr_dev,
+                sal_proof_out,
+                key_image_out);
+        }
+
+        const crypto::hash &signable_tx_hash;
+        const FcmpRerandomizedOutputCompressed &rerandomized_output;
+        const crypto::secret_key &k_spend;
+        const cryptonote_hierarchy_address_device &addr_dev;
+        fcmp_pp::FcmpPpSalProof &sal_proof_out;
+        crypto::key_image &key_image_out;
+    };
+
+    return openable_rerandomized_output.opening_hint.visit(
+        make_sal_proof_any_to_legacy_v1_visitor{
+            signable_tx_hash,
+            openable_rerandomized_output.rerandomized_output,
+            k_spend,
+            addr_dev,
+            sal_proof_out,
+            key_image_out
+        }
+    );
+}
+//-------------------------------------------------------------------------------------------------------------------
+void make_sal_proof_any_to_carrot_v1(const crypto::hash &signable_tx_hash,
+    const CarrotOpenableRerandomizedOutputV1 &openable_rerandomized_output,
+    const crypto::secret_key &k_prove_spend,
+    const crypto::secret_key &k_generate_image,
+    const view_balance_secret_device &s_view_balance_dev,
+    const view_incoming_key_device &k_view_incoming_dev,
+    const generate_address_secret_device &s_generate_address_dev,
+    fcmp_pp::FcmpPpSalProof &sal_proof_out,
+    crypto::key_image &key_image_out)
+{
+    struct make_sal_proof_any_to_carrot_v1_visitor
+    {
+        void operator()(const LegacyOutputOpeningHintV1 &hint)
+        {
+            ASSERT_MES_AND_THROW("make sal proof any to carrot v1: legacy unsupported");
+        }
+
+        void operator()(const CarrotOutputOpeningHintV1 &hint)
+        {
+            make_sal_proof_carrot_to_carrot_v1(signable_tx_hash,
+                rerandomized_output,
+                hint,
+                k_prove_spend,
+                k_generate_image,
+                s_view_balance_dev,
+                k_view_incoming_dev,
+                s_generate_address_dev,
+                sal_proof_out,
+                key_image_out);
+        }
+
+        void operator()(const CarrotCoinbaseOutputOpeningHintV1 &hint)
+        {
+            make_sal_proof_carrot_coinbase_to_carrot_v1(signable_tx_hash,
+                rerandomized_output,
+                hint,
+                k_prove_spend,
+                k_generate_image,
+                k_view_incoming_dev,
+                sal_proof_out,
+                key_image_out);
+        }
+
+        const crypto::hash &signable_tx_hash;
+        const FcmpRerandomizedOutputCompressed &rerandomized_output;
+        const crypto::secret_key &k_prove_spend;
+        const crypto::secret_key &k_generate_image;
+        const view_balance_secret_device &s_view_balance_dev;
+        const view_incoming_key_device &k_view_incoming_dev;
+        const generate_address_secret_device &s_generate_address_dev;
+        fcmp_pp::FcmpPpSalProof &sal_proof_out;
+        crypto::key_image &key_image_out;
+    };
+
+    return openable_rerandomized_output.opening_hint.visit(
+        make_sal_proof_any_to_carrot_v1_visitor{
+            signable_tx_hash,
+            openable_rerandomized_output.rerandomized_output,
+            k_prove_spend,
+            k_generate_image,
+            s_view_balance_dev,
+            k_view_incoming_dev,
+            s_generate_address_dev,
+            sal_proof_out,
+            key_image_out
+        }
+    );
+}
+//-------------------------------------------------------------------------------------------------------------------
 } //namespace carrot

@@ -51,5 +51,11 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
     const std::uint64_t top_block_index,
     const bool allow_carrot_external_inputs_in_normal_transfers,
     std::set<size_t> &selected_transfer_indices_out);
+
+carrot::OutputOpeningHintVariant make_sal_opening_hint_from_transfer_details(
+    const wallet2::transfer_details &td,
+    const crypto::secret_key &k_view,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddresses_map,
+    hw::device &hwdev);
 } //namespace wallet
 } //namespace tools
