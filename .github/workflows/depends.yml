@@ -104,7 +104,6 @@ jobs:
           depends-${{ matrix.toolchain.host }}-${{ hashFiles('contrib/depends/packages/*') }}
           depends-${{ matrix.toolchain.host }}-
     - name: install rust target
-      run: rustup update stable; rustup target add ${{ matrix.toolchain.rust_host }}
       # We can't use the latest Rust due to LLVM 17 not working with old `ld`s (such as in Ubuntu 20.04) for RISC-V
       # We could update ld (a pain), update Ubuntu (requires a large amount of changes), or downgrade Rust
       # We can't use Rust 1.70 due to LLVM 16 requiring ld >= 2.40 when building for Windows
