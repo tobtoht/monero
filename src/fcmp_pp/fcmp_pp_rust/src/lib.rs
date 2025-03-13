@@ -672,6 +672,11 @@ pub unsafe extern "C" fn fcmp_pp_prove_input_new(
     let path = unsafe { path.read() };
     let output_blinds = unsafe { output_blinds.read() };
 
+    assert_eq!(
+        path.output.O(),
+        EdwardsPoint((*x * *EdwardsPoint::generator()) + (*y * *EdwardsPoint(T())))
+    );
+
     // Collect branch blinds
     let c1_branch_blinds: &[*const BranchBlind<<Selene as Ciphersuite>::G>] =
         selene_branch_blinds.into();
@@ -713,7 +718,6 @@ pub unsafe extern "C" fn balance_last_pseudo_out(
     let sum_output_masks = ed25519_scalar_from_bytes(sum_output_masks);
 
     let inputs: &[*const FcmpPpProveInput] = inputs.into();
-    let mut inputs: Vec<FcmpPpProveInput> = inputs.iter().map(|x| unsafe { x.read() }).collect();
 
     if inputs.len() == 0 {
         return CResult::err(());
@@ -721,15 +725,17 @@ pub unsafe extern "C" fn balance_last_pseudo_out(
 
     // Get the sum of the input commitment masks excluding the last one
     for i in 0..inputs.len() - 1 {
-        sum_input_masks += inputs[i].rerandomized_output.r_c();
+        // Read the input without consuming it
+        let input: &FcmpPpProveInput = unsafe { &*inputs[i] };
+        sum_input_masks += input.rerandomized_output.r_c();
     }
 
     // Re-calculate the last scalar so that the sum of inputs == sum of outputs
     let new_last_r_c = sum_output_masks - sum_input_masks;
 
     // Update the last r_c on the last reandomized output, which also updates its C_tilde
-    // TODO: remove cloning, modify the inputs slice directly
-    let mut last_input = inputs.last().unwrap().clone();
+    // TODO: modify the inputs slice directly
+    let mut last_input = inputs.last().unwrap().read();
     let last_commitment = last_input.path.output.C();
     last_input.rerandomized_output.set_r_c(last_commitment, new_last_r_c);
 
