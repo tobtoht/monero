@@ -38,7 +38,6 @@ extern "C"
 }
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "ringct/rctOps.h"
-#include "tx_builder_inputs.h"
 
 //third party headers
 

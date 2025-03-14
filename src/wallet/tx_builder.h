@@ -56,6 +56,33 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
     const bool allow_pre_carrot_inputs_in_normal_transfers,
     std::set<size_t> &selected_transfer_indices_out);
 
+carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_transfer_subtractable(
+    const wallet2::transfer_container &transfers,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,
+    const std::vector<cryptonote::tx_destination_entry> &dsts,
+    const rct::xmr_amount fee_per_weight,
+    const std::vector<uint8_t> &extra,
+    const uint32_t subaddr_account,
+    const std::set<uint32_t> &subaddr_indices,
+    const rct::xmr_amount ignore_above,
+    const rct::xmr_amount ignore_below,
+    const wallet2::unique_index_container& subtract_fee_from_outputs,
+    const std::uint64_t top_block_index,
+    const cryptonote::account_base &acb);
+
+carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_transfer(
+    const wallet2::transfer_container &transfers,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,
+    const std::vector<cryptonote::tx_destination_entry> &dsts,
+    const rct::xmr_amount fee_per_weight,
+    const std::vector<uint8_t> &extra,
+    const uint32_t subaddr_account,
+    const std::set<uint32_t> &subaddr_indices,
+    const rct::xmr_amount ignore_above,
+    const rct::xmr_amount ignore_below,
+    const std::uint64_t top_block_index,
+    const cryptonote::account_base &acb);
+
 carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_sweep(
     const wallet2::transfer_container &transfers,
     const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,

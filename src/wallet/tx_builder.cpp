@@ -82,6 +82,47 @@ static bool is_transfer_usable_for_input_selection(const wallet2::transfer_detai
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+static bool build_payment_proposals(std::vector<carrot::CarrotPaymentProposalV1> &normal_payment_proposals_inout,
+    std::vector<carrot::CarrotPaymentProposalVerifiableSelfSendV1> &selfsend_payment_proposals_inout,
+    const cryptonote::tx_destination_entry &tx_dest_entry,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map)
+{
+    const auto subaddr_it = subaddress_map.find(tx_dest_entry.addr.m_spend_public_key);
+    const bool is_selfsend_dest = subaddr_it != subaddress_map.cend();
+
+    // Make N destinations
+    if (is_selfsend_dest)
+    {
+        const carrot::subaddress_index subaddr_index{subaddr_it->second.major, subaddr_it->second.minor};
+        selfsend_payment_proposals_inout.push_back(carrot::CarrotPaymentProposalVerifiableSelfSendV1{
+            .proposal = carrot::CarrotPaymentProposalSelfSendV1{
+                .destination_address_spend_pubkey = tx_dest_entry.addr.m_spend_public_key,
+                .amount = tx_dest_entry.amount,
+                .enote_type = carrot::CarrotEnoteType::PAYMENT
+            },
+            .subaddr_index = {subaddr_index, carrot::AddressDeriveType::PreCarrot} // @TODO: handle carrot
+        });
+    }
+    else // not *known* self-send address
+    {
+        const carrot::CarrotDestinationV1 dest{
+            .address_spend_pubkey = tx_dest_entry.addr.m_spend_public_key,
+            .address_view_pubkey = tx_dest_entry.addr.m_view_public_key,
+            .is_subaddress = tx_dest_entry.is_subaddress
+            //! @TODO: payment ID 
+        };
+
+        normal_payment_proposals_inout.push_back(carrot::CarrotPaymentProposalV1{
+            .destination = dest,
+            .amount = tx_dest_entry.amount,
+            .randomness = carrot::gen_janus_anchor()
+        });
+    }
+
+    return is_selfsend_dest;
+}
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
 std::unordered_map<crypto::key_image, size_t> collect_non_burned_transfers_by_key_image(
     const wallet2::transfer_container &transfers)
 {
@@ -195,6 +236,118 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
             };
 }
 //-------------------------------------------------------------------------------------------------------------------
+carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_transfer_subtractable(
+    const wallet2::transfer_container &transfers,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,
+    const std::vector<cryptonote::tx_destination_entry> &dsts,
+    const rct::xmr_amount fee_per_weight,
+    const std::vector<uint8_t> &extra,
+    const uint32_t subaddr_account,
+    const std::set<uint32_t> &subaddr_indices,
+    const rct::xmr_amount ignore_above,
+    const rct::xmr_amount ignore_below,
+    const wallet2::unique_index_container& subtract_fee_from_outputs,
+    const std::uint64_t top_block_index,
+    const cryptonote::account_base &acb)
+{
+    // build payment proposals and subtractable info
+    std::vector<carrot::CarrotPaymentProposalV1> normal_payment_proposals;
+    std::vector<carrot::CarrotPaymentProposalVerifiableSelfSendV1> selfsend_payment_proposals;
+    std::set<std::size_t> subtractable_normal_payment_proposals;
+    std::set<std::size_t> subtractable_selfsend_payment_proposals;
+    for (size_t i = 0; i < dsts.size(); ++i)
+    {
+        const cryptonote::tx_destination_entry &dst = dsts.at(i);
+        const bool is_selfsend = build_payment_proposals(normal_payment_proposals,
+            selfsend_payment_proposals,
+            dst,
+            subaddress_map);
+        if (subtract_fee_from_outputs.count(i))
+        {
+            if (is_selfsend)
+                subtractable_selfsend_payment_proposals.insert(selfsend_payment_proposals.size() - 1);
+            else
+                subtractable_normal_payment_proposals.insert(normal_payment_proposals.size() - 1);
+        }
+    }
+
+    // make input selector
+    std::set<size_t> selected_transfer_indices;
+    carrot::select_inputs_func_t select_inputs = make_wallet2_single_transfer_input_selector(
+        transfers,
+        subaddr_account,
+        subaddr_indices,
+        ignore_above,
+        ignore_below,
+        top_block_index,
+        /*allow_carrot_external_inputs_in_normal_transfers=*/true,
+        /*allow_pre_carrot_inputs_in_normal_transfers=*/true,
+        selected_transfer_indices);
+
+    //! @TODO: handle HW devices
+    carrot::view_incoming_key_ram_borrowed_device k_view_incoming_dev(acb.get_keys().m_view_secret_key);
+
+    carrot::CarrotTransactionProposalV1 tx_proposal;
+    if (subtract_fee_from_outputs.size())
+    {
+        carrot::make_carrot_transaction_proposal_v1_transfer_subtractable(
+            normal_payment_proposals,
+            selfsend_payment_proposals,
+            fee_per_weight,
+            extra,
+            std::move(select_inputs),
+            /*s_view_balance_dev=*/nullptr, //! @TODO: handle carrot
+            &k_view_incoming_dev,
+            acb.get_keys().m_account_address.m_spend_public_key,
+            subtractable_normal_payment_proposals,
+            subtractable_selfsend_payment_proposals,
+            tx_proposal);
+    }
+    else // non-subtractable
+    {
+        carrot::make_carrot_transaction_proposal_v1_transfer(
+            normal_payment_proposals,
+            selfsend_payment_proposals,
+            fee_per_weight,
+            extra,
+            std::move(select_inputs),
+            /*s_view_balance_dev=*/nullptr, //! @TODO: handle carrot
+            &k_view_incoming_dev,
+            acb.get_keys().m_account_address.m_spend_public_key,
+            tx_proposal);
+    }
+
+    return tx_proposal;
+}
+//-------------------------------------------------------------------------------------------------------------------
+carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_transfer(
+    const wallet2::transfer_container &transfers,
+    const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,
+    const std::vector<cryptonote::tx_destination_entry> &dsts,
+    const rct::xmr_amount fee_per_weight,
+    const std::vector<uint8_t> &extra,
+    const uint32_t subaddr_account,
+    const std::set<uint32_t> &subaddr_indices,
+    const rct::xmr_amount ignore_above,
+    const rct::xmr_amount ignore_below,
+    const std::uint64_t top_block_index,
+    const cryptonote::account_base &acb)
+{
+    return make_carrot_transaction_proposal_wallet2_transfer_subtractable(
+        transfers,
+        subaddress_map,
+        dsts,
+        fee_per_weight,
+        extra,
+        subaddr_account,
+        subaddr_indices,
+        ignore_above,
+        ignore_below,
+        /*subtract_fee_from_outputs=*/{},
+        top_block_index,
+        acb);
+}
+//-------------------------------------------------------------------------------------------------------------------
 carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_sweep(
     const wallet2::transfer_container &transfers,
     const std::unordered_map<crypto::public_key, cryptonote::subaddress_index> &subaddress_map,
@@ -232,49 +385,15 @@ carrot::CarrotTransactionProposalV1 make_carrot_transaction_proposal_wallet2_swe
         input_amounts.push_back(td.amount());
     }
 
-    const auto subaddr_it = subaddress_map.find(address.m_spend_public_key);
-    const bool is_selfsend_dest = subaddr_it != subaddress_map.cend();
-
-    // Make N destinations
+    // build n_dests payment proposals
     std::vector<carrot::CarrotPaymentProposalV1> normal_payment_proposals;
     std::vector<carrot::CarrotPaymentProposalVerifiableSelfSendV1> selfsend_payment_proposals;
-    if (is_selfsend_dest)
+    for (size_t i = 0; i < n_dests; ++i)
     {
-        selfsend_payment_proposals.reserve(n_dests);
-        for (size_t i = 0; i < n_dests; ++i)
-        {
-            const carrot::CarrotEnoteType enote_type = (i == 0 && n_dests == 2)
-                ? carrot::CarrotEnoteType::PAYMENT
-                : carrot::CarrotEnoteType::CHANGE;
-            const carrot::subaddress_index subaddr_index{subaddr_it->second.major, subaddr_it->second.minor};
-            selfsend_payment_proposals.push_back(carrot::CarrotPaymentProposalVerifiableSelfSendV1{
-                .proposal = carrot::CarrotPaymentProposalSelfSendV1{
-                    .destination_address_spend_pubkey = address.m_spend_public_key,
-                    .amount = 0,
-                    .enote_type = enote_type
-                },
-                .subaddr_index = {subaddr_index, carrot::AddressDeriveType::PreCarrot} // @TODO: handle carrot
-            });
-        }
-    }
-    else // not *known* self-send address
-    {
-        const carrot::CarrotDestinationV1 dest{
-            .address_spend_pubkey = address.m_spend_public_key,
-            .address_view_pubkey = address.m_view_public_key,
-            .is_subaddress = is_subaddress
-            //! @TODO: payment ID 
-        };
-
-        normal_payment_proposals.reserve(n_dests);
-        for (size_t i = 0; i < n_dests; ++i)
-        {
-            normal_payment_proposals.push_back(carrot::CarrotPaymentProposalV1{
-                .destination = dest,
-                .amount = 0,
-                .randomness = carrot::gen_janus_anchor()
-            });
-        }
+        build_payment_proposals(normal_payment_proposals,
+            selfsend_payment_proposals,
+            cryptonote::tx_destination_entry(/*amount=*/0, address, is_subaddress),
+            subaddress_map);
     }
 
     // Collect CarrotSelectedInput
