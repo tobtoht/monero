@@ -33,6 +33,7 @@
 #include "carrot_core/device_ram_borrowed.h"
 #include "carrot_impl/carrot_tx_builder_inputs.h"
 #include "carrot_impl/carrot_tx_builder_utils.h"
+#include "carrot_impl/input_selection.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
 
 //third party headers
@@ -203,8 +204,8 @@ carrot::select_inputs_func_t make_wallet2_single_transfer_input_selector(
                 const std::size_t num_selfsend_payment_proposals,
                 std::vector<carrot::CarrotSelectedInput> &selected_inputs_outs
             ){
-                const std::vector<carrot::InputSelectionPolicy> policies{
-                    carrot::InputSelectionPolicy::TwoInputsPreferOldest
+                const std::vector<carrot::input_selection_policy_t> policies{
+                    &carrot::ispolicy::select_two_inputs_prefer_oldest
                 }; // @TODO
 
                 // TODO: not all carrot is internal

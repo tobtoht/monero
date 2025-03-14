@@ -32,6 +32,7 @@ set(carrot_impl_sources
   carrot_tx_builder_inputs.cpp
   carrot_tx_builder_utils.cpp
   carrot_tx_format_utils.cpp
+  input_selection.cpp
 )
 
 monero_find_all_headers(carrot_impl_headers, "${CMAKE_CURRENT_SOURCE_DIR}")

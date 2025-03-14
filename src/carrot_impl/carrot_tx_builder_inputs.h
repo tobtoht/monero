@@ -37,46 +37,11 @@
 //third party headers
 
 //standard headers
-#include <set>
 
 //forward declarations
 
 namespace carrot
 {
-struct CarrotPreSelectedInput
-{
-    CarrotSelectedInput core;
-
-    bool is_pre_carrot;
-    bool is_external;
-    uint64_t block_index;
-};
-
-enum class InputSelectionPolicy
-{
-    // Most of these schemes are going to be approximate, since finding true optimal solutions for
-    // a lot of these policies boil down to NP-hard problems, like 0-1 knapsack and CMP.
-    TwoInputsPreferOldest,
-    HighestUnlockedBalance,
-    LowestInputCountAndFee,
-    ConsolidateDiscretized,
-    ConsolidateFast,
-    OldestInputs
-};
-
-namespace InputSelectionFlags
-{
-    // Quantum forward secrecy (ON = unsafe)
-    static constexpr std::uint32_t ALLOW_EXTERNAL_INPUTS_IN_NORMAL_TRANSFERS   = 1 << 0;
-    static constexpr std::uint32_t ALLOW_PRE_CARROT_INPUTS_IN_NORMAL_TRANSFERS = 1 << 1;
-    static constexpr std::uint32_t ALLOW_MIXED_INTERNAL_EXTERNAL               = 1 << 2;
-    static constexpr std::uint32_t ALLOW_MIXED_CARROT_PRE_CARROT               = 1 << 3;
-
-    // Amount handling
-    static constexpr std::uint32_t IS_KNOWN_FEE_SUBTRACTABLE                   = 1 << 4;
-    static constexpr std::uint32_t ALLOW_DUST                                  = 1 << 5;
-}
-
 struct LegacyOutputOpeningHintV1
 {
     // WARNING: Using this opening hint is unsafe and enables for HW devices to
@@ -150,12 +115,6 @@ struct CarrotSignableTransactionProposalV1
 
     std::vector<CarrotOpenableRerandomizedOutputV1> inputs;
 };
-
-select_inputs_func_t make_single_transfer_input_selector(
-    const epee::span<const CarrotPreSelectedInput> input_candidates,
-    const epee::span<const InputSelectionPolicy> policies,
-    const std::uint32_t flags,
-    std::set<size_t> *selected_input_indices_out);
 
 void make_carrot_rerandomized_outputs_nonrefundable(const std::vector<crypto::public_key> &input_onetime_addresses,
     const std::vector<rct::key> &input_amount_commitments,

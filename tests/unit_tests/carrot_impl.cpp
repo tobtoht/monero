@@ -35,6 +35,7 @@
 #include "carrot_impl/carrot_tx_builder_inputs.h"
 #include "carrot_impl/carrot_tx_builder_utils.h"
 #include "carrot_impl/carrot_tx_format_utils.h"
+#include "carrot_impl/input_selection.h"
 #include "carrot_mock_helpers.h"
 #include "common/container_helpers.h"
 #include "crypto/generators.h"
@@ -1322,7 +1323,7 @@ TEST(carrot_impl, make_single_transfer_input_selector_TwoInputsPreferOldest_1)
         }
     };
 
-    const std::vector<InputSelectionPolicy> policies = { InputSelectionPolicy::TwoInputsPreferOldest };
+    const std::vector<input_selection_policy_t> policies = { &carrot::ispolicy::select_two_inputs_prefer_oldest };
 
     const uint32_t flags = 0;
 
