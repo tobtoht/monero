@@ -1637,6 +1637,7 @@ fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_tr
   check_open();
 
   TXN_PREFIX_RDONLY();
+  RCURSOR(leaves)
   RCURSOR(layers)
 
   fcmp_pp::curve_trees::PathBytes path_bytes;
@@ -1675,7 +1676,7 @@ fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_tr
     }
   }
 
-  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer, getting children to trim
+  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer
   // TODO: separate function for layers
   std::size_t layer_idx = 0;
   for (const auto &layer_idx_range : path_indexes.layers)
@@ -1687,7 +1688,7 @@ fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_tr
     MDB_cursor_op op = MDB_GET_BOTH;
     for (std::size_t i = layer_idx_range.first; i < layer_idx_range.second; ++i)
     {
-      MDEBUG("Getting child to trim at layer_idx: " << layer_idx << " , idx: " << i);
+      MDEBUG("Getting child at layer_idx: " << layer_idx << " , idx: " << i);
 
       int result = mdb_cursor_get(m_cur_layers, &k, &v, op);
       op = MDB_NEXT_DUP;
