@@ -507,7 +507,6 @@ namespace rct {
             // tx, we would need a db read (for n_tree_layers as of the block) in order to de-serialize the FCMP++ proof
             VARINT_FIELD(n_tree_layers)
             ar.tag("fcmp_pp");
-            ar.begin_object();
             const std::size_t proof_len = fcmp_pp::proof_len(inputs, n_tree_layers);
             if (!typename Archive<W>::is_saving())
               fcmp_pp.resize(proof_len);
@@ -516,7 +515,6 @@ namespace rct {
             ar.serialize_blob(fcmp_pp.data(), proof_len);
             if (!ar.good())
               return false;
-            ar.end_object();
           }
           else if (type == RCTTypeCLSAG || type == RCTTypeBulletproofPlus)
           {
