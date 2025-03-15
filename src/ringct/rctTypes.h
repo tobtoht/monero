@@ -424,8 +424,8 @@ namespace rct {
         std::vector<clsag> CLSAGs;
         keyV pseudoOuts; //C - for simple rct
         // FCMP data
-        uint64_t reference_block; // used to get the tree root as of when this reference block index enters the chain
-        uint8_t n_tree_layers; // number of layers in the tree as of the block when the reference block index enters the chain
+        uint64_t reference_block{0}; // used to get the tree root as of when this reference block index enters the chain
+        uint8_t n_tree_layers{0}; // number of layers in the tree as of the block when the reference block index enters the chain
         fcmp_pp::FcmpPpProof fcmp_pp; // FCMP++ SAL and membership proof
         fcmp_pp::FcmpVerifyHelperData fcmp_ver_helper_data; // used to verify FCMP proofs (not serialized, reconstructed)
 
