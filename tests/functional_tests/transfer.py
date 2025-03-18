@@ -598,14 +598,16 @@ class TransferTest():
             self.wallet[0].refresh()
             res = self.wallet[0].get_balance()
             unlocked_balance = res.unlocked_balance
-            res = self.wallet[0].sweep_all(address = '44Kbx4sJ7JDRDV5aAhLJzQCjDz2ViLRduE3ijDZu3osWKBjMGkV1XPk4pfDUMqt1Aiezvephdqm6YD19GKFD9ZcXVUTp6BW', do_not_relay = True, get_tx_hex = True)
+            amount = 1000000000000
+            dst = {'address': '44Kbx4sJ7JDRDV5aAhLJzQCjDz2ViLRduE3ijDZu3osWKBjMGkV1XPk4pfDUMqt1Aiezvephdqm6YD19GKFD9ZcXVUTp6BW', 'amount': amount }
+            res = self.wallet[0].transfer_split([dst], do_not_relay = True, get_tx_hex = True)
             assert len(res.tx_hash_list) == 1
             assert len(res.tx_hash_list[0]) == 32*2
             txes[i][0] = res.tx_hash_list[0]
             assert len(res.fee_list) == 1
             assert res.fee_list[0] > 0
             assert len(res.amount_list) == 1
-            assert res.amount_list[0] == unlocked_balance - res.fee_list[0]
+            assert res.amount_list[0] == amount
             assert len(res.tx_blob_list) > 0
             assert len(res.tx_blob_list[0]) > 0
             assert not 'tx_metadata_list' in res or len(res.tx_metadata_list) == 0
