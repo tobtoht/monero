@@ -87,6 +87,7 @@ class TransferTest():
         self.check_subtract_fee_from_outputs()
         self.check_background_sync()
         self.check_background_sync_reorg_recovery()
+        self.sweep_all()
 
     def reset(self):
         print('Resetting blockchain')
@@ -1614,6 +1615,30 @@ class TransferTest():
         util_resources.remove_wallet_files('test1')
         self.wallet[0].close_wallet()
         self.wallet[0].restore_deterministic_wallet(seed = seeds[0])
+
+    def sweep_all(self):
+        daemon = Daemon()
+
+        print("Sweeping all outputs")
+
+        self.wallet[0].refresh()
+        res = self.wallet[0].get_balance()
+        init_balance = res.balance
+        unlocked_balance = res.unlocked_balance
+        assert unlocked_balance > 0
+
+        res = self.wallet[0].sweep_all('46r4nYSevkfBUMhuykdK3gQ98XDqDTYW1hNLaXNvjpsJaSbNtdXh1sKMsdVgqkaihChAzEy29zEDPMR3NHQvGoZCLGwTerK')
+        assert len(res.tx_hash_list) > 0
+        assert len(res.fee_list) == len(res.tx_hash_list)
+        assert len(res.amount_list) == len(res.tx_hash_list)
+        assert not 'tx_metadata_list' in res or len(res.tx_metadata_list) == 0
+        assert not 'multisig_txset' in res or len(res.multisig_txset) == 0
+        assert not 'unsigned_txset' in res or len(res.unsigned_txset) == 0
+
+        res = self.wallet[0].get_balance()
+        final_balance = res.balance
+        assert final_balance + unlocked_balance == init_balance
+        assert res.unlocked_balance == 0
 
 if __name__ == '__main__':
     TransferTest().run_test()
