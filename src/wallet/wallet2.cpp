@@ -11161,13 +11161,15 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     }
     else
     {
+      const size_t max_dsts = (use_fcmp ? FCMP_PLUS_PLUS_MAX_OUTPUTS : BULLETPROOF_MAX_OUTPUTS) - 1;
+
       while (!dsts.empty() && dsts[0].amount <= available_amount && estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()+1, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
       {
         // we can fully pay that destination
         LOG_PRINT_L2("We can fully pay " << get_account_address_as_str(m_nettype, dsts[0].is_subaddress, dsts[0].addr) <<
           " for " << print_money(dsts[0].amount));
         const bool subtract_fee_from_this_dest = subtract_fee_from_outputs.count(destination_index);
-        if (!tx.add(dsts[0], dsts[0].amount, original_output_index, m_merge_destinations, BULLETPROOF_MAX_OUTPUTS-1, subtract_fee_from_this_dest))
+        if (!tx.add(dsts[0], dsts[0].amount, original_output_index, m_merge_destinations, max_dsts, subtract_fee_from_this_dest))
         {
           LOG_PRINT_L2("Didn't pay: ran out of output slots");
           out_slots_exhausted = true;
@@ -11186,7 +11188,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We can partially pay " << get_account_address_as_str(m_nettype, dsts[0].is_subaddress, dsts[0].addr) <<
           " for " << print_money(available_amount) << "/" << print_money(dsts[0].amount));
         const bool subtract_fee_from_this_dest = subtract_fee_from_outputs.count(destination_index);
-        if (tx.add(dsts[0], available_amount, original_output_index, m_merge_destinations, BULLETPROOF_MAX_OUTPUTS-1, subtract_fee_from_this_dest))
+        if (tx.add(dsts[0], available_amount, original_output_index, m_merge_destinations, max_dsts, subtract_fee_from_this_dest))
         {
           dsts[0].amount -= available_amount;
           available_amount = 0;
@@ -11225,6 +11227,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         THROW_WALLET_EXCEPTION_IF(try_tx && tx.dsts.empty(), error::tx_too_big, estimated_rct_tx_weight, upper_transaction_weight_limit);
       }
     }
+
+    try_tx |= (use_fcmp && tx.selected_transfers.size() == FCMP_PLUS_PLUS_MAX_INPUTS);
 
     if (try_tx) {
       cryptonote::transaction test_tx;
