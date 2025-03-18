@@ -7567,8 +7567,6 @@ bool wallet2::is_transfer_unlocked(const transfer_details& td)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height)
 {
-  // FIXME: At FCMP++ fork, use the new logic
-
   if(!is_tx_spendtime_unlocked(unlock_time, block_height))
     return false;
 
@@ -7580,6 +7578,9 @@ bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height)
 {
+  if (use_fork_rules(HF_VERSION_FCMP_PLUS_PLUS, 0))
+    return get_blockchain_current_height() >= (cryptonote::get_last_locked_block_index(unlock_time, block_height)+1);
+
   if(unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
   {
     //interpret as block index
