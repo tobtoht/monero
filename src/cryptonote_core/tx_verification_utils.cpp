@@ -587,7 +587,7 @@ bool batch_ver_fcmp_pp_consensus
     // verification to batch verify FCMP++ txs AND whatever future txs we're
     // trying to batch verify.
     const bool caching_fcmp_pp_txs = rct_type_to_cache == rct::RCTTypeFcmpPlusPlus;
-    VER_ASSERT(!caching_fcmp_pp_txs, "Make sure batch verification works correctly with this type and then enable it in the code here.");
+    VER_ASSERT(caching_fcmp_pp_txs, "Make sure batch verification works correctly with this type and then enable it in the code here.");
 
     // Collect unverified FCMP++ txs for batch verfication
     std::unordered_map<uint64_t, uint8_t *> decompressed_tree_roots_by_block_index;
