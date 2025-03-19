@@ -182,20 +182,10 @@ CResult hash_grow_helios(struct HeliosPoint existing_hash,
                                              struct HeliosScalar existing_child_at_offset,
                                              struct HeliosScalarSlice new_children);
 
-CResult hash_trim_helios(struct HeliosPoint existing_hash,
-                                             uintptr_t offset,
-                                             struct HeliosScalarSlice children,
-                                             struct HeliosScalar child_to_grow_back);
-
 CResult hash_grow_selene(struct SelenePoint existing_hash,
                                              uintptr_t offset,
                                              struct SeleneScalar existing_child_at_offset,
                                              struct SeleneScalarSlice new_children);
-
-CResult hash_trim_selene(struct SelenePoint existing_hash,
-                                             uintptr_t offset,
-                                             struct SeleneScalarSlice children,
-                                             struct SeleneScalar child_to_grow_back);
 
 CResult path_new(struct OutputSlice leaves,
                                              uintptr_t output_idx,

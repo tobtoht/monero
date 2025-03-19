@@ -13,7 +13,7 @@ use helioselene::{
 };
 
 use ec_divisors::{DivisorCurve, ScalarDecomposition};
-use full_chain_membership_proofs::tree::{hash_grow, hash_trim};
+use full_chain_membership_proofs::tree::hash_grow;
 
 use monero_fcmp_plus_plus::{
     fcmps,
@@ -239,29 +239,6 @@ pub extern "C" fn hash_grow_helios(
 }
 
 #[no_mangle]
-pub extern "C" fn hash_trim_helios(
-    existing_hash: HeliosPoint,
-    offset: usize,
-    children: HeliosScalarSlice,
-    child_to_grow_back: HeliosScalar,
-) -> CResult<HeliosPoint, ()> {
-    let hash = hash_trim(
-        HELIOS_GENERATORS(),
-        existing_hash,
-        offset,
-        children.into(),
-        child_to_grow_back,
-    );
-
-    if let Some(hash) = hash {
-        CResult::ok(hash)
-    } else {
-        // TODO: return defined error here: https://github.com/monero-project/monero/pull/9436#discussion_r1720477391
-        CResult::err(())
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn hash_grow_selene(
     existing_hash: SelenePoint,
     offset: usize,
@@ -274,29 +251,6 @@ pub extern "C" fn hash_grow_selene(
         offset,
         existing_child_at_offset,
         new_children.into(),
-    );
-
-    if let Some(hash) = hash {
-        CResult::ok(hash)
-    } else {
-        // TODO: return defined error here: https://github.com/monero-project/monero/pull/9436#discussion_r1720477391
-        CResult::err(())
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn hash_trim_selene(
-    existing_hash: SelenePoint,
-    offset: usize,
-    children: SeleneScalarSlice,
-    child_to_grow_back: SeleneScalar,
-) -> CResult<SelenePoint, ()> {
-    let hash = hash_trim(
-        SELENE_GENERATORS(),
-        existing_hash,
-        offset,
-        children.into(),
-        child_to_grow_back,
     );
 
     if let Some(hash) = hash {

@@ -71,6 +71,7 @@ struct BlockMeta final
     BlockIdx blk_idx;
     BlockHash blk_hash;
     uint64_t n_leaf_tuples;
+    std::vector<crypto::ec_point> tree_edge;
 
     template <class Archive>
     inline void serialize(Archive &a, const unsigned int ver)
@@ -78,12 +79,14 @@ struct BlockMeta final
         a & blk_hash;
         a & blk_idx;
         a & n_leaf_tuples;
+        a & tree_edge;
     }
 
     BEGIN_SERIALIZE_OBJECT()
         FIELD(blk_idx)
         FIELD(blk_hash)
         FIELD(n_leaf_tuples)
+        FIELD(tree_edge)
     END_SERIALIZE()
 };
 
@@ -206,7 +209,8 @@ public:
     bool get_top_block(BlockMeta &top_block_out) const
     {
         CHECK_AND_ASSERT_MES(!m_cached_blocks.empty(), false, "empty cached blocks");
-        memcpy(&top_block_out, &m_cached_blocks.back(), sizeof(BlockMeta));
+        BlockMeta top_block = m_cached_blocks.back();
+        top_block_out = std::move(top_block);
         return true;
     };
 
@@ -235,13 +239,9 @@ public:
 private:
     typename CurveTrees<C1, C2>::LastHashes get_last_hashes(const uint64_t n_leaf_tuples) const;
 
-    typename CurveTrees<C1, C2>::LastChunkChildrenForTrim get_last_chunk_children_to_regrow(
-        const std::vector<TrimLayerInstructions> &trim_instructions) const;
-
-    typename CurveTrees<C1, C2>::LastHashes get_last_hashes_for_trim(
-        const std::vector<TrimLayerInstructions> &trim_instructions) const;
-
     void deque_block(const uint64_t n_leaf_tuples_at_block);
+
+    std::vector<crypto::ec_point> get_tree_edge(const uint64_t n_leaf_tuples) const;
 
 // State held in memory
 private:
@@ -259,9 +259,9 @@ private:
     LeafCache m_leaf_cache;
     TreeElemCache m_tree_elem_cache;
 
-    // Used for getting tree extensions and reductions when growing and trimming respectively
+    // Used for getting tree extensions when growing and for trimming
     // - These are unspecific to the wallet's registered outputs. These are strictly necessary to ensure we can rebuild
-    //   the tree extensions and reductions for each block correctly locally when syncing.
+    //   the tree extensions (and trim backwards) for each block correctly locally when syncing.
     std::deque<BlockMeta> m_cached_blocks;
 
     uint64_t m_getting_unlocked_outs_ms{0};

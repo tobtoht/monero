@@ -578,253 +578,6 @@ static LayerExtension<C_PARENT> get_next_layer_extension(const std::unique_ptr<C
     return layer_extension;
 }
 //----------------------------------------------------------------------------------------------------------------------
-static TrimLayerInstructions get_trim_layer_instructions(
-    const uint64_t old_total_children,
-    const uint64_t new_total_children,
-    const std::size_t parent_chunk_width,
-    const bool last_child_will_change,
-    const bool always_regrow_with_remaining)
-{
-    CHECK_AND_ASSERT_THROW_MES(new_total_children > 0, "new total children must be > 0");
-    CHECK_AND_ASSERT_THROW_MES(old_total_children >= new_total_children,
-        "old_total_children must be >= new_total_children");
-
-    // Calculate old and new total number of parents using totals for children
-    const uint64_t old_total_parents = 1 + ((old_total_children - 1) / parent_chunk_width);
-    const uint64_t new_total_parents = 1 + ((new_total_children - 1) / parent_chunk_width);
-
-    CHECK_AND_ASSERT_THROW_MES(old_total_parents >= new_total_parents,
-        "old_total_parents must be >= new_total_parents");
-    CHECK_AND_ASSERT_THROW_MES(new_total_children > new_total_parents,
-        "new_total_children must be > new_total_parents");
-
-    const std::size_t old_offset = old_total_children % parent_chunk_width;
-    const std::size_t new_offset = new_total_children % parent_chunk_width;
-
-    // Get the number of existing children in what will become the new last chunk after trimming
-    const uint64_t new_last_chunk_old_num_children = (old_total_parents > new_total_parents || old_offset == 0)
-        ? parent_chunk_width
-        : old_offset;
-
-    MDEBUG("new_last_chunk_old_num_children: " << new_last_chunk_old_num_children << ", new_offset: " << new_offset);
-
-    CHECK_AND_ASSERT_THROW_MES(new_last_chunk_old_num_children >= new_offset,
-        "unexpected new_last_chunk_old_num_children");
-
-    // Get the number of children we'll be trimming from the new last chunk
-    const std::size_t trim_n_children = new_offset == 0
-        ? 0 // The last chunk wil remain full when the new_offset == 0
-        : new_last_chunk_old_num_children - new_offset;
-
-    // We use hash trim if we're trimming fewer elems in the last chunk than the number of elems remaining
-    const bool need_last_chunk_children_to_trim = trim_n_children > 0 &&
-        trim_n_children <= new_offset && !always_regrow_with_remaining;
-
-    // Otherwise we use hash_grow
-    const bool need_last_chunk_remaining_children = trim_n_children > 0 &&
-        (trim_n_children > new_offset || always_regrow_with_remaining);
-
-    CHECK_AND_ASSERT_THROW_MES(!(need_last_chunk_children_to_trim && need_last_chunk_remaining_children),
-        "cannot both need last children to trim and need the remaining children");
-
-    // If we're trimming from the new last chunk OR an element in the new last chunk will change, then we're going to
-    // update the existing last hash, since its children are changing
-    const bool update_existing_last_hash = trim_n_children > 0 || last_child_will_change;
-
-    // If we're trimming using remaining children, then we're just going to call hash_grow as if the chunk is being
-    // hashed for the first time, and so we don't need the existing last hash in that case, even if the hash is updating
-    const bool need_existing_last_hash = update_existing_last_hash && !need_last_chunk_remaining_children;
-
-    // Set the hash_offset to use when calling hash_grow or hash_trim
-    std::size_t hash_offset = 0;
-    if (need_last_chunk_children_to_trim)
-    {
-        CHECK_AND_ASSERT_THROW_MES(new_offset > 0, "new_offset must be > 0 when trimming last chunk children");
-        hash_offset = new_offset;
-
-        if (last_child_will_change)
-        {
-            // We decrement the offset we use to hash the chunk if the last child is changing, since we're going to
-            // use the old value of the last child when trimming
-            --hash_offset;
-        }
-    }
-    else if (need_last_chunk_remaining_children)
-    {
-        // If we're trimming using remaining children, then we're just going to call hash_grow with offset 0
-        hash_offset = 0;
-    }
-    else if (last_child_will_change)
-    {
-        // We're not trimming at all in this case, we're only updating the existing last hash with hash_trim. We need
-        // hash_offset to be equal to 1 - this existing last hash's position
-        hash_offset = new_offset == 0
-            ? (parent_chunk_width - 1) // chunk is full, so decrement full width by 1
-            : (new_offset - 1);
-    }
-
-    // Set the child index range so the caller knows which children to read from the tree
-    uint64_t start_trim_idx = 0;
-    uint64_t end_trim_idx = 0;
-    if (need_last_chunk_children_to_trim)
-    {
-        // We'll call hash_trim to trim the children between [offset, last chunk end]
-        const uint64_t chunk_boundary_start = (new_total_parents - 1) * parent_chunk_width;
-        const uint64_t chunk_boundary_end   = chunk_boundary_start + parent_chunk_width;
-
-        start_trim_idx = chunk_boundary_start + hash_offset;
-        end_trim_idx   = std::min(chunk_boundary_end, old_total_children);
-    }
-    else if (need_last_chunk_remaining_children)
-    {
-        // We'll call hash_grow with the remaining children between [0, offset]
-        CHECK_AND_ASSERT_THROW_MES(new_total_children >= new_offset, "new_offset is unexpectedly high");
-        start_trim_idx = new_total_children - new_offset;
-        end_trim_idx   = new_total_children;
-
-        if (last_child_will_change)
-        {
-            // We don't need the last old child if it's changing, we'll just use its new value. Decrement the
-            // end_trim_idx by 1 so we know not to read and use the last old child from the tree in this case.
-            CHECK_AND_ASSERT_THROW_MES(end_trim_idx > 0, "end_trim_idx cannot be 0");
-            --end_trim_idx;
-        }
-    }
-
-    MDEBUG("parent_chunk_width: "                    << parent_chunk_width
-        << " , old_total_children: "                 << old_total_children
-        << " , new_total_children: "                 << new_total_children
-        << " , old_total_parents: "                  << old_total_parents
-        << " , new_total_parents: "                  << new_total_parents
-        << " , need_last_chunk_children_to_trim: "   << need_last_chunk_children_to_trim
-        << " , need_last_chunk_remaining_children: " << need_last_chunk_remaining_children
-        << " , need_existing_last_hash: "            << need_existing_last_hash
-        << " , need_new_last_child: "                << last_child_will_change
-        << " , update_existing_last_hash: "          << update_existing_last_hash
-        << " , hash_offset: "                        << hash_offset
-        << " , start_trim_idx: "                     << start_trim_idx
-        << " , end_trim_idx: "                       << end_trim_idx);
-
-    return TrimLayerInstructions{
-            .parent_chunk_width                 = parent_chunk_width,
-            .old_total_children                 = old_total_children,
-            .new_total_children                 = new_total_children,
-            .old_total_parents                  = old_total_parents,
-            .new_total_parents                  = new_total_parents,
-            .update_existing_last_hash          = update_existing_last_hash,
-            .need_last_chunk_children_to_trim   = need_last_chunk_children_to_trim,
-            .need_last_chunk_remaining_children = need_last_chunk_remaining_children,
-            .need_existing_last_hash            = need_existing_last_hash,
-            .need_new_last_child                = last_child_will_change,
-            .hash_offset                        = hash_offset,
-            .start_trim_idx                     = start_trim_idx,
-            .end_trim_idx                       = end_trim_idx,
-        };
-}
-//----------------------------------------------------------------------------------------------------------------------
-template<typename C_CHILD, typename C_PARENT>
-static typename fcmp_pp::curve_trees::LayerReduction<C_PARENT> get_next_layer_reduction(
-    const std::unique_ptr<C_CHILD> &c_child,
-    const std::unique_ptr<C_PARENT> &c_parent,
-    const TrimLayerInstructions &trim_layer_instructions,
-    const std::vector<typename C_PARENT::Point> &parent_last_hashes,
-    const std::vector<std::vector<typename C_PARENT::Scalar>> &children_for_trim,
-    const std::vector<typename C_CHILD::Point> &child_last_hashes,
-    const std::size_t parent_layer_idx,
-    const std::size_t child_layer_idx,
-    const std::vector<LayerReduction<C_CHILD>> &child_reductions)
-{
-    LayerReduction<C_PARENT> layer_reduction_out;
-
-    layer_reduction_out.new_total_parents         = trim_layer_instructions.new_total_parents;
-    layer_reduction_out.update_existing_last_hash = trim_layer_instructions.update_existing_last_hash;
-
-    if (!trim_layer_instructions.need_last_chunk_children_to_trim &&
-        !trim_layer_instructions.need_last_chunk_remaining_children &&
-        !trim_layer_instructions.need_new_last_child)
-    {
-        // In this case we're just trimming to the boundary, and don't need to get a new hash
-        CHECK_AND_ASSERT_THROW_MES(!layer_reduction_out.update_existing_last_hash, "unexpected update last hash");
-        MDEBUG("Trimming to chunk boundary");
-        return layer_reduction_out;
-    }
-
-    if (trim_layer_instructions.need_existing_last_hash)
-        CHECK_AND_ASSERT_THROW_MES(parent_last_hashes.size() > parent_layer_idx, "missing last parent hash");
-
-    const typename C_PARENT::Point &existing_hash = trim_layer_instructions.need_existing_last_hash
-        ? parent_last_hashes[parent_layer_idx]
-        : c_parent->hash_init_point();
-
-    std::vector<typename C_PARENT::Scalar> child_scalars;
-    if (trim_layer_instructions.need_last_chunk_children_to_trim
-        || trim_layer_instructions.need_last_chunk_remaining_children)
-    {
-        CHECK_AND_ASSERT_THROW_MES(children_for_trim.size() > parent_layer_idx, "missing children for trim");
-        child_scalars = children_for_trim[parent_layer_idx];
-    }
-
-    typename C_PARENT::Scalar new_last_child_scalar = c_parent->zero_scalar();
-    if (trim_layer_instructions.need_new_last_child)
-    {
-        CHECK_AND_ASSERT_THROW_MES(child_layer_idx > 0, "child index cannot be 0 here");
-        CHECK_AND_ASSERT_THROW_MES(child_reductions.size() == child_layer_idx, "unexpected child layer idx");
-        CHECK_AND_ASSERT_THROW_MES(child_reductions.back().update_existing_last_hash, "expected new last child");
-
-        const typename C_CHILD::Point &new_last_child = child_reductions.back().new_last_hash;
-        new_last_child_scalar = c_child->point_to_cycle_scalar(new_last_child);
-
-        if (trim_layer_instructions.need_last_chunk_remaining_children)
-        {
-            child_scalars.emplace_back(std::move(new_last_child_scalar));
-        }
-        else if (!trim_layer_instructions.need_last_chunk_children_to_trim)
-        {
-            // Falling to this conditional means we're not trimming at all, just updating the old last child
-            const std::size_t last_child_layer_idx = child_layer_idx - 1;
-            CHECK_AND_ASSERT_THROW_MES(child_last_hashes.size() > last_child_layer_idx, "missing last child hash");
-
-            const typename C_CHILD::Point &old_last_child = child_last_hashes[last_child_layer_idx];
-            auto old_last_child_scalar = c_child->point_to_cycle_scalar(old_last_child);
-
-            child_scalars.emplace_back(std::move(old_last_child_scalar));
-        }
-    }
-
-    CHECK_AND_ASSERT_THROW_MES(!child_scalars.empty(), "missing child scalars");
-
-    for (std::size_t i = 0; i < child_scalars.size(); ++i)
-        MDEBUG("Hashing child " << c_parent->to_string(child_scalars[i]));
-
-    if (trim_layer_instructions.need_last_chunk_remaining_children)
-    {
-        MDEBUG("hash_grow: existing_hash: " << c_parent->to_string(existing_hash)
-            << " , hash_offset: " << trim_layer_instructions.hash_offset);
-
-        layer_reduction_out.new_last_hash = c_parent->hash_grow(
-            existing_hash,
-            trim_layer_instructions.hash_offset,
-            c_parent->zero_scalar(),
-            typename C_PARENT::Chunk{child_scalars.data(), child_scalars.size()});
-    }
-    else
-    {
-        MDEBUG("hash_trim: existing_hash: " << c_parent->to_string(existing_hash)
-            << " , hash_offset: "           << trim_layer_instructions.hash_offset
-            << " , child_to_grow_back: "    << c_parent->to_string(new_last_child_scalar));
-
-        layer_reduction_out.new_last_hash = c_parent->hash_trim(
-            existing_hash,
-            trim_layer_instructions.hash_offset,
-            typename C_PARENT::Chunk{child_scalars.data(), child_scalars.size()},
-            new_last_child_scalar);
-    }
-
-    MDEBUG("Result hash: " << c_parent->to_string(layer_reduction_out.new_last_hash));
-
-    return layer_reduction_out;
-}
-//----------------------------------------------------------------------------------------------------------------------
 static PreLeafTuple output_tuple_to_pre_leaf_tuple(const OutputTuple &o)
 {
     TIME_MEASURE_NS_START(point_to_ed_y_derivatives_ns);
@@ -1014,160 +767,34 @@ template CurveTrees<Selene, Helios>::TreeExtension CurveTrees<Selene, Helios>::g
     std::vector<std::vector<OutputContext>> &&new_outputs);
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
-std::vector<TrimLayerInstructions> CurveTrees<C1, C2>::get_trim_instructions(
-    const uint64_t old_n_leaf_tuples,
-    const uint64_t trim_n_leaf_tuples,
-    const bool always_regrow_with_remaining) const
+std::vector<uint64_t> CurveTrees<C1, C2>::n_elems_per_layer(const uint64_t n_leaf_tuples) const
 {
-    CHECK_AND_ASSERT_THROW_MES(old_n_leaf_tuples >= trim_n_leaf_tuples, "cannot trim more leaves than exist");
-
-    std::vector<TrimLayerInstructions> trim_instructions;
-    if (old_n_leaf_tuples == trim_n_leaf_tuples)
-        return trim_instructions; // Empty instructions means trim the whole tree
-
-    CHECK_AND_ASSERT_THROW_MES(trim_n_leaf_tuples > 0, "must be trimming some leaves");
-
-    // Get trim instructions for the leaf layer
-    {
-        const uint64_t old_total_leaves = old_n_leaf_tuples * LEAF_TUPLE_SIZE;
-        const uint64_t new_total_leaves = (old_n_leaf_tuples - trim_n_leaf_tuples) * LEAF_TUPLE_SIZE;
-
-        const std::size_t parent_chunk_width = m_leaf_layer_chunk_width;
-
-        // Leaf layer's last child never changes since leaf layer is pop-/append-only
-        const bool last_child_will_change = false;
-
-        MDEBUG("Getting trim layer instructions for layer " << trim_instructions.size());
-
-        auto trim_leaf_layer_instructions = get_trim_layer_instructions(
-            old_total_leaves,
-            new_total_leaves,
-            parent_chunk_width,
-            last_child_will_change,
-            always_regrow_with_remaining);
-
-        trim_instructions.emplace_back(std::move(trim_leaf_layer_instructions));
-    }
-
-    bool parent_is_c2 = true;
-    while (trim_instructions.back().new_total_parents > 1)
-    {
-        MDEBUG("Getting trim layer instructions for layer " << trim_instructions.size());
-
-        auto trim_layer_instructions = get_trim_layer_instructions(
-            trim_instructions.back().old_total_parents,
-            trim_instructions.back().new_total_parents,
-            parent_is_c2 ? m_c2_width : m_c1_width,
-            trim_instructions.back().update_existing_last_hash,
-            always_regrow_with_remaining);
-
-        trim_instructions.emplace_back(std::move(trim_layer_instructions));
-        parent_is_c2 = !parent_is_c2;
-    }
-
-    return trim_instructions;
-}
-
-// Explicit instantiation
-template std::vector<TrimLayerInstructions> CurveTrees<Selene, Helios>::get_trim_instructions(
-    const uint64_t old_n_leaf_tuples,
-    const uint64_t trim_n_leaf_tuples,
-    const bool always_regrow_with_remaining) const;
-//----------------------------------------------------------------------------------------------------------------------
-template<typename C1, typename C2>
-typename CurveTrees<C1, C2>::TreeReduction CurveTrees<C1, C2>::get_tree_reduction(
-    const std::vector<TrimLayerInstructions> &trim_instructions,
-    const LastChunkChildrenForTrim &children_for_trim,
-    const LastHashes &last_hashes) const
-{
-    TreeReduction tree_reduction_out;
-
-    if (trim_instructions.empty())
-    {
-        tree_reduction_out.new_total_leaf_tuples = 0;
-        return tree_reduction_out;
-    }
-
-    CHECK_AND_ASSERT_THROW_MES((trim_instructions[0].new_total_children % LEAF_TUPLE_SIZE) == 0,
-        "unexpected new total leaves");
-    const uint64_t new_total_leaf_tuples = trim_instructions[0].new_total_children / LEAF_TUPLE_SIZE;
-    tree_reduction_out.new_total_leaf_tuples = new_total_leaf_tuples;
-
-    bool parent_is_c1 = true;
-    std::size_t c1_idx = 0;
-    std::size_t c2_idx = 0;
-
-    for (const auto &trim_layer_instructions : trim_instructions)
-    {
-        MDEBUG("Trimming layer " << (c1_idx + c2_idx) << " (c1_idx: " << c1_idx << " , c2_idx: " << c2_idx << ")");
-
-        if (parent_is_c1)
-        {
-            auto c1_layer_reduction_out = get_next_layer_reduction(
-                    m_c2,
-                    m_c1,
-                    trim_layer_instructions,
-                    last_hashes.c1_last_hashes,
-                    children_for_trim.c1_children,
-                    last_hashes.c2_last_hashes,
-                    c1_idx,
-                    c2_idx,
-                    tree_reduction_out.c2_layer_reductions
-                );
-
-            tree_reduction_out.c1_layer_reductions.emplace_back(std::move(c1_layer_reduction_out));
-            ++c1_idx;
-        }
-        else
-        {
-            auto c2_layer_reduction_out = get_next_layer_reduction(
-                    m_c1,
-                    m_c2,
-                    trim_layer_instructions,
-                    last_hashes.c2_last_hashes,
-                    children_for_trim.c2_children,
-                    last_hashes.c1_last_hashes,
-                    c2_idx,
-                    c1_idx,
-                    tree_reduction_out.c1_layer_reductions
-                );
-
-            tree_reduction_out.c2_layer_reductions.emplace_back(std::move(c2_layer_reduction_out));
-            ++c2_idx;
-        }
-
-        parent_is_c1 = !parent_is_c1;
-    }
-
-    return tree_reduction_out;
-};
-
-// Explicit instantiation
-template CurveTrees<Selene, Helios>::TreeReduction CurveTrees<Selene, Helios>::get_tree_reduction(
-    const std::vector<TrimLayerInstructions> &trim_instructions,
-    const LastChunkChildrenForTrim &children_for_trim,
-    const LastHashes &last_hashes) const;
-//----------------------------------------------------------------------------------------------------------------------
-template<typename C1, typename C2>
-std::size_t CurveTrees<C1, C2>::n_layers(const uint64_t n_leaf_tuples) const
-{
+    std::vector<uint64_t> n_elems_per_layer;
     if (n_leaf_tuples == 0)
-        return 0;
+        return n_elems_per_layer;
 
     uint64_t n_children = n_leaf_tuples;
-    std::size_t n_layers = 0;
     bool parent_is_c1 = true;
     do
     {
         const std::size_t parent_chunk_width = parent_is_c1 ? m_c1_width : m_c2_width;
         const uint64_t n_parents = ((n_children - 1) / parent_chunk_width) + 1;
+        n_elems_per_layer.push_back(n_parents);
         n_children = n_parents;
         parent_is_c1 = !parent_is_c1;
-        ++n_layers;
     }
     while (n_children > 1);
 
-    return n_layers;
+    return n_elems_per_layer;
+}
+
+// Explicit instantiation
+template std::vector<uint64_t> CurveTrees<Selene, Helios>::n_elems_per_layer(const uint64_t n_leaf_tuples) const;
+//----------------------------------------------------------------------------------------------------------------------
+template<typename C1, typename C2>
+std::size_t CurveTrees<C1, C2>::n_layers(const uint64_t n_leaf_tuples) const
+{
+    return this->n_elems_per_layer(n_leaf_tuples).size();
 }
 
 // Explicit instantiation
@@ -1227,6 +854,29 @@ PathIndexes CurveTrees<C1, C2>::get_path_indexes(const uint64_t n_leaf_tuples, c
 // Explicit instantiation
 template PathIndexes CurveTrees<Selene, Helios>::get_path_indexes(const uint64_t n_leaf_tuples,
     const uint64_t leaf_tuple_idx) const;
+//----------------------------------------------------------------------------------------------------------------------
+template<typename C1, typename C2>
+typename CurveTrees<C1, C2>::LastHashes CurveTrees<C1, C2>::tree_edge_to_last_hashes(
+    const std::vector<crypto::ec_point> &tree_edge) const
+{
+    typename CurveTrees<C1, C2>::LastHashes last_hashes;
+
+    bool parent_is_c1 = true;
+    for (const auto &last_hash : tree_edge)
+    {
+        if (parent_is_c1)
+            last_hashes.c1_last_hashes.push_back(m_c1->from_bytes(last_hash));
+        else
+            last_hashes.c2_last_hashes.push_back(m_c2->from_bytes(last_hash));
+        parent_is_c1 = !parent_is_c1;
+    }
+
+    return last_hashes;
+}
+
+// Explicit instantiation
+template CurveTrees<Selene, Helios>::LastHashes CurveTrees<Selene, Helios>::tree_edge_to_last_hashes(
+    const std::vector<crypto::ec_point> &tree_edge) const;
 //----------------------------------------------------------------------------------------------------------------------
 template<>
 bool CurveTrees<Selene, Helios>::audit_path(const CurveTrees<Selene, Helios>::Path &path,
@@ -1374,66 +1024,6 @@ bool CurveTrees<Selene, Helios>::audit_path(const CurveTrees<Selene, Helios>::Pa
 
     return true;
 }
-//----------------------------------------------------------------------------------------------------------------------
-template<typename C1, typename C2>
-typename CurveTrees<C1, C2>::LastChunkChildrenForTrim CurveTrees<C1, C2>::last_chunk_children_from_path_bytes(
-    const PathBytes &path_bytes) const
-{
-    LastChunkChildrenForTrim last_chunk_children_for_trim;
-
-    auto &c1_last_children_out = last_chunk_children_for_trim.c1_children;
-    auto &c2_last_children_out = last_chunk_children_for_trim.c2_children;
-
-    // Get the leaves as C1 scalars
-    {
-        std::vector<typename C1::Scalar> leaves_to_trim;
-        for (const auto &output_context : path_bytes.leaves)
-        {
-            auto leaf = this->leaf_tuple(output_context.output_pair);
-
-            leaves_to_trim.emplace_back(std::move(leaf.O_x));
-            leaves_to_trim.emplace_back(std::move(leaf.I_x));
-            leaves_to_trim.emplace_back(std::move(leaf.C_x));
-        }
-        c1_last_children_out.emplace_back(std::move(leaves_to_trim));
-    }
-
-    // Get the layer elems
-    bool parent_is_c2 = true;
-    for (const auto &layer_chunk : path_bytes.layer_chunks)
-    {
-        if (parent_is_c2)
-        {
-            std::vector<typename C2::Scalar> c2_children;
-            for (const auto &c1_child : layer_chunk.chunk_bytes)
-            {
-                const auto point = m_c1->from_bytes(c1_child);
-                auto child_scalar = m_c1->point_to_cycle_scalar(point);
-                c2_children.emplace_back(std::move(child_scalar));
-            }
-            c2_last_children_out.emplace_back(std::move(c2_children));
-        }
-        else
-        {
-            std::vector<typename C1::Scalar> c1_children;
-            for (const auto &c2_child : layer_chunk.chunk_bytes)
-            {
-                const auto point = m_c2->from_bytes(c2_child);
-                auto child_scalar = m_c2->point_to_cycle_scalar(point);
-                c1_children.emplace_back(std::move(child_scalar));
-            }
-            c1_last_children_out.emplace_back(std::move(c1_children));
-        }
-        parent_is_c2 = !parent_is_c2;
-    }
-
-    return last_chunk_children_for_trim;
-}
-
-// Explicit instantiation
-template
-CurveTrees<Selene, Helios>::LastChunkChildrenForTrim
-CurveTrees<Selene, Helios>::last_chunk_children_from_path_bytes(const PathBytes &path_bytes) const;
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 // CurveTrees private member functions
