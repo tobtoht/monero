@@ -62,7 +62,7 @@ bool try_scan_carrot_coinbase_enote(const CarrotCoinbaseEnoteV1 &enote,
     crypto::public_key &address_spend_pubkey_out);
 
 bool try_scan_carrot_enote_external(const CarrotEnoteV1 &enote,
-    const std::optional<encrypted_payment_id_t> encrypted_payment_id,
+    const std::optional<encrypted_payment_id_t> &encrypted_payment_id,
     const mx25519_pubkey &s_sender_receiver_unctx,
     const view_incoming_key_device &k_view_dev,
     const crypto::public_key &account_spend_pubkey,
@@ -73,6 +73,16 @@ bool try_scan_carrot_enote_external(const CarrotEnoteV1 &enote,
     crypto::secret_key &amount_blinding_factor_out,
     payment_id_t &payment_id_out,
     CarrotEnoteType &enote_type_out);
+
+bool try_scan_carrot_enote_external_destination_only(const CarrotEnoteV1 &enote,
+    const std::optional<encrypted_payment_id_t> &encrypted_payment_id,
+    const mx25519_pubkey &s_sender_receiver_unctx,
+    const view_incoming_key_device &k_view_dev,
+    const crypto::public_key &account_spend_pubkey,
+    crypto::secret_key &sender_extension_g_out,
+    crypto::secret_key &sender_extension_t_out,
+    crypto::public_key &address_spend_pubkey_out,
+    payment_id_t &payment_id_out);
 
 bool try_scan_carrot_enote_internal(const CarrotEnoteV1 &enote,
     const view_balance_secret_device &s_view_balance_dev,
@@ -92,7 +102,7 @@ bool try_ecdh_and_scan_carrot_coinbase_enote(const CarrotCoinbaseEnoteV1 &enote,
     crypto::public_key &address_spend_pubkey_out);
 
 bool try_ecdh_and_scan_carrot_enote_external(const CarrotEnoteV1 &enote,
-    const std::optional<encrypted_payment_id_t> encrypted_payment_id,
+    const std::optional<encrypted_payment_id_t> &encrypted_payment_id,
     const view_incoming_key_device &k_view_dev,
     const crypto::public_key &account_spend_pubkey,
     crypto::secret_key &sender_extension_g_out,

@@ -42,7 +42,10 @@
 
 namespace carrot
 {
-
+/**
+ * is_carrot_transaction_v1 - determine whether a transaction uses the Carrot addressing protocol
+ */
+bool is_carrot_transaction_v1(const cryptonote::transaction_prefix &tx_prefix);
 /**
  * brief: store_carrot_to_transaction_v1 - store non-coinbase Carrot info to a cryptonote::transaction
  * param: enotes -

@@ -109,6 +109,11 @@ static bool try_load_carrot_ephemeral_pubkeys_from_extra(const std::vector<crypt
 }
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
+bool is_carrot_transaction_v1(const cryptonote::transaction_prefix &tx_prefix)
+{
+    return tx_prefix.vout.at(0).target.type() == typeid(cryptonote::txout_to_carrot_v1);
+}
+//-------------------------------------------------------------------------------------------------------------------
 cryptonote::transaction store_carrot_to_transaction_v1(const std::vector<CarrotEnoteV1> &enotes,
     const std::vector<crypto::key_image> &key_images,
     const rct::xmr_amount fee,
