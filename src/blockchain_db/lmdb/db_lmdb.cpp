@@ -1411,12 +1411,6 @@ void BlockchainLMDB::remove_spent_key(const crypto::key_image& k_image)
 void BlockchainLMDB::grow_tree(const uint64_t blk_idx, std::vector<fcmp_pp::curve_trees::OutputContext> &&new_outputs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  if (new_outputs.empty() && blk_idx == 0)
-  {
-    this->save_tree_meta(0, 0, {});
-    return;
-  }
-
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
 
@@ -1425,25 +1419,36 @@ void BlockchainLMDB::grow_tree(const uint64_t blk_idx, std::vector<fcmp_pp::curv
 
   CURSOR(leaves)
 
-  // Get the block idx corresponding to the current tree in the db
-  const uint64_t tree_block_idx = this->get_tree_block_idx();
-  if (blk_idx > (tree_block_idx + 1))
-    throw0(DB_ERROR("The chain has extended too far past the tree"));
-  if (tree_block_idx >= blk_idx)
+  // We may want to skip re-growing the tree if the tree is ahead of the chain.
+  // This can happen if we prior removed the block but have yet to trim the tree
+  // for that block. See trim_block for why we would do that.
+  std::vector<crypto::ec_point> prev_tree_edge;
+  uint64_t prev_blk_idx = 0;
+  if (blk_idx > 0)
   {
-    LOG_PRINT_L1("Skip re-growing the tree at block " << blk_idx << ", waiting for the chain to catch up to the tree's block " << tree_block_idx);
-    return;
+    // Get the block idx corresponding to the current tree in the db
+    const uint64_t tree_block_idx = this->get_tree_block_idx();
+    if (blk_idx > (tree_block_idx + 1))
+      throw0(DB_ERROR("The chain has extended too far past the tree"));
+    if (tree_block_idx >= blk_idx)
+    {
+      LOG_PRINT_L1("Skip re-growing the tree at block " << blk_idx << ", waiting for the chain to catch up to the tree's block " << tree_block_idx);
+      return;
+    }
+    // blk_idx == (tree_block_idx + 1), we're growing the tree 1 block
+
+    // Get the prev block's tree edge (i.e. the current tree edge before growing)
+    prev_blk_idx = blk_idx - 1;
+    prev_tree_edge = this->get_tree_edge(prev_blk_idx);
   }
-  // blk_idx == (tree_block_idx + 1), we're growing the tree to get it to blk_idx
 
   // Get the number of leaf tuples that exist in the current tree
   const uint64_t old_n_leaf_tuples = this->get_n_leaf_tuples();
 
-  // Get the prev block's tree edge (i.e. the current tree edge before growing)
-  const uint64_t prev_blk_idx = blk_idx == 0 ? 0 : blk_idx - 1;
-  const auto prev_tree_edge = blk_idx == 0 ? std::vector<crypto::ec_point>{} : this->get_tree_edge(prev_blk_idx);
+  if (blk_idx == 0 && old_n_leaf_tuples != 0)
+    throw0(DB_ERROR("Tree is not empty at blk idx 0"));
 
-  // We re-save the prev tree edge at the next block if the tree doesn't grow
+  // We re-save the prev tree edge at this next block if the tree doesn't grow
   const auto save_prev_tree_edge = [&, this]() { this->save_tree_meta(blk_idx, old_n_leaf_tuples, prev_tree_edge); };
   if (new_outputs.empty())
   {
