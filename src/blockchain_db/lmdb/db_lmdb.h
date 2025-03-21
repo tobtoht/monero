@@ -69,6 +69,7 @@ typedef struct mdb_txn_cursors
   MDB_cursor *m_txc_leaves;
   MDB_cursor *m_txc_layers;
   MDB_cursor *m_txc_tree_edges;
+  MDB_cursor *m_txc_tree_meta;
 
   MDB_cursor *m_txc_timelocked_outputs;
 
@@ -99,6 +100,7 @@ typedef struct mdb_txn_cursors
 #define m_cur_leaves		m_cursors->m_txc_leaves
 #define m_cur_layers		m_cursors->m_txc_layers
 #define m_cur_tree_edges  m_cursors->m_txc_tree_edges
+#define m_cur_tree_meta   m_cursors->m_txc_tree_meta
 #define m_cur_timelocked_outputs	m_cursors->m_txc_timelocked_outputs
 #define m_cur_txpool_meta	m_cursors->m_txc_txpool_meta
 #define m_cur_txpool_blob	m_cursors->m_txc_txpool_blob
@@ -126,6 +128,7 @@ typedef struct mdb_rflags
   bool m_rf_leaves;
   bool m_rf_layers;
   bool m_rf_tree_edges;
+  bool m_rf_tree_meta;
   bool m_rf_timelocked_outputs;
   bool m_rf_txpool_meta;
   bool m_rf_txpool_blob;
@@ -440,7 +443,9 @@ private:
     const uint64_t c_idx,
     const uint64_t layer_idx);
 
-  void save_tree_edge(const uint64_t block_idx, const std::vector<crypto::ec_point> &tree_edge);
+  void save_tree_meta(const uint64_t block_idx, const uint64_t n_leaf_tuples, const std::vector<crypto::ec_point> &tree_edge);
+
+  void del_tree_meta(const uint64_t block_idx);
 
   void trim_layer(const uint64_t new_n_elems_in_layer, const uint64_t layer_idx);
 
@@ -450,7 +455,6 @@ private:
 
   uint64_t get_block_n_leaf_tuples(uint64_t block_idx) const;
 
-  virtual crypto::ec_point get_tree_root() const;
   virtual std::size_t get_tree_root_at_blk_idx(const uint64_t blk_idx, crypto::ec_point &tree_root_out) const;
 
   std::vector<crypto::ec_point> get_tree_edge(uint64_t block_id) const;
@@ -465,7 +469,7 @@ private:
 
   void del_locked_outs_at_block_id(uint64_t block_id);
 
-  void del_tree_edge(uint64_t block_id);
+  uint64_t get_tree_block_idx() const;
 
   virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const;
 
@@ -544,6 +548,7 @@ private:
   MDB_dbi m_leaves;
   MDB_dbi m_layers;
   MDB_dbi m_tree_edges;
+  MDB_dbi m_tree_meta;
 
   MDB_dbi m_timelocked_outputs;
 

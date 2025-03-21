@@ -1668,7 +1668,7 @@ namespace cryptonote
     return key;
   }
   //---------------------------------------------------------------
-  static uint64_t get_default_last_locked_block_index(const uint64_t block_included_in_chain)
+  uint64_t get_default_last_locked_block_index(const uint64_t block_included_in_chain)
   {
     static_assert(CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE > 0, "unexpected default spendable age");
     return block_included_in_chain + (CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE - 1);
