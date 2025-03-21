@@ -205,7 +205,7 @@ namespace
  * leaves           leaf_idx     {output ID, output pubkey, commitment}
  * layers           layer_idx    [{child_chunk_idx, child_chunk_hash}...]
  * tree_edges       block ID     [{layer_idx, child_chunk_hash}...]
- * tree_meta        block ID     {n_leaf_tuples, tree root}
+ * tree_meta        block ID     n_leaf_tuples
  *
  * timelocked_outputs block ID   [{output ID, output pubkey, commitment}...]
  *
@@ -377,7 +377,6 @@ static_assert(sizeof(tree_edge_elem) == 1 + 32);
 
 typedef struct mdb_tree_meta {
     uint64_t n_leaf_tuples;
-    crypto::ec_point tree_root;
 } mdb_tree_meta;
 
 std::atomic<uint64_t> mdb_txn_safe::num_active_txns{0};
@@ -1630,7 +1629,6 @@ void BlockchainLMDB::save_tree_meta(const uint64_t block_idx, const uint64_t n_l
   MDB_val_copy<uint64_t> k_meta(block_idx);
   mdb_tree_meta tree_meta;
   tree_meta.n_leaf_tuples = n_leaf_tuples;
-  tree_meta.tree_root = tree_edge.empty() ? crypto::ec_point{} : tree_edge.back();
   MDB_val_set(v_meta, tree_meta);
 
   int result = mdb_cursor_put(m_cur_tree_meta, &k_meta, &v_meta, MDB_NODUPDATA);
@@ -2117,19 +2115,29 @@ std::size_t BlockchainLMDB::get_tree_root_at_blk_idx(const uint64_t blk_idx, cry
   check_open();
 
   TXN_PREFIX_RDONLY();
-  RCURSOR(tree_meta);
+  RCURSOR(tree_edges);
 
   MDB_val_set(k_block_id, blk_idx);
   MDB_val v;
-  int result = mdb_cursor_get(m_cur_tree_meta, &k_block_id, &v, MDB_SET);
+  int result = mdb_cursor_get(m_cur_tree_edges, &k_block_id, &v, MDB_SET);
   if (result == MDB_NOTFOUND)
-    throw0(BLOCK_DNE(std::string("Attempt to get tree meta from blk idx ").append(boost::lexical_cast<std::string>(blk_idx)).append(" failed -- tree meta not in db").c_str()));
+  {
+    // Tree must have been empty at that block, no tree edge stored for an empty tree
+    tree_root_out = crypto::ec_point{};
+    TXN_POSTFIX_RDONLY();
+    return 0;
+  }
   if (result != MDB_SUCCESS)
-    throw1(DB_ERROR(lmdb_error("Error getting tree meta root: ", result).c_str()));
+    throw1(DB_ERROR(lmdb_error("Error getting tree edge elem: ", result).c_str()));
 
-  mdb_tree_meta *tree_meta = (mdb_tree_meta *)v.mv_data;
-  tree_root_out = tree_meta->tree_root;
-  const std::size_t n_tree_layers = m_curve_trees->n_layers(tree_meta->n_leaf_tuples);
+  // Get last tree edge elem for the block, that's the root
+  result = mdb_cursor_get(m_cur_tree_edges, &k_block_id, &v, MDB_LAST_DUP);
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error getting last tree edge elem: ", result).c_str()));
+
+  tree_edge_elem *tee = (tree_edge_elem *)v.mv_data;
+  tree_root_out = tee->child_chunk_hash;
+  const std::size_t n_tree_layers = tee->layer_idx + 1;
 
   TXN_POSTFIX_RDONLY();
 
