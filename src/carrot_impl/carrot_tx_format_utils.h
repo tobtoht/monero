@@ -31,21 +31,48 @@
 //local headers
 #include "carrot_core/carrot_enote_types.h"
 #include "cryptonote_basic/cryptonote_basic.h"
+#include "cryptonote_basic/tx_extra.h"
 
 //third party headers
 
 //standard headers
 #include <cstdint>
 #include <optional>
+#include <type_traits>
 
 //forward declarations
 
 namespace carrot
 {
+template <typename T, typename U>
+static inline T raw_byte_convert(const U &u)
+{
+    static_assert(sizeof(T) == sizeof(U));
+    static_assert(std::is_trivially_copyable_v<T>);
+    static_assert(std::has_unique_object_representations_v<T>);
+    static_assert(std::has_unique_object_representations_v<U>);
+    static_assert(alignof(T) == 1);
+    static_assert(alignof(U) == 1);
+
+    T t;
+    memcpy(&t, &u, sizeof(T));
+    return t;
+}
+
 /**
  * is_carrot_transaction_v1 - determine whether a transaction uses the Carrot addressing protocol
  */
 bool is_carrot_transaction_v1(const cryptonote::transaction_prefix &tx_prefix);
+/**
+ * try_load_carrot_extra_v1 - load Carrot info which is stored in tx_extra
+ * param: tx_extra_fields -
+ * outparam: enote_ephemeral_pubkeys_out - D_e
+ * outparam: encrypted_payment_id_out - pid_enc
+ */
+bool try_load_carrot_extra_v1(
+    const std::vector<cryptonote::tx_extra_field> &tx_extra_fields,
+    std::vector<mx25519_pubkey> &enote_ephemeral_pubkeys_out,
+    std::optional<encrypted_payment_id_t> &encrypted_payment_id_out);
 /**
  * brief: store_carrot_to_transaction_v1 - store non-coinbase Carrot info to a cryptonote::transaction
  * param: enotes -
@@ -79,8 +106,7 @@ bool try_load_carrot_from_transaction_v1(const cryptonote::transaction &tx,
  * return: a full coinbase transaction containing given Carrot information
  */
 cryptonote::transaction store_carrot_to_coinbase_transaction_v1(
-    const std::vector<CarrotCoinbaseEnoteV1> &enotes,
-    const std::uint64_t block_index);
+    const std::vector<CarrotCoinbaseEnoteV1> &enotes);
 /**
  * brief: try_load_carrot_from_coinbase_transaction_v1 - load coinbase Carrot info from a cryptonote::transaction
  * param: tx -
@@ -89,8 +115,7 @@ cryptonote::transaction store_carrot_to_coinbase_transaction_v1(
  * return: Carrot coinbase enotes and block index contained within a coinbase transaction
  */
 bool try_load_carrot_from_coinbase_transaction_v1(const cryptonote::transaction &tx,
-    std::vector<CarrotCoinbaseEnoteV1> &enotes_out,
-    std::uint64_t &block_index_out);
+    std::vector<CarrotCoinbaseEnoteV1> &enotes_out);
 /**
  * brief: store_fcmp_proofs_to_rct_prunable_v1 -
  * param: bulletproofs_plus -
