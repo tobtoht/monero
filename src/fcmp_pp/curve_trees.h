@@ -329,6 +329,10 @@ public:
     // - Returns empty path indexes if leaf is not in the tree (if n_leaf_tuples <= leaf_tuple_idx)
     PathIndexes get_path_indexes(const uint64_t n_leaf_tuples, const uint64_t leaf_tuple_idx) const;
 
+    // Get child chunk indexes for the provided leaf tuple
+    // - Returns empty if leaf is not in the tree (if n_leaf_tuples <= leaf_tuple_idx)
+    std::vector<uint64_t> get_child_chunk_indexes(const uint64_t n_leaf_tuples, const uint64_t leaf_tuple_idx) const;
+
     LastHashes tree_edge_to_last_hashes(const std::vector<crypto::ec_point> &tree_edge_to_last_hashes) const;
 
     // Audit the provided path
@@ -337,6 +341,8 @@ public:
     uint8_t *get_tree_root_from_bytes(const std::size_t n_layers, const crypto::ec_point &tree_root) const;
 
     PathForProof path_for_proof(const Path &path, const OutputTuple &output_tuple) const;
+
+    std::vector<crypto::ec_point> calc_hashes_from_path(const Path &path, const bool replace_last_hash = false) const;
 private:
     // Multithreaded helper function to convert outputs to leaf tuples and set leaves on tree extension
     void set_valid_leaves(

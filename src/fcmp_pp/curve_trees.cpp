@@ -31,6 +31,7 @@
 #include "common/threadpool.h"
 #include "profile_tools.h"
 #include "ringct/rctOps.h"
+#include "string_tools.h"
 
 #include <stdlib.h>
 
@@ -623,6 +624,39 @@ static CurveTrees<Selene, Helios>::LeafTuple output_tuple_to_leaf_tuple(const Ou
     return pre_leaf_tuple_to_leaf_tuple(plt);
 }
 //----------------------------------------------------------------------------------------------------------------------
+template<typename C_CHILD, typename C_PARENT>
+static typename C_PARENT::Point get_chunk_hash(const std::unique_ptr<C_CHILD> &c_child,
+    const std::unique_ptr<C_PARENT> &c_parent,
+    const std::vector<std::vector<typename C_CHILD::Point>> &child_layers,
+    const bool use_new_last_hash,
+    const typename C_CHILD::Point &new_last_hash,
+    std::size_t &c_idx_inout)
+{
+    CHECK_AND_ASSERT_THROW_MES(child_layers.size() > c_idx_inout, "high c_idx");
+    const auto &layer = child_layers[c_idx_inout];
+
+    // Collect child scalars so we can hash them
+    std::vector<typename C_PARENT::Scalar> scalars;
+    scalars.reserve(layer.size());
+
+    CHECK_AND_ASSERT_THROW_MES(!layer.empty(), "empty layer");
+    for (std::size_t i = 0; i < (layer.size() - 1); ++i)
+        scalars.emplace_back(c_child->point_to_cycle_scalar(layer[i]));
+
+    // Use the newly calculated hash from the preceding layer
+    const auto &last_hash = use_new_last_hash ? new_last_hash : layer.back();
+    scalars.emplace_back(c_child->point_to_cycle_scalar(last_hash));
+
+    // Hash scalars
+    const typename C_PARENT::Chunk chunk{scalars.data(), scalars.size()};
+    const typename C_PARENT::Point hash = get_new_parent(c_parent, chunk);
+
+    MDEBUG("Hash result: " << c_parent->to_string(hash));
+
+    ++c_idx_inout;
+    return hash;
+}
+//----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 // CurveTrees public member functions
 //----------------------------------------------------------------------------------------------------------------------
@@ -805,54 +839,87 @@ PathIndexes CurveTrees<C1, C2>::get_path_indexes(const uint64_t n_leaf_tuples, c
 {
     PathIndexes path_indexes_out;
 
-    if (n_leaf_tuples <= leaf_tuple_idx)
+    MDEBUG("Getting path indexes for leaf_tuple_idx: " << leaf_tuple_idx << " , n_leaf_tuples: " << n_leaf_tuples);
+
+    const auto child_chunk_indexes = this->get_child_chunk_indexes(n_leaf_tuples, leaf_tuple_idx);
+    if (child_chunk_indexes.empty())
         return path_indexes_out;
 
-    MDEBUG("Getting path indexes, n_leaf_tuples: " << n_leaf_tuples << " , leaf_tuple_idx: " << leaf_tuple_idx);
+    const auto n_elems_per_layer = this->n_elems_per_layer(n_leaf_tuples);
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_indexes.size() == (n_elems_per_layer.size() + 1),
+        "size mismatch n elems per layer <> child_chunk_indexes");
 
-    uint64_t child_idx = leaf_tuple_idx;
-    uint64_t n_children = n_leaf_tuples;
-    bool leaf_layer = true;
-    bool parent_is_c1 = true;
-    do
+    // Set the leaf range
     {
-        const std::size_t parent_chunk_width = parent_is_c1 ? m_c1_width : m_c2_width;
-        const uint64_t parent_idx = child_idx / parent_chunk_width;
+        const std::size_t parent_chunk_width = m_c1_width;
 
-        const uint64_t start_range = parent_idx * parent_chunk_width;
+        const uint64_t n_children = n_leaf_tuples;
+        const uint64_t start_range = child_chunk_indexes.front() * parent_chunk_width;
         const uint64_t end_range = std::min(n_children, start_range + parent_chunk_width);
 
-        CHECK_AND_ASSERT_THROW_MES(end_range > start_range, "path end_range must be > start_range");
+        path_indexes_out.leaf_range = { start_range, end_range };
+    }
 
-        const uint64_t n_parents = (leaf_layer || n_children > 1)
-            ? (((n_children - 1) / parent_chunk_width) + 1)
-            : 0;
+    // Set ranges on layers above
+    bool parent_is_c2 = true;
+    for (std::size_t i = 0; i < n_elems_per_layer.size(); ++i)
+    {
+        const std::size_t parent_chunk_width = parent_is_c2 ? m_c2_width : m_c1_width;
+
+        const uint64_t child_chunk_idx = child_chunk_indexes[i + 1];
+        const uint64_t n_children = n_elems_per_layer[i];
+
+        const uint64_t start_range = child_chunk_idx * parent_chunk_width;
+        const uint64_t end_range = std::min(n_children, start_range + parent_chunk_width);
 
         MDEBUG("start_range: "           << start_range
             << " , end_range: "          << end_range
             << " , parent_chunk_width: " << parent_chunk_width
-            << " , n_parents: "          << n_parents
-            << " , parent_idx: "         << parent_idx);
+            << " , n_children: "         << n_children);
 
-        std::pair<uint64_t, uint64_t> range = { start_range, end_range };
-        if (leaf_layer)
-            path_indexes_out.leaf_range = std::move(range);
-        else
-            path_indexes_out.layers.emplace_back(std::move(range));
+        path_indexes_out.layers.emplace_back(PathIndexes::Range{start_range, end_range});
 
-        child_idx = parent_idx;
-        n_children = n_parents;
-
-        leaf_layer = false;
-        parent_is_c1 = !parent_is_c1;
+        parent_is_c2 = !parent_is_c2;
     }
-    while (n_children > 0);
 
     return path_indexes_out;
 }
 
 // Explicit instantiation
 template PathIndexes CurveTrees<Selene, Helios>::get_path_indexes(const uint64_t n_leaf_tuples,
+    const uint64_t leaf_tuple_idx) const;
+//----------------------------------------------------------------------------------------------------------------------
+template<typename C1, typename C2>
+std::vector<uint64_t> CurveTrees<C1, C2>::get_child_chunk_indexes(const uint64_t n_leaf_tuples,
+    const uint64_t leaf_tuple_idx) const
+{
+    std::vector<uint64_t> child_chunk_indexes_out;
+    if (n_leaf_tuples <= leaf_tuple_idx)
+        return child_chunk_indexes_out;
+
+    const std::size_t n_layers = this->n_layers(n_leaf_tuples);
+
+    bool parent_is_c1 = true;
+    uint64_t child_idx = leaf_tuple_idx;
+    for (std::size_t i = 0; i < n_layers; ++i)
+    {
+        const std::size_t parent_chunk_width = parent_is_c1 ? m_c1_width : m_c2_width;
+        const uint64_t child_chunk_idx = child_idx / parent_chunk_width;
+
+        child_chunk_indexes_out.push_back(child_chunk_idx);
+
+        child_idx = child_chunk_idx;
+        parent_is_c1 = !parent_is_c1;
+    }
+
+    // Add a 0 for the root (it's its layer above's 0-index child)
+    child_chunk_indexes_out.push_back(0);
+
+    return child_chunk_indexes_out;
+}
+
+// Explicit instantiation
+template std::vector<uint64_t> CurveTrees<Selene, Helios>::get_child_chunk_indexes(const uint64_t n_leaf_tuples,
     const uint64_t leaf_tuple_idx) const;
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
@@ -890,11 +957,6 @@ bool CurveTrees<Selene, Helios>::audit_path(const CurveTrees<Selene, Helios>::Pa
     const auto &c1_layers = path.c1_layers;
     const auto &c2_layers = path.c2_layers;
 
-    // Initial checks
-    CHECK_AND_ASSERT_MES(!leaves.empty(),    false, "empty leaves");
-    CHECK_AND_ASSERT_MES(!c1_layers.empty(), false, "empty c1 layers");
-    CHECK_AND_ASSERT_MES(leaves.size() <= m_c1_width, false, "too many leaves");
-
     const std::size_t n_layers = c1_layers.size() + c2_layers.size();
     CHECK_AND_ASSERT_MES(n_layers == this->n_layers(n_leaf_tuples_in_tree), false, "unexpected n_layers");
 
@@ -905,104 +967,26 @@ bool CurveTrees<Selene, Helios>::audit_path(const CurveTrees<Selene, Helios>::Pa
         found = (output_tuple.O == leaves[i].O && output_tuple.I == leaves[i].I && output_tuple.C == leaves[i].C);
     CHECK_AND_ASSERT_MES(found, false, "did not find output in chunk of leaves");
 
-    // Collect leaves so we can hash them
-    std::vector<Selene::Scalar> leaf_scalars;
-    leaf_scalars.reserve(leaves.size() * LEAF_TUPLE_SIZE);
-    for (auto &l : leaves)
-    {
-        auto leaf_tuple = output_tuple_to_leaf_tuple(l);
-        leaf_scalars.emplace_back(std::move(leaf_tuple.O_x));
-        leaf_scalars.emplace_back(std::move(leaf_tuple.I_x));
-        leaf_scalars.emplace_back(std::move(leaf_tuple.C_x));
-    }
+    // Get all hashes
+    const auto hashes = this->calc_hashes_from_path(path);
+    CHECK_AND_ASSERT_MES(hashes.size(), false, "empty hashes from path");
+    CHECK_AND_ASSERT_MES(n_layers == hashes.size(), false, "hashes <> n_layers mismatch");
 
-    // Hash the leaf chunk
-    MDEBUG("Path contains " << leaves.size() << " leaf tuples and " << n_layers << " layers, hashing leaf tuples");
-    const Selene::Chunk leaf_chunk{leaf_scalars.data(), leaf_scalars.size()};
-    const Selene::Point leaf_parent_hash = get_new_parent<Selene>(m_c1, leaf_chunk);
-    const auto leaf_parent_str = m_c1->to_string(leaf_parent_hash);
-
-    // Make sure leaf chunk hash is present in first c2_layer
-    const auto &first_c1_layer = c1_layers.front();
-    found = false;
-    MDEBUG("Looking for leaf chunk hash: " << leaf_parent_str << " among " << first_c1_layer.size() << " hashes");
-    for (std::size_t i = 0; !found && i < first_c1_layer.size(); ++i)
-    {
-        MDEBUG("Reading: " << m_c1->to_string(first_c1_layer[i]));
-        found = (leaf_parent_str == m_c1->to_string(first_c1_layer[i]));
-    }
-    CHECK_AND_ASSERT_MES(found, false, "did not find leaf chunk hash");
-
-    // If there are no more layers to audit, we're done
-    if (c1_layers.size() == 1 && c2_layers.empty())
-    {
-        // We must have encountered the root
-        CHECK_AND_ASSERT_MES(c1_layers.front().size() == 1, false, "expected to encounter c1 root");
-        return true;
-    }
-
-    // Continue hashing every layer chunk until there are no more layers
-    bool parent_is_c2 = true;
+    // Make sure each hash is present in each layer above
+    bool parent_is_c1 = true;
     std::size_t c1_idx = 0, c2_idx = 0;
-    for (std::size_t i = 0; i < n_layers; ++i)
+    for (std::size_t i = 0; i < hashes.size(); ++i)
     {
-        CHECK_AND_ASSERT_MES(c1_layers.size() > c1_idx, false, "low c1_idx");
-        CHECK_AND_ASSERT_MES(c2_layers.size() > c2_idx, false, "low c2_idx");
-
-        auto &c1_layer = c1_layers[c1_idx];
-        auto &c2_layer = c2_layers[c2_idx];
+        MDEBUG("Auditing layer " << i);
+        const auto hash_str = epee::string_tools::pod_to_hex(hashes[i]);
 
         // TODO: template
-        if (parent_is_c2)
+        if (parent_is_c1)
         {
-            MDEBUG("Layer " << i << " has " << c1_layer.size() << " elems");
-
-            // Collect c2 scalars so we can hash them
-            std::vector<Helios::Scalar> c2_scalars;
-            c2_scalars.reserve(c1_layer.size());
-            for (auto &c1_point : c1_layer)
-                c2_scalars.emplace_back(m_c1->point_to_cycle_scalar(c1_point));
-
-            // Hash c2 scalars
-            const Helios::Chunk chunk{c2_scalars.data(), c2_scalars.size()};
-            const Helios::Point hash = get_new_parent<Helios>(m_c2, chunk);
-            const auto hash_str = m_c2->to_string(hash);
-
-            // Make sure hash is present in c2 layer
-            MDEBUG("Looking for c2 hash: " << hash_str << " among " << c2_layer.size() << " hashes");
-            found = false;
-            for (std::size_t j = 0; !found && j < c2_layer.size(); ++j)
-            {
-                MDEBUG("Reading: " << m_c2->to_string(c2_layer[j]));
-                found = (hash_str == m_c2->to_string(c2_layer[j]));
-            }
-            CHECK_AND_ASSERT_MES(found, false, "did not find c2 hash");
-
-            // Check if we have encountered the root
-            if (c2_layer.size() == 1 && (c1_idx + 1) >= c1_layers.size() && (c2_idx + 1) >= c2_layers.size())
-                break;
-
-            ++c1_idx;
-        }
-        else
-        {
-            MDEBUG("Layer " << i << " has " << c2_layer.size() << " elems");
-
-            // Collect c1 scalars so we can hash them
-            std::vector<Selene::Scalar> c1_scalars;
-            c1_scalars.reserve(c2_layer.size());
-            for (auto &c2_point : c2_layer)
-            {
-                c1_scalars.emplace_back(m_c2->point_to_cycle_scalar(c2_point));
-                MDEBUG("Path hashing " << m_c1->to_string(c1_scalars.back()));
-            }
-
-            // Hash c1 scalars
-            const Selene::Chunk chunk{c1_scalars.data(), c1_scalars.size()};
-            const Selene::Point hash = get_new_parent<Selene>(m_c1, chunk);
-            const auto hash_str = m_c1->to_string(hash);
-
             // Make sure hash is present in c1 layer
+            CHECK_AND_ASSERT_MES(c1_layers.size() > c1_idx, false, "high c1_idx");
+            const auto &c1_layer = c1_layers[c1_idx];
+
             MDEBUG("Looking for c1 hash: " << hash_str << " among " << c1_layer.size() << " hashes");
             found = false;
             for (std::size_t j = 0; !found && j < c1_layer.size(); ++j)
@@ -1012,18 +996,112 @@ bool CurveTrees<Selene, Helios>::audit_path(const CurveTrees<Selene, Helios>::Pa
             }
             CHECK_AND_ASSERT_MES(found, false, "did not find c1 hash");
 
-            // Check if we have encountered the root
-            if (c1_layer.size() == 1 && (c1_idx + 1) >= c1_layers.size() && (c2_idx + 1) >= c2_layers.size())
-                break;
+            ++c1_idx;
+        }
+        else
+        {
+            // Make sure hash is present in c2 layer
+            CHECK_AND_ASSERT_MES(c2_layers.size() > c2_idx, false, "high c2_idx");
+            const auto &c2_layer = c2_layers[c2_idx];
+
+            MDEBUG("Looking for c2 hash: " << hash_str << " among " << c2_layer.size() << " hashes");
+            found = false;
+            for (std::size_t j = 0; !found && j < c2_layer.size(); ++j)
+            {
+                MDEBUG("Reading: " << m_c2->to_string(c2_layer[j]));
+                found = (hash_str == m_c2->to_string(c2_layer[j]));
+            }
+            CHECK_AND_ASSERT_MES(found, false, "did not find c2 hash");
 
             ++c2_idx;
         }
 
-        parent_is_c2 = !parent_is_c2;
+        parent_is_c1 = !parent_is_c1;
     }
 
     return true;
 }
+//----------------------------------------------------------------------------------------------------------------------
+template<typename C1, typename C2>
+std::vector<crypto::ec_point> CurveTrees<C1, C2>::calc_hashes_from_path(
+    const typename CurveTrees<C1, C2>::Path &path,
+    const bool replace_last_hash) const
+{
+    std::vector<typename C1::Point> c1_hashes;
+    std::vector<typename C2::Point> c2_hashes;
+
+    // Cleaner refs
+    const auto &leaves = path.leaves;
+    const auto &c1_layers = path.c1_layers;
+    const auto &c2_layers = path.c2_layers;
+
+    const std::size_t n_layers = c1_layers.size() + c2_layers.size();
+    c1_hashes.reserve(1 + c1_layers.size());
+    c2_hashes.reserve(c2_layers.size());
+
+    // Initial checks
+    CHECK_AND_ASSERT_THROW_MES(!leaves.empty(),             "empty leaves");
+    CHECK_AND_ASSERT_THROW_MES(!c1_layers.empty(),          "empty c1 layers");
+    CHECK_AND_ASSERT_THROW_MES(leaves.size() <= m_c1_width, "too many leaves");
+
+    {
+        MDEBUG("Hashing leaves");
+
+        // Collect leaves so we can hash them
+        std::vector<typename C1::Scalar> leaf_scalars;
+        leaf_scalars.reserve(leaves.size() * LEAF_TUPLE_SIZE);
+        for (auto &l : leaves)
+        {
+            auto leaf_tuple = output_tuple_to_leaf_tuple(l);
+            leaf_scalars.emplace_back(std::move(leaf_tuple.O_x));
+            leaf_scalars.emplace_back(std::move(leaf_tuple.I_x));
+            leaf_scalars.emplace_back(std::move(leaf_tuple.C_x));
+        }
+
+        // Hash the leaf chunk
+        const typename C1::Chunk leaf_chunk{leaf_scalars.data(), leaf_scalars.size()};
+        const typename C1::Point leaf_parent_hash = get_new_parent<C1>(m_c1, leaf_chunk);
+
+        c1_hashes.push_back(leaf_parent_hash);
+        MDEBUG("c1 hash result: " << m_c1->to_string(c1_hashes.back()));
+    }
+
+    // Continue hashing every layer chunk until there are no more layers
+    std::size_t c1_idx = 0, c2_idx = 0;
+    for (std::size_t i = 1; i < n_layers; ++i)
+    {
+        MDEBUG("Hashing layer " << i);
+        if (c1_idx == c2_idx /*c2 parent*/)
+        {
+            auto hash = get_chunk_hash(m_c1, m_c2, c1_layers, replace_last_hash, c1_hashes.back(), c1_idx);
+            c2_hashes.emplace_back(std::move(hash));
+        }
+        else
+        {
+            auto hash = get_chunk_hash(m_c2, m_c1, c2_layers, replace_last_hash, c2_hashes.back(), c2_idx);
+            c1_hashes.emplace_back(std::move(hash));
+        }
+    }
+
+    // Collect hashes
+    std::vector<crypto::ec_point> hashes;
+    hashes.reserve(n_layers);
+    c1_idx = 0, c2_idx = 0;
+    for (std::size_t i = 0; i < n_layers; ++i)
+    {
+        if (c1_idx == c2_idx /*c1 parent*/)
+            hashes.emplace_back(m_c1->to_bytes(c1_hashes[c1_idx++]));
+        else
+            hashes.emplace_back(m_c2->to_bytes(c2_hashes[c2_idx++]));
+    }
+
+    return hashes;
+}
+
+// Explicit instantiation
+template std::vector<crypto::ec_point> CurveTrees<Selene, Helios>::calc_hashes_from_path(
+    const typename CurveTrees<Selene, Helios>::Path &path,
+    const bool replace_last_hash) const;
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
 // CurveTrees private member functions

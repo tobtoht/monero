@@ -71,7 +71,6 @@ struct BlockMeta final
     BlockIdx blk_idx;
     BlockHash blk_hash;
     uint64_t n_leaf_tuples;
-    std::vector<crypto::ec_point> tree_edge;
 
     template <class Archive>
     inline void serialize(Archive &a, const unsigned int ver)
@@ -79,14 +78,12 @@ struct BlockMeta final
         a & blk_hash;
         a & blk_idx;
         a & n_leaf_tuples;
-        a & tree_edge;
     }
 
     BEGIN_SERIALIZE_OBJECT()
         FIELD(blk_idx)
         FIELD(blk_hash)
         FIELD(n_leaf_tuples)
-        FIELD(tree_edge)
     END_SERIALIZE()
 };
 
@@ -205,7 +202,7 @@ public:
         const OutputsByLastLockedBlock &timelocked_outputs);
 
     // TODO: make this part of the TreeSync interface
-    uint64_t get_n_leaf_tuples() const;
+    uint64_t get_n_leaf_tuples() const noexcept;
     bool get_top_block(BlockMeta &top_block_out) const
     {
         CHECK_AND_ASSERT_MES(!m_cached_blocks.empty(), false, "empty cached blocks");
@@ -237,7 +234,11 @@ public:
 
 // Internal helper functions
 private:
-    typename CurveTrees<C1, C2>::LastHashes get_last_hashes(const uint64_t n_leaf_tuples) const;
+    typename CurveTrees<C1, C2>::LastHashes get_last_hashes() const;
+
+    bool get_leaf_path(const uint64_t n_leaf_tuples,
+        const LeafIdx leaf_idx,
+        typename CurveTrees<C1, C2>::Path &path_out) const;
 
     void deque_block(const uint64_t n_leaf_tuples_at_block);
 
