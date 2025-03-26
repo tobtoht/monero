@@ -110,5 +110,15 @@ void get_output_enote_proposals(const std::vector<CarrotPaymentProposalV1> &norm
     const crypto::key_image &tx_first_key_image,
     std::vector<RCTOutputEnoteProposal> &output_enote_proposals_out,
     encrypted_payment_id_t &encrypted_payment_id_out);
+/**
+ * brief: get_coinbase_output_enotes - convert a *finalized* set of payment proposals into coinbase output enotes
+ * param: normal_payment_proposals -
+ * param: block_index -
+ * outparam: output_coinbase_enotes_out -
+ * throw: std::runtime_error if the payment proposals do not represent a valid tx output set, or if no devices
+ */
+void get_coinbase_output_enotes(const std::vector<CarrotPaymentProposalV1> &normal_payment_proposals,
+    const uint64_t block_index,
+    std::vector<CarrotCoinbaseEnoteV1> &output_coinbase_enotes_out);
 
 } //namespace carrot

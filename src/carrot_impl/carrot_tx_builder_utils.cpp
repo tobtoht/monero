@@ -123,13 +123,26 @@ void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposal
         account_spend_pubkey,
         {0, 0, AddressDeriveType::Auto}); // @TODO: let callers pass AddressDeriveType as an argument
 
-    // generate random X25519 ephemeral pubkeys for selfsend proposals if not explicitly provided in a >2-out tx
     const size_t num_outs = normal_payment_proposals.size() + selfsend_payment_proposals.size();
-    const bool will_shared_ephemeral_pubkey = num_outs == 2;
-    if (!will_shared_ephemeral_pubkey)
+    CHECK_AND_ASSERT_THROW_MES(num_outs >= CARROT_MIN_TX_OUTPUTS,
+        "make_carrot_transaction_proposal_v1: too few outputs");
+
+    // generate random X25519 ephemeral pubkeys for selfsend proposals if:
+    //   a. not explicitly provided in a >2-out tx, OR
+    //   b. not explicitly provided in a 2-out 2-self-send tx and the other is also missing
+    const bool should_gen_selfsend_ephemeral_pubkeys = num_outs != 2 ||
+        (normal_payment_proposals.empty()
+            && !selfsend_payment_proposals.at(0).proposal.enote_ephemeral_pubkey
+            && !selfsend_payment_proposals.at(1).proposal.enote_ephemeral_pubkey);
+    if (should_gen_selfsend_ephemeral_pubkeys)
     {
-        for (CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
+        for (size_t i = 0; i < selfsend_payment_proposals.size(); ++i)
         {
+            // should not provide two different D_e in a 2-out tx, so skip the second D_e in a 2-out
+            const bool should_skip_generating = num_outs == 2 && i == 1;
+            if (should_skip_generating)
+                continue;
+            CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal = selfsend_payment_proposals[i];
             if (!selfsend_payment_proposal.proposal.enote_ephemeral_pubkey)
                 selfsend_payment_proposal.proposal.enote_ephemeral_pubkey = gen_x25519_pubkey();
         }
@@ -184,7 +197,7 @@ void make_carrot_transaction_proposal_v1(const std::vector<CarrotPaymentProposal
     for (const CarrotPaymentProposalVerifiableSelfSendV1 &selfsend_payment_proposal : selfsend_payment_proposals)
         input_amount_sum -= selfsend_payment_proposal.proposal.amount;
     CHECK_AND_ASSERT_THROW_MES(input_amount_sum == 0,
-        "make unsigned transaction: post-carved transaction does not balance");
+        "make_carrot_transaction_proposal_v1: post-carved transaction does not balance");
 
     // collect and sort key images
     tx_proposal_out.key_images_sorted.reserve(selected_inputs.size());

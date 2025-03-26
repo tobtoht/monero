@@ -50,11 +50,6 @@ namespace wallet
 {
 struct enote_view_incoming_scan_info_t
 {
-    // a
-    rct::xmr_amount amount;
-    // z
-    rct::key amount_blinding_factor;
-
     // K_o
     crypto::public_key onetime_address;
     // k^g_o
@@ -65,6 +60,13 @@ struct enote_view_incoming_scan_info_t
     crypto::public_key address_spend_pubkey;
     // pid
     crypto::hash payment_id;
+    // j
+    std::optional<carrot::subaddress_index_extended> subaddr_index;
+
+    // a
+    rct::xmr_amount amount;
+    // z
+    rct::key amount_blinding_factor;
 
     // legacy: 8 k_v R, carrot: s^ctx_sr
     crypto::key_derivation derivation;
@@ -72,9 +74,6 @@ struct enote_view_incoming_scan_info_t
     std::size_t local_output_index;
     //
     std::size_t main_tx_pubkey_index;
-
-    // j
-    std::optional<carrot::subaddress_index_extended> subaddr_index;
 };
 
 std::optional<enote_view_incoming_scan_info_t> try_view_incoming_scan_enote_destination(

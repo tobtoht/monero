@@ -107,6 +107,7 @@ set(unit_tests_sources
   output_selection.cpp
   vercmp.cpp
   ringdb.cpp
+  wallet_scanning.cpp
   wallet_storage.cpp
   wallet_tx_builder.cpp
   wipeable_string.cpp

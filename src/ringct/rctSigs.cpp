@@ -606,7 +606,9 @@ namespace rct {
 
       std::stringstream ss;
       binary_archive<true> ba(ss);
-      const size_t inputs = (is_rct_bulletproof(rv.type) || is_rct_bulletproof_plus(rv.type)) ? rv.p.pseudoOuts.size() : rv.pseudoOuts.size();
+      const size_t inputs = !rct::is_rct_simple(rv.type) ? rv.mixRing.at(0).size()
+        : rct::is_rct_fcmp(rv.type) ? rv.p.pseudoOuts.size()
+        : rv.mixRing.size();
       CHECK_AND_ASSERT_THROW_MES(inputs > 0, "Empty pseudoOuts");
       const size_t outputs = rv.ecdhInfo.size();
       key prehash;

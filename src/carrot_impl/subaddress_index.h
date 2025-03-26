@@ -49,6 +49,14 @@ struct subaddress_index
         return major || minor;
     }
 };
+static inline bool operator==(const subaddress_index a, const subaddress_index b)
+{
+    return a.major == b.major && a.minor == b.minor;
+}
+static inline bool operator!=(const subaddress_index a, const subaddress_index b)
+{
+    return !(a == b);
+}
 
 enum class AddressDeriveType
 {
@@ -62,4 +70,12 @@ struct subaddress_index_extended
     subaddress_index index;
     AddressDeriveType derive_type;
 };
+static inline bool operator==(const subaddress_index_extended &a, const subaddress_index_extended &b)
+{
+    return a.index == b.index && a.derive_type == b.derive_type;
+}
+static inline bool operator!=(const subaddress_index_extended &a, const subaddress_index_extended &b)
+{
+    return !(a == b);
+}
 } //namespace carrot

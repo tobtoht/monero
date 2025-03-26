@@ -2115,7 +2115,9 @@ void wallet2::scan_key_image(const wallet::enote_view_incoming_scan_info_t &enot
     CRITICAL_REGION_LOCAL(password_lock);
     if (!m_encrypt_keys_after_refresh)
     {
-      boost::optional<epee::wipeable_string> pwd = m_callback->on_get_password(pool ? "output found in pool" : "output received");
+      boost::optional<epee::wipeable_string> pwd;
+      if (m_callback)
+        m_callback->on_get_password(pool ? "output found in pool" : "output received");
       THROW_WALLET_EXCEPTION_IF(!pwd, error::password_needed, tr("Password is needed to compute key image for incoming monero"));
       THROW_WALLET_EXCEPTION_IF(!verify_password(*pwd), error::password_needed, tr("Invalid password: password is needed to compute key image for incoming monero"));
       m_encrypt_keys_after_refresh.reset(new wallet_keys_unlocker(*this, &*pwd));
@@ -2274,9 +2276,9 @@ void wallet2::process_new_scanned_transaction(
     notify = true;
 
     // after we've counted money, we're done processing outputs for in-pool txs
-    if (!pool)
+    if (pool)
         continue;
-    
+
     // expand subaddress table if applicable
     if (should_expand(subaddr_index_cn))
         expand_subaddresses(subaddr_index_cn);
@@ -2634,9 +2636,10 @@ void wallet2::process_new_blockchain_entry(const cryptonote::block& b,
     THROW_WALLET_EXCEPTION_IF(bche.txs.size() != parsed_block.txes.size(), error::wallet_internal_error, "Wrong amount of transactions for block");
     for (size_t idx = 0; idx < b.tx_hashes.size(); ++idx)
     {
-      n_outs_in_tx = b.miner_tx.vout.size();
+      const cryptonote::transaction &tx = parsed_block.txes.at(idx);
+      n_outs_in_tx = tx.vout.size();
       process_new_scanned_transaction(b.tx_hashes[idx],
-        parsed_block.txes[idx],
+        tx,
         {enote_scan_infos.data(), std::min(enote_scan_infos.size(), n_outs_in_tx)},
         {output_key_images.data(), std::min(output_key_images.size(), n_outs_in_tx)},
         parsed_block.o_indices.indices[idx+1].indices,
