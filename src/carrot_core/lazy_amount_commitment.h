@@ -29,53 +29,25 @@
 #pragma once
 
 //local headers
+#include "common/variant.h"
+#include "ringct/rctTypes.h"
 
 //third party headers
 
 //standard headers
-#include <cstdint>
+#include <utility>
 
 //forward declarations
 
+
 namespace carrot
 {
-struct subaddress_index
-{
-    std::uint32_t major;
-    std::uint32_t minor;
+using lazy_amount_commitment_t = tools::variant<
+        rct::key,                             // C
+        std::pair<rct::xmr_amount, rct::key>, // (a, z) s.t. C = z G + a H
+        rct::xmr_amount                       // a s.t. C = G + a H  
+    >;
 
-    bool is_subaddress() const
-    {
-        return major || minor;
-    }
-};
-static inline bool operator==(const subaddress_index a, const subaddress_index b)
-{
-    return a.major == b.major && a.minor == b.minor;
-}
-static inline bool operator!=(const subaddress_index a, const subaddress_index b)
-{
-    return !(a == b);
-}
+rct::key calculate_amount_commitment(const lazy_amount_commitment_t &lazy_amount_commitment);
 
-enum class AddressDeriveType
-{
-    Auto,
-    PreCarrot,
-    Carrot
-};
-
-struct subaddress_index_extended
-{
-    subaddress_index index;
-    AddressDeriveType derive_type;
-};
-static inline bool operator==(const subaddress_index_extended &a, const subaddress_index_extended &b)
-{
-    return a.index == b.index && a.derive_type == b.derive_type;
-}
-static inline bool operator!=(const subaddress_index_extended &a, const subaddress_index_extended &b)
-{
-    return !(a == b);
-}
 } //namespace carrot

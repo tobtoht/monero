@@ -19,63 +19,40 @@
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
 // EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 // MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL
-// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
 // PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, 
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+//paired header
+#include "lazy_amount_commitment.h"
 
 //local headers
+#include "ringct/rctOps.h"
 
 //third party headers
 
 //standard headers
-#include <cstdint>
 
-//forward declarations
+#undef MONERO_DEFAULT_LOG_CATEGORY
+#define MONERO_DEFAULT_LOG_CATEGORY "carrot"
 
 namespace carrot
 {
-struct subaddress_index
+//-------------------------------------------------------------------------------------------------------------------
+rct::key calculate_amount_commitment(const lazy_amount_commitment_t &lazy_amount_commitment)
 {
-    std::uint32_t major;
-    std::uint32_t minor;
-
-    bool is_subaddress() const
+    struct lazy_amount_commitment_visitor
     {
-        return major || minor;
-    }
-};
-static inline bool operator==(const subaddress_index a, const subaddress_index b)
-{
-    return a.major == b.major && a.minor == b.minor;
-}
-static inline bool operator!=(const subaddress_index a, const subaddress_index b)
-{
-    return !(a == b);
-}
+        rct::key operator()(const rct::key &C) const { return C; }
+        rct::key operator()(const std::pair<rct::xmr_amount, rct::key> &op) const
+        { return rct::commit(op.first, op.second); }
+        rct::key operator()(const rct::xmr_amount &a) const { return rct::zeroCommitVartime(a); }
+    };
 
-enum class AddressDeriveType
-{
-    Auto,
-    PreCarrot,
-    Carrot
-};
-
-struct subaddress_index_extended
-{
-    subaddress_index index;
-    AddressDeriveType derive_type;
-};
-static inline bool operator==(const subaddress_index_extended &a, const subaddress_index_extended &b)
-{
-    return a.index == b.index && a.derive_type == b.derive_type;
+    return lazy_amount_commitment.visit(lazy_amount_commitment_visitor{});
 }
-static inline bool operator!=(const subaddress_index_extended &a, const subaddress_index_extended &b)
-{
-    return !(a == b);
-}
+//-------------------------------------------------------------------------------------------------------------------
 } //namespace carrot

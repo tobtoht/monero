@@ -30,6 +30,7 @@
 #include "carrot_mock_helpers.h"
 
 //local headers
+#include "cryptonote_core/cryptonote_tx_utils.h"
 
 //third party headers
 
@@ -512,6 +513,36 @@ std::vector<CarrotEnoteV1> collect_enotes(const std::vector<RCTOutputEnotePropos
 std::uint64_t gen_block_index()
 {
     return crypto::rand_idx<std::uint64_t>(CRYPTONOTE_MAX_BLOCK_NUMBER);
+}
+//----------------------------------------------------------------------------------------------------------------------
+CarrotDestinationV1 convert_destination_v1(const cryptonote::tx_destination_entry &cn_dst)
+{
+    return CarrotDestinationV1{
+        .address_spend_pubkey = cn_dst.addr.m_spend_public_key,
+        .address_view_pubkey = cn_dst.addr.m_view_public_key,
+        .is_subaddress = cn_dst.is_subaddress,
+        .payment_id = null_payment_id // payment ID provided elsewhere
+    };
+}
+//----------------------------------------------------------------------------------------------------------------------
+CarrotPaymentProposalV1 convert_normal_payment_proposal_v1(const cryptonote::tx_destination_entry &cn_dst)
+{
+    return CarrotPaymentProposalV1{
+        .destination = convert_destination_v1(cn_dst),
+        .amount = cn_dst.amount,
+        .randomness = gen_janus_anchor()
+    };
+}
+//----------------------------------------------------------------------------------------------------------------------
+CarrotPaymentProposalSelfSendV1 convert_selfsend_payment_proposal_v1(const cryptonote::tx_destination_entry &cn_dst)
+{
+    return CarrotPaymentProposalSelfSendV1{
+        .destination_address_spend_pubkey = cn_dst.addr.m_spend_public_key,
+        .amount = cn_dst.amount,
+        .enote_type = CarrotEnoteType::PAYMENT,
+        .enote_ephemeral_pubkey = std::nullopt,
+        .internal_message = std::nullopt
+    };
 }
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock

@@ -47,6 +47,7 @@
 //standard headers
 
 //forward declarations
+namespace cryptonote { struct tx_destination_entry; }
 
 namespace carrot
 {
@@ -173,6 +174,12 @@ subaddress_index_extended gen_subaddress_index_extended(const AddressDeriveType 
 std::vector<CarrotEnoteV1> collect_enotes(const std::vector<RCTOutputEnoteProposal> &output_enote_proposals);
 //----------------------------------------------------------------------------------------------------------------------
 std::uint64_t gen_block_index();
+//----------------------------------------------------------------------------------------------------------------------
+CarrotDestinationV1 convert_destination_v1(const cryptonote::tx_destination_entry &cn_dst);
+//----------------------------------------------------------------------------------------------------------------------
+CarrotPaymentProposalV1 convert_normal_payment_proposal_v1(const cryptonote::tx_destination_entry &cn_dst);
+//----------------------------------------------------------------------------------------------------------------------
+CarrotPaymentProposalSelfSendV1 convert_selfsend_payment_proposal_v1(const cryptonote::tx_destination_entry &cn_dst);
 //----------------------------------------------------------------------------------------------------------------------
 } //namespace mock
 } //namespace carrot

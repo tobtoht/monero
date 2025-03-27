@@ -37,6 +37,7 @@ set(wallet_sources
   node_rpc_proxy.cpp
   message_store.cpp
   message_transporter.cpp
+  scanning_tools.cpp
   tx_builder.cpp
 )
 

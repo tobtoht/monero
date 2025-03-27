@@ -34,6 +34,7 @@
 //local headers
 #include "crypto/generators.h"
 #include "enote_utils.h"
+#include "lazy_amount_commitment.h"
 #include "ringct/rctOps.h"
 
 //third party headers
@@ -86,7 +87,7 @@ static void scan_carrot_dest_info(const crypto::public_key &onetime_address,
 //-------------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------
 static bool try_scan_carrot_external_noamount(const crypto::public_key &onetime_address,
-    const tools::variant<rct::xmr_amount, rct::key> &amount_commitment_v,
+    const lazy_amount_commitment_t &lazy_amount_commitment,
     const encrypted_janus_anchor_t &encrypted_janus_anchor,
     const view_tag_t view_tag,
     const mx25519_pubkey &enote_ephemeral_pubkey,
@@ -111,14 +112,8 @@ static bool try_scan_carrot_external_noamount(const crypto::public_key &onetime_
         input_context,
         s_sender_receiver_out);
 
-    // lazy making of C_a in case of coinbase enotes, where an expensive scalar-point multiplication is needed to
-    // calculate the implied C_a
-    struct amount_commitment_v_visitor
-    {
-        rct::key operator()(const rct::key &C) const { return C; }
-        rct::key operator()(const rct::xmr_amount a) const { return rct::zeroCommitVartime(a); }
-    };
-    const rct::key amount_commitment = amount_commitment_v.visit(amount_commitment_v_visitor{});
+    // C_a
+    const rct::key amount_commitment = calculate_amount_commitment(lazy_amount_commitment);
 
     // k^g_o, k^t_o, K^j_s', pid', anchor'
     janus_anchor_t nominal_janus_anchor;

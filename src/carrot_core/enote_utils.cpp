@@ -448,7 +448,7 @@ bool try_get_carrot_amount(const crypto::hash &s_sender_receiver,
             amount_commitment,
             amount_blinding_factor_out))
         return true;
-    
+
     // set enote_type <- "change" 
     enote_type_out = CarrotEnoteType::CHANGE;
 

@@ -61,7 +61,7 @@ static inline std::size_t get_fcmppp_tx_weight(const std::size_t num_inputs,
 std::size_t get_fcmppp_coinbase_tx_weight(const std::size_t num_outputs,
     const std::size_t tx_extra_size);
 
-static inline bool compare_input_key_images(const crypto::key_image lhs, const crypto::key_image &rhs)
+static inline bool compare_input_key_images(const crypto::key_image &lhs, const crypto::key_image &rhs)
 {
     return memcmp(lhs.data, rhs.data, sizeof(crypto::key_image)) > 0;
 }
