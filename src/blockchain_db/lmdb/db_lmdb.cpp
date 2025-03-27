@@ -139,6 +139,14 @@ int BlockchainLMDB::compare_uint64(const MDB_val *a, const MDB_val *b)
   return (va < vb) ? -1 : va > vb;
 }
 
+int BlockchainLMDB::compare_uint8(const MDB_val *a, const MDB_val *b)
+{
+  uint8_t va, vb;
+  memcpy(&va, a->mv_data, sizeof(va));
+  memcpy(&vb, b->mv_data, sizeof(vb));
+  return (va < vb) ? -1 : va > vb;
+}
+
 int BlockchainLMDB::compare_hash32(const MDB_val *a, const MDB_val *b)
 {
   uint32_t *va = (uint32_t*) a->mv_data;
@@ -196,6 +204,8 @@ namespace
  * locked_outputs   block ID     [{output ID, output pubkey, commitment}...]
  * leaves           leaf_idx     {output ID, output pubkey, commitment}
  * layers           layer_idx    [{child_chunk_idx, child_chunk_hash}...]
+ * tree_edges       block ID     [child_chunk_hash]
+ * tree_meta        block ID     n_leaf_tuples
  *
  * timelocked_outputs block ID   [{output ID, output pubkey, commitment}...]
  *
@@ -210,8 +220,8 @@ namespace
  * attached as a prefix on the Data to serve as the DUPSORT key.
  * (DUPFIXED saves 8 bytes per record.)
  *
- * The output_amounts, locked_outputs, layers, and timelocked_outputs tables
- * don't use a dummy key, but use DUPSORT.
+ * The output_amounts, locked_outputs, layers, and timelocked_outputs
+ * tables don't use a dummy key, but use DUPSORT.
  */
 const char* const LMDB_BLOCKS = "blocks";
 const char* const LMDB_BLOCK_HEIGHTS = "block_heights";
@@ -233,6 +243,8 @@ const char* const LMDB_SPENT_KEYS = "spent_keys";
 const char* const LMDB_LOCKED_OUTPUTS = "locked_outputs";
 const char* const LMDB_LEAVES = "leaves";
 const char* const LMDB_LAYERS = "layers";
+const char* const LMDB_TREE_EDGES = "tree_edges";
+const char* const LMDB_TREE_META = "tree_meta";
 
 const char* const LMDB_TIMELOCKED_OUTPUTS = "timelocked_outputs";
 
@@ -334,22 +346,7 @@ typedef struct mdb_block_info_4
   uint64_t bi_long_term_block_weight;
 } mdb_block_info_4;
 
-typedef struct mdb_block_info_5
-{
-  uint64_t bi_height;
-  uint64_t bi_timestamp;
-  uint64_t bi_coins;
-  uint64_t bi_weight; // a size_t really but we need 32-bit compat
-  uint64_t bi_diff_lo;
-  uint64_t bi_diff_hi;
-  crypto::hash bi_hash;
-  uint64_t bi_cum_rct;
-  uint64_t bi_long_term_block_weight;
-  uint64_t bi_n_leaf_tuples;
-  crypto::ec_point bi_tree_root;
-} mdb_block_info_5;
-
-typedef mdb_block_info_5 mdb_block_info;
+typedef mdb_block_info_4 mdb_block_info;
 
 typedef struct blk_height {
     crypto::hash bh_hash;
@@ -371,6 +368,10 @@ typedef struct layer_val {
     uint64_t child_chunk_idx;
     crypto::ec_point child_chunk_hash;
 } layer_val;
+
+typedef struct mdb_tree_meta {
+    uint64_t n_leaf_tuples;
+} mdb_tree_meta;
 
 std::atomic<uint64_t> mdb_txn_safe::num_active_txns{0};
 std::atomic_flag mdb_txn_safe::creation_gate = ATOMIC_FLAG_INIT;
@@ -790,7 +791,7 @@ estim:
 }
 
 void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    uint64_t num_rct_outs, const crypto::hash& blk_hash, const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block, const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs)
+    uint64_t num_rct_outs, const crypto::hash& blk_hash, const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block, const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -820,7 +821,7 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
 
   // Grow the tree with outputs that are no longer locked once this block is in the chain
   auto unlocked_outputs = this->get_outs_at_last_locked_block_id(m_height);
-  this->grow_tree(std::move(unlocked_outputs));
+  this->grow_tree(m_height, std::move(unlocked_outputs));
 
   // Now that we've used the unlocked leaves to grow the tree, we can delete them from the locked outputs table
   this->del_locked_outs_at_block_id(m_height);
@@ -858,8 +859,6 @@ void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t l
     bi.bi_cum_rct += bi_prev->bi_cum_rct;
   }
   bi.bi_long_term_block_weight = long_term_block_weight;
-  bi.bi_n_leaf_tuples = this->get_n_leaf_tuples();
-  bi.bi_tree_root = this->get_tree_root(); // TODO: grow_tree should return new root and n leaf tuples
 
   MDB_val_set(val, bi);
   result = mdb_cursor_put(m_cur_block_info, (MDB_val *)&zerokval, &val, MDB_APPENDDUP);
@@ -1409,32 +1408,69 @@ void BlockchainLMDB::remove_spent_key(const crypto::key_image& k_image)
   }
 }
 
-void BlockchainLMDB::grow_tree(std::vector<fcmp_pp::curve_trees::OutputContext> &&new_outputs)
+void BlockchainLMDB::grow_tree(const uint64_t blk_idx, std::vector<fcmp_pp::curve_trees::OutputContext> &&new_outputs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  if (new_outputs.empty())
-    return;
-
   check_open();
   mdb_txn_cursors *m_cursors = &m_wcursors;
 
   CHECK_AND_ASSERT_THROW_MES(m_write_txn != nullptr, "Must have m_write_txn set to grow tree");
+  CHECK_AND_ASSERT_THROW_MES(m_curve_trees != nullptr, "curve trees must be set");
 
   CURSOR(leaves)
 
-  // Get the number of leaf tuples that exist in the tree
+  // We may want to skip re-growing the tree if the tree is ahead of the chain.
+  // This can happen if we prior removed the block but have yet to trim the tree
+  // for that block. See trim_block for why we would do that.
+  std::vector<crypto::ec_point> prev_tree_edge;
+  uint64_t prev_blk_idx = 0;
+  if (blk_idx > 0)
+  {
+    // Get the block idx corresponding to the current tree in the db
+    const uint64_t tree_block_idx = this->get_tree_block_idx();
+    if (blk_idx > (tree_block_idx + 1))
+      throw0(DB_ERROR("The chain has extended too far past the tree"));
+    if (tree_block_idx >= blk_idx)
+    {
+      LOG_PRINT_L1("Skip re-growing the tree at block " << blk_idx << ", waiting for the chain to catch up to the tree's block " << tree_block_idx);
+      return;
+    }
+    // blk_idx == (tree_block_idx + 1), we're growing the tree 1 block
+
+    // Get the prev block's tree edge (i.e. the current tree edge before growing)
+    prev_blk_idx = blk_idx - 1;
+    prev_tree_edge = this->get_tree_edge(prev_blk_idx);
+  }
+
+  // Get the number of leaf tuples that exist in the current tree
   const uint64_t old_n_leaf_tuples = this->get_n_leaf_tuples();
 
-  // Read every layer's last hash
-  const auto last_hashes = this->get_tree_last_hashes();
+  if (blk_idx == 0 && old_n_leaf_tuples != 0)
+    throw0(DB_ERROR("Tree is not empty at blk idx 0"));
+
+  // We re-save the prev tree edge at this next block if the tree doesn't grow
+  const auto save_prev_tree_edge = [&, this]() { this->save_tree_meta(blk_idx, old_n_leaf_tuples, prev_tree_edge); };
+  if (new_outputs.empty())
+  {
+    save_prev_tree_edge();
+    return;
+  }
+
+  // Set the tree's existing last hashes from the existing edge
+  const auto last_hashes = m_curve_trees->tree_edge_to_last_hashes(prev_tree_edge);
 
   // Use the number of leaf tuples and the existing last hashes to get a struct we can use to extend the tree
-  CHECK_AND_ASSERT_THROW_MES(m_curve_trees != nullptr, "curve trees must be set");
   auto tree_extension = m_curve_trees->get_tree_extension(old_n_leaf_tuples, last_hashes, {std::move(new_outputs)});
+  if (tree_extension.leaves.tuples.empty())
+  {
+    save_prev_tree_edge();
+    return;
+  }
 
   // Insert the leaves
   // TODO: grow_leaves
   auto &leaves = tree_extension.leaves;
+  const uint64_t new_n_leaf_tuples = leaves.tuples.size() + old_n_leaf_tuples;
   for (uint64_t i = 0; i < leaves.tuples.size(); ++i)
   {
     const uint64_t leaf_idx = i + leaves.start_leaf_tuple_idx;
@@ -1450,11 +1486,16 @@ void BlockchainLMDB::grow_tree(std::vector<fcmp_pp::curve_trees::OutputContext> 
   // TODO: grow_layers
   const auto &c1_extensions = tree_extension.c1_layer_extensions;
   const auto &c2_extensions = tree_extension.c2_layer_extensions;
+  const std::size_t n_layers = c1_extensions.size() + c2_extensions.size();
+  if (n_layers == 0)
+    throw0(DB_ERROR("Unexpected 0 n layers"));
 
   bool parent_is_c1 = true;
   uint64_t c1_idx = 0;
   uint64_t c2_idx = 0;
-  for (uint64_t i = 0; i < (c1_extensions.size() + c2_extensions.size()); ++i)
+  std::vector<crypto::ec_point> tree_edge;
+  tree_edge.reserve(n_layers);
+  for (uint64_t i = 0; i < n_layers; ++i)
   {
     const uint64_t layer_idx = c1_idx + c2_idx;
     MDEBUG("Growing layer " << layer_idx);
@@ -1465,10 +1506,12 @@ void BlockchainLMDB::grow_tree(std::vector<fcmp_pp::curve_trees::OutputContext> 
         throw0(DB_ERROR(("Growing odd c1 layer, expected even layer idx for c1: "
           + std::to_string(layer_idx)).c_str()));
 
-      this->grow_layer<fcmp_pp::curve_trees::Selene>(m_curve_trees->m_c1,
-        c1_extensions,
-        c1_idx,
-        layer_idx);
+      tree_edge.emplace_back(this->grow_layer<fcmp_pp::curve_trees::Selene>(
+          m_curve_trees->m_c1,
+          c1_extensions,
+          c1_idx,
+          layer_idx
+        ));
 
       ++c1_idx;
     }
@@ -1478,20 +1521,24 @@ void BlockchainLMDB::grow_tree(std::vector<fcmp_pp::curve_trees::OutputContext> 
         throw0(DB_ERROR(("Growing even c2 layer, expected odd layer idx for c2: "
           + std::to_string(layer_idx)).c_str()));
 
-      this->grow_layer<fcmp_pp::curve_trees::Helios>(m_curve_trees->m_c2,
-        c2_extensions,
-        c2_idx,
-        layer_idx);
+      tree_edge.emplace_back(this->grow_layer<fcmp_pp::curve_trees::Helios>(
+          m_curve_trees->m_c2,
+          c2_extensions,
+          c2_idx,
+          layer_idx
+        ));
 
       ++c2_idx;
     }
 
     parent_is_c1 = !parent_is_c1;
   }
+
+  this->save_tree_meta(blk_idx, new_n_leaf_tuples, tree_edge);
 }
 
 template<typename C>
-void BlockchainLMDB::grow_layer(const std::unique_ptr<C> &curve,
+crypto::ec_point BlockchainLMDB::grow_layer(const std::unique_ptr<C> &curve,
   const std::vector<fcmp_pp::curve_trees::LayerExtension<C>> &layer_extensions,
   const uint64_t ext_idx,
   const uint64_t layer_idx)
@@ -1506,17 +1553,22 @@ void BlockchainLMDB::grow_layer(const std::unique_ptr<C> &curve,
   const auto &ext = layer_extensions[ext_idx];
 
   CHECK_AND_ASSERT_THROW_MES(!ext.hashes.empty(), "empty layer extension");
+  std::vector<crypto::ec_point> hashes;
+  hashes.reserve(ext.hashes.size());
 
   // TODO: make sure ext.start_idx lines up with the end of the layer
 
   MDB_val_copy<uint64_t> k(layer_idx);
 
+  // 1. Update the existing last hash if necessary
   if (ext.update_existing_last_hash)
   {
+    hashes.emplace_back(curve->to_bytes(ext.hashes.front()));
+
     // We updated the last hash, so update it
     layer_val lv;
     lv.child_chunk_idx  = ext.start_idx;
-    lv.child_chunk_hash = curve->to_bytes(ext.hashes.front());
+    lv.child_chunk_hash = hashes.back();
     MDB_val_set(v, lv);
 
     // We expect to overwrite the existing hash
@@ -1526,57 +1578,88 @@ void BlockchainLMDB::grow_layer(const std::unique_ptr<C> &curve,
       throw0(DB_ERROR(lmdb_error("Failed to update chunk hash: ", result).c_str()));
   }
 
-  // Now add all the new hashes found in the extension
+  // 2. Add all the new hashes found in the extension
   for (uint64_t i = ext.update_existing_last_hash ? 1 : 0; i < ext.hashes.size(); ++i)
   {
+    hashes.emplace_back(curve->to_bytes(ext.hashes[i]));
+
     layer_val lv;
     lv.child_chunk_idx  = i + ext.start_idx;
-    lv.child_chunk_hash = curve->to_bytes(ext.hashes[i]);
+    lv.child_chunk_hash = hashes.back();
     MDB_val_set(v, lv);
 
     int result = mdb_cursor_put(m_cur_layers, &k, &v, MDB_APPENDDUP);
     if (result != MDB_SUCCESS)
       throw0(DB_ERROR(lmdb_error("Failed to add hash: ", result).c_str()));
   }
+
+  return hashes.back();
 }
 
-fcmp_pp::curve_trees::CurveTreesV1::TreeReduction BlockchainLMDB::get_tree_reduction(
-  const uint64_t new_n_leaf_tuples) const
+void BlockchainLMDB::save_tree_meta(const uint64_t block_idx, const uint64_t n_leaf_tuples, const std::vector<crypto::ec_point> &tree_edge)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
+  mdb_txn_cursors *m_cursors = &m_wcursors;
 
-  TXN_PREFIX_RDONLY();
+  CURSOR(tree_edges);
+  CURSOR(tree_meta);
 
-  // Get n_leaf_tuples from the new tip so we can trim the curve trees tree to the new tip
-  const uint64_t old_n_leaf_tuples = this->get_n_leaf_tuples();
+  if (tree_edge.size() > std::numeric_limits<uint8_t>::max())
+    throw0(DB_ERROR("too many tree edge members"));
+  if (tree_edge.size() != m_curve_trees->n_layers(n_leaf_tuples))
+    throw0(DB_ERROR("Number of layers in the tree edge does not match expected for the saved n leaf tuples"));
 
-  if (new_n_leaf_tuples > old_n_leaf_tuples)
-    throw1(DB_ERROR("Unexpected: more leaf tuples are in prev block, tree is expected to only grow"));
-  const uint64_t trim_n_leaf_tuples = old_n_leaf_tuples - new_n_leaf_tuples;
+  // 1. Save the tree edge
+  MDB_val_copy<uint64_t> k_tee(block_idx);
+  MDB_val v;
+  const std::size_t n_layers = tree_edge.size();
+  v.mv_data = n_layers ? (void *)tree_edge.data() : (void*)"";
+  v.mv_size = sizeof(crypto::ec_point) * n_layers;
 
-  if (trim_n_leaf_tuples == 0)
-    return { .new_total_leaf_tuples = old_n_leaf_tuples };
+  int result = mdb_cursor_put(m_cur_tree_edges, &k_tee, &v, MDB_NOOVERWRITE);
+  if (result != MDB_SUCCESS)
+    throw0(DB_ERROR(lmdb_error("Failed to set last hash: ", result).c_str()));
+
+  // 2. Save the tree meta
+  MDB_val_copy<uint64_t> k_meta(block_idx);
+  mdb_tree_meta tree_meta;
+  tree_meta.n_leaf_tuples = n_leaf_tuples;
+  MDB_val_set(v_meta, tree_meta);
+
+  result = mdb_cursor_put(m_cur_tree_meta, &k_meta, &v_meta, MDB_NOOVERWRITE);
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error setting tree meta: ", result).c_str()));
+}
+
+void BlockchainLMDB::del_tree_meta(const uint64_t block_idx)
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+  mdb_txn_cursors *m_cursors = &m_wcursors;
+
+  CURSOR(tree_edges)
+  CURSOR(tree_meta)
 
   CHECK_AND_ASSERT_THROW_MES(m_curve_trees != nullptr, "curve trees must be set");
-  const auto trim_instructions = m_curve_trees->get_trim_instructions(old_n_leaf_tuples, trim_n_leaf_tuples);
 
-  // Do initial tree reads
-  const auto last_chunk_children_for_trim = this->get_last_chunk_children_for_trim(trim_instructions);
-  const auto last_hashes_for_trim = this->get_last_hashes_for_trim(trim_instructions);
+  MDB_val_set(k_block_id, block_idx);
 
-  // Get the new hashes, wrapped in a simple struct we can use to trim the tree
-  const auto tree_reduction = m_curve_trees->get_tree_reduction(
-    trim_instructions,
-    last_chunk_children_for_trim,
-    last_hashes_for_trim);
+  // 1. Delete tree edge at this block
+  int result = mdb_cursor_get(m_cur_tree_edges, &k_block_id, NULL, MDB_SET);
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error finding tree edge to remove at block " + std::to_string(block_idx) + ": ", result).c_str()));
+  result = mdb_cursor_del(m_cur_tree_edges, 0);
+  if (result)
+    throw1(DB_ERROR(lmdb_error("Error removing tree edge: ", result).c_str()));
 
-  CHECK_AND_ASSERT_THROW_MES((tree_reduction.new_total_leaf_tuples + trim_n_leaf_tuples) == old_n_leaf_tuples,
-    "unexpected new total leaves");
-
-  TXN_POSTFIX_RDONLY();
-
-  return tree_reduction;
+  // 2. Delete tree meta at this block
+  result = mdb_cursor_get(m_cur_tree_meta, &k_block_id, NULL, MDB_SET);
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error finding tree meta to remove at block " + std::to_string(block_idx) + ": ", result).c_str()));
+  result = mdb_cursor_del(m_cur_tree_meta, 0);
+  if (result)
+    throw1(DB_ERROR(lmdb_error("Error removing tree meta: ", result).c_str()));
 }
 
 std::pair<uint64_t, fcmp_pp::curve_trees::PathBytes> BlockchainLMDB::get_last_path(const uint64_t block_idx) const
@@ -1586,49 +1669,60 @@ std::pair<uint64_t, fcmp_pp::curve_trees::PathBytes> BlockchainLMDB::get_last_pa
 
   TXN_PREFIX_RDONLY();
 
-  const uint64_t new_n_leaf_tuples = this->get_block_n_leaf_tuples(block_idx);
-  if (new_n_leaf_tuples == 0)
+  // See how many leaves were in the tree at the given block
+  const uint64_t block_n_leaf_tuples = this->get_block_n_leaf_tuples(block_idx);
+  if (block_n_leaf_tuples == 0)
     return { 0, {} };
 
-  // Determine what the last hashes should be at every layer for the provided block
-  const auto tree_reduction = this->get_tree_reduction(new_n_leaf_tuples);
-
-  const auto last_path_indexes = m_curve_trees->get_path_indexes(new_n_leaf_tuples, new_n_leaf_tuples - 1);
+  // Get path elems from the block's last path (gets *current* path elem state)
+  const auto last_path_indexes = m_curve_trees->get_path_indexes(block_n_leaf_tuples, block_n_leaf_tuples - 1);
   auto path = this->get_path(last_path_indexes);
 
-  // If the tree remains the same size, then we just use the last path and don't need to make any changes
-  if (tree_reduction.c2_layer_reductions.empty())
-    return { tree_reduction.new_total_leaf_tuples, path };
+  // See what the last hashes at every layer for the provided block were (gets *old* path elem state)
+  std::vector<crypto::ec_point> tree_edge = this->get_tree_edge(block_idx);
+  if (tree_edge.empty())
+    throw0(DB_ERROR("Unexpected empty tree edge"));
+  if (tree_edge.size() != path.layer_chunks.size())
+    throw0(DB_ERROR("Unexpected tree edge size, mismatch to path layer chunks"));
 
-  // Use the tree reduction to update last hashes in each layer if needed
-  bool parent_is_c1 = true;
-  std::size_t c1_idx = 0;
-  std::size_t c2_idx = 0;
-  for (auto &layer : path.layer_chunks)
+  // Use tree edge at the provided block to set the last hash for each layer (so path state reflects old state)
+  for (std::size_t i = 0; i < path.layer_chunks.size(); ++i)
   {
-    if (parent_is_c1)
-    {
-      CHECK_AND_ASSERT_THROW_MES(c1_idx < tree_reduction.c1_layer_reductions.size(), "unexpected c1 layer reduction");
-      const auto &layer_reduction = tree_reduction.c1_layer_reductions[c1_idx];
-      if (layer_reduction.update_existing_last_hash)
-        layer.chunk_bytes.back() = m_curve_trees->m_c1->to_bytes(layer_reduction.new_last_hash);
-      ++c1_idx;
-    }
-    else
-    {
-      CHECK_AND_ASSERT_THROW_MES(c2_idx < tree_reduction.c2_layer_reductions.size(), "unexpected c2 layer reduction");
-      const auto &layer_reduction = tree_reduction.c2_layer_reductions[c2_idx];
-      if (layer_reduction.update_existing_last_hash)
-        layer.chunk_bytes.back() = m_curve_trees->m_c2->to_bytes(layer_reduction.new_last_hash);
-      ++c2_idx;
-    }
-
-    parent_is_c1 = !parent_is_c1;
+    if (path.layer_chunks[i].chunk_bytes.empty())
+      throw0(DB_ERROR("Unexpected empty path"));
+    path.layer_chunks[i].chunk_bytes.back() = std::move(tree_edge[i]);
   }
 
   TXN_POSTFIX_RDONLY();
 
-  return { tree_reduction.new_total_leaf_tuples, path };
+  return { block_n_leaf_tuples, path };
+}
+
+std::vector<crypto::ec_point> BlockchainLMDB::get_tree_edge(uint64_t block_id) const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+  RCURSOR(tree_edges)
+
+  MDB_val_set(k_block_id, block_id);
+  MDB_val v;
+  int result = mdb_cursor_get(m_cur_tree_edges, &k_block_id, &v, MDB_SET);
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error finding tree edge at block " + std::to_string(block_id) + ": ", result).c_str()));
+
+  crypto::ec_point* tree_edge = (crypto::ec_point*)v.mv_data;
+  const std::size_t n_layers = v.mv_size / sizeof(crypto::ec_point);
+
+  std::vector<crypto::ec_point> res;
+  res.reserve(n_layers);
+  for (std::size_t i = 0; i < n_layers; ++i)
+    res.emplace_back(std::move(tree_edge[i]));
+
+  TXN_POSTFIX_RDONLY();
+
+  return res;
 }
 
 fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_trees::PathIndexes &path_indexes) const
@@ -1637,6 +1731,7 @@ fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_tr
   check_open();
 
   TXN_PREFIX_RDONLY();
+  RCURSOR(leaves)
   RCURSOR(layers)
 
   fcmp_pp::curve_trees::PathBytes path_bytes;
@@ -1675,7 +1770,7 @@ fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_tr
     }
   }
 
-  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer, getting children to trim
+  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer
   // TODO: separate function for layers
   std::size_t layer_idx = 0;
   for (const auto &layer_idx_range : path_indexes.layers)
@@ -1687,7 +1782,7 @@ fcmp_pp::curve_trees::PathBytes BlockchainLMDB::get_path(const fcmp_pp::curve_tr
     MDB_cursor_op op = MDB_GET_BOTH;
     for (std::size_t i = layer_idx_range.first; i < layer_idx_range.second; ++i)
     {
-      MDEBUG("Getting child to trim at layer_idx: " << layer_idx << " , idx: " << i);
+      MDEBUG("Getting child at layer_idx: " << layer_idx << " , idx: " << i);
 
       int result = mdb_cursor_get(m_cur_layers, &k, &v, op);
       op = MDB_NEXT_DUP;
@@ -1713,16 +1808,55 @@ void BlockchainLMDB::trim_block()
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
-  mdb_txn_cursors *m_cursors = &m_wcursors;
 
   const uint64_t n_blocks = this->height();
   if (n_blocks == 0)
     return;
 
-  // Trimming the tip
-  const uint64_t trim_block_id = n_blocks - 1;
-  const uint64_t new_n_leaf_tuples = trim_block_id == 0 ? 0 : this->get_block_n_leaf_tuples(trim_block_id - 1);
-  this->trim_tree(new_n_leaf_tuples, trim_block_id);
+  const uint64_t removing_block_idx = n_blocks - 1;
+
+  // Get the earliest possible last locked block of outputs created in removing_block_idx
+  const uint64_t default_last_locked_block = cryptonote::get_default_last_locked_block_index(removing_block_idx);
+
+  // Since the tree grows with outputs that must have entered the chain at least
+  // CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE blocks prior to chain tip, we do not
+  // need to trim blocks that will just be re-grown with the same outputs again.
+  // Instead, we wait to trim until the tree tip is
+  // CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE blocks ahead of the chain tip, at which
+  // point we can trim outputs created in the block we're removing from the tree
+  const uint64_t tree_block_idx = this->get_tree_block_idx();
+
+  // The tree tip should remain bounded to [removing_block_idx, default_last_locked_block]
+  if (tree_block_idx < removing_block_idx || tree_block_idx > default_last_locked_block)
+  {
+    throw0(DB_ERROR(("Chain tip (" + std::to_string(removing_block_idx) + ") and tree tip (" +
+        std::to_string(tree_block_idx) + ") have diverged too far apart").c_str()));
+  }
+
+  if (tree_block_idx != default_last_locked_block)
+  {
+    LOG_PRINT_L1("Skipping trim when removing block " << removing_block_idx << " (tree block=" << tree_block_idx << ")");
+    return;
+  }
+
+  // Block removing_block_idx must be the the youngest block where outputs were
+  // created that were used to grow the tree at tree_block_idx. So we trim 1
+  // block from the tree. Upon trimming tree_block_idx from the tree,
+  // no outputs in the tree will exist that were created in removing_block_idx.
+  // After trimming, we can safely remove all outputs from the chain created in
+  // removing_block_idx.
+  if (tree_block_idx == 0)
+    throw0(DB_ERROR("Unexpected 0 tree block idx"));
+  const uint64_t prev_tree_block_idx = tree_block_idx - 1;
+
+  LOG_PRINT_L1("Trimming tree to block " << prev_tree_block_idx << " (removing block " << removing_block_idx << ")");
+
+  // Read n leaf tuples from the prev tree block to see how how many leaves
+  // should remain in the tree after trimming a block from the tree.
+  const uint64_t new_n_leaf_tuples = this->get_block_n_leaf_tuples(prev_tree_block_idx);
+
+  // Trim the tree to the new n leaf tuples
+  this->trim_tree(new_n_leaf_tuples, tree_block_idx);
 }
 
 void BlockchainLMDB::trim_tree(const uint64_t new_n_leaf_tuples, const uint64_t trim_block_id)
@@ -1737,83 +1871,99 @@ void BlockchainLMDB::trim_tree(const uint64_t new_n_leaf_tuples, const uint64_t 
 
   CHECK_AND_ASSERT_THROW_MES(m_write_txn != nullptr, "Must have m_write_txn set to trim tree");
 
-  // Get the new hashes, wrapped in a simple struct we can use to trim the tree
-  const auto tree_reduction = this->get_tree_reduction(new_n_leaf_tuples);
-
   const uint64_t old_n_leaf_tuples = this->get_n_leaf_tuples();
-  if (tree_reduction.new_total_leaf_tuples > old_n_leaf_tuples)
+  if (new_n_leaf_tuples > old_n_leaf_tuples)
     throw1(DB_ERROR("Cannot have more leaves in tree after trimming than exist in the tree already"));
 
   // Return if we don't need to trim any leaves
-  if (tree_reduction.new_total_leaf_tuples == old_n_leaf_tuples)
-    return;
+  if (new_n_leaf_tuples == old_n_leaf_tuples)
+    goto del_this_tree_meta;
 
-  // Use tree reduction to trim tree
-  // Trim the leaves
+  // Trim the leaves, re-adding to locked outputs table
   // TODO: trim_leaves
-  MDB_val_set(k_block_id, trim_block_id);
-  for (uint64_t i = tree_reduction.new_total_leaf_tuples; i < old_n_leaf_tuples; ++i)
   {
-    MDB_val_copy<uint64_t> k(i);
-    MDB_val v = k;
-    int result = mdb_cursor_get(m_cur_leaves, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
-    if (result == MDB_NOTFOUND)
-      throw0(DB_ERROR("leaf not found")); // TODO: specific error type instead of DB_ERROR
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to get leaf: ", result).c_str()));
+    MDB_val_set(k_block_id, trim_block_id);
+    for (uint64_t i = new_n_leaf_tuples; i < old_n_leaf_tuples; ++i)
+    {
+      MDB_val_copy<uint64_t> k(i);
+      MDB_val v = k;
+      int result = mdb_cursor_get(m_cur_leaves, (MDB_val *)&zerokval, &v, MDB_GET_BOTH);
+      if (result == MDB_NOTFOUND)
+        throw0(DB_ERROR("leaf not found")); // TODO: specific error type instead of DB_ERROR
+      if (result != MDB_SUCCESS)
+        throw0(DB_ERROR(lmdb_error("Failed to get leaf: ", result).c_str()));
 
-    // Re-add the output to the locked output table in order. The output should
-    // be in the outputs tables.
-    const auto *o = (mdb_leaf *)v.mv_data;
-    MDB_val_set(v_output, o->output_context);
-    MDEBUG("Re-adding locked output_id: " << o->output_context.output_id << " , last locked block: " << trim_block_id);
-    result = mdb_cursor_put(m_cur_locked_outputs, &k_block_id, &v_output, MDB_APPENDDUP);
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to re-add locked output: ", result).c_str()));
+      // Re-add the output to the locked output table in order. The output should
+      // be in the outputs tables.
+      const auto *o = (mdb_leaf *)v.mv_data;
+      MDB_val_set(v_output, o->output_context);
+      MDEBUG("Re-adding locked output_id: " << o->output_context.output_id << " , last locked block: " << trim_block_id);
+      result = mdb_cursor_put(m_cur_locked_outputs, &k_block_id, &v_output, MDB_APPENDDUP);
+      if (result != MDB_SUCCESS)
+        throw0(DB_ERROR(lmdb_error("Failed to re-add locked output: ", result).c_str()));
 
-    // Delete the leaf
-    result = mdb_cursor_del(m_cur_leaves, 0);
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Error removing leaf: ", result).c_str()));
+      // Delete the leaf
+      result = mdb_cursor_del(m_cur_leaves, 0);
+      if (result != MDB_SUCCESS)
+        throw0(DB_ERROR(lmdb_error("Error removing leaf: ", result).c_str()));
 
-    MDEBUG("Successfully removed leaf at leaf_tuple_idx: " << i);
+      MDEBUG("Successfully removed leaf at leaf_tuple_idx: " << i);
+    }
   }
 
-  // Trim the layers
-  // TODO: trim_layers
-  const auto &c1_layer_reductions = tree_reduction.c1_layer_reductions;
-  const auto &c2_layer_reductions = tree_reduction.c2_layer_reductions;
-
-  const std::size_t n_layers = c1_layer_reductions.size() + c2_layer_reductions.size();
-
-  bool parent_is_c1 = true;
-  uint64_t c1_idx = 0;
-  uint64_t c2_idx = 0;
-  for (uint64_t i = 0; i < n_layers; ++i)
+  // If the tree is supposed to be empty, empty the tree
+  if (new_n_leaf_tuples == 0)
   {
-    if (parent_is_c1)
-    {
-      CHECK_AND_ASSERT_THROW_MES(c1_idx < c1_layer_reductions.size(), "unexpected c1 layer reduction");
-      const auto &c1_reduction = c1_layer_reductions[c1_idx];
-      this->trim_layer(m_curve_trees->m_c1, c1_reduction, i);
-      ++c1_idx;
-    }
-    else
-    {
-      CHECK_AND_ASSERT_THROW_MES(c2_idx < c2_layer_reductions.size(), "unexpected c2 layer reduction");
-      const auto &c2_reduction = c2_layer_reductions[c2_idx];
-      this->trim_layer(m_curve_trees->m_c2, c2_reduction, i);
-      ++c2_idx;
-    }
-
-    parent_is_c1 = !parent_is_c1;
+    // Empty the layers table, no elems should remain
+    int result = mdb_drop(*m_write_txn, m_layers, 0);
+    if (result != MDB_SUCCESS)
+      throw0(DB_ERROR(lmdb_error("Error emptying layers table: ", result).c_str()));
+    goto del_this_tree_meta;
   }
 
-  // Trim any remaining layers in layers after the root
+  // Shrink the layer sizes and update the last hash in each layer using the prev block's cached tree edge
+  {
+    // Read the tree edge from the prev block, we're trimming back to that
+    if (trim_block_id == 0)
+      throw0(DB_ERROR("Unexpected trim_block_id set to 0"));
+    const uint64_t prev_block_idx = trim_block_id - 1;
+    auto old_tree_edge = this->get_tree_edge(prev_block_idx);
+
+    // Determine how may new elems in each layer there will be
+    const auto n_elems_per_layer = m_curve_trees->n_elems_per_layer(new_n_leaf_tuples);
+
+    // Trim each layer down to size and reset the tree edge elems using prev block's tree edge
+    // TODO: trim_layers
+    for (std::size_t layer_idx = 0; layer_idx < n_elems_per_layer.size(); ++layer_idx)
+    {
+      const uint64_t n_new_elems = n_elems_per_layer[layer_idx];
+      if (n_new_elems == 0)
+        throw0(DB_ERROR("Unexpected 0 new elems"));
+      if (layer_idx >= old_tree_edge.size())
+        throw0(DB_ERROR("Tree edge is too small"));
+
+      // Delete all excess elems in layer
+      this->trim_layer(n_new_elems, layer_idx);
+
+      // Set the new last elem using the old tree edge elem
+      MDB_val_copy<uint64_t> k_layer_idx(layer_idx);
+      layer_val lv;
+      lv.child_chunk_idx  = n_new_elems - 1;
+      lv.child_chunk_hash = std::move(old_tree_edge[layer_idx]);
+      MDB_val_set(v_lv, lv);
+
+      // Overwrite layer last elem
+      MDEBUG("Re-setting elem " << lv.child_chunk_idx << " at layer idx " << layer_idx << ": " << epee::string_tools::pod_to_hex(lv.child_chunk_hash));
+      int result = mdb_cursor_put(m_cur_layers, &k_layer_idx, &v_lv, 0);
+      if (result != MDB_SUCCESS)
+        throw0(DB_ERROR(lmdb_error("Failed to update chunk hash: ", result).c_str()));
+    }
+  }
+
+  // Delete any remaining layers in layers after the root
   // TODO: trim_leftovers_after_root
-  if (n_layers > 0)
   {
-    const uint64_t expected_root_idx = n_layers - 1;
+    const uint64_t expected_root_idx = m_curve_trees->n_layers(new_n_leaf_tuples) - 1;
     while (1)
     {
       MDB_val k, v;
@@ -1840,19 +1990,14 @@ void BlockchainLMDB::trim_tree(const uint64_t new_n_leaf_tuples, const uint64_t 
       }
     }
   }
-  else // n_layers == 0
-  {
-    // Empty the layers table, no elems should remain
-    int result = mdb_drop(*m_write_txn, m_layers, 0);
-    if (result != MDB_SUCCESS)
-        throw0(DB_ERROR(lmdb_error("Error emptying layers table: ", result).c_str()));
-  }
+
+// We don't need the trimmed block's tree meta saved anymore. We save the tree
+// meta in grow_tree, so delete the tree meta now in trim_tree.
+del_this_tree_meta:
+  this->del_tree_meta(trim_block_id);
 }
 
-template<typename C>
-void BlockchainLMDB::trim_layer(const std::unique_ptr<C> &curve,
-  const fcmp_pp::curve_trees::LayerReduction<C> &layer_reduction,
-  const uint64_t layer_idx)
+void BlockchainLMDB::trim_layer(const uint64_t new_n_elems_in_layer, const uint64_t layer_idx)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -1860,7 +2005,7 @@ void BlockchainLMDB::trim_layer(const std::unique_ptr<C> &curve,
 
   CURSOR(layers)
 
-  MDEBUG("Trimming layer " << layer_idx);
+  MDEBUG("Trimming layer " << layer_idx << ", new elems in layer: " << new_n_elems_in_layer);
   MDB_val_copy<uint64_t> k(layer_idx);
 
   // Get the number of existing elements in the layer
@@ -1875,15 +2020,14 @@ void BlockchainLMDB::trim_layer(const std::unique_ptr<C> &curve,
 
     result = mdb_cursor_get(m_cur_layers, &k, &v, MDB_LAST_DUP);
     if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to get last elem: ", result).c_str()));
+      throw0(DB_ERROR(lmdb_error("Failed to get layer last elem on trim: ", result).c_str()));
 
     const auto *lv = (layer_val *)v.mv_data;
     old_n_elems_in_layer = (1 + lv->child_chunk_idx);
   }
 
-  CHECK_AND_ASSERT_THROW_MES(old_n_elems_in_layer >= layer_reduction.new_total_parents,
-    "unexpected old n elems in layer");
-  const uint64_t trim_n_elems_in_layer = old_n_elems_in_layer - layer_reduction.new_total_parents;
+  CHECK_AND_ASSERT_THROW_MES(old_n_elems_in_layer >= new_n_elems_in_layer, "unexpected old n elems in layer");
+  const uint64_t trim_n_elems_in_layer = old_n_elems_in_layer - new_n_elems_in_layer;
 
   // Delete the elements
   for (uint64_t i = 0; i < trim_n_elems_in_layer; ++i)
@@ -1902,21 +2046,6 @@ void BlockchainLMDB::trim_layer(const std::unique_ptr<C> &curve,
       throw0(DB_ERROR(lmdb_error("Error removing elem: ", result).c_str()));
 
     MDEBUG("Successfully removed elem at layer_idx: " << layer_idx << " , last_elem_idx: " << last_elem_idx);
-  }
-
-  // Update the last element if needed
-  if (layer_reduction.update_existing_last_hash)
-  {
-    layer_val lv;
-    lv.child_chunk_idx  = layer_reduction.new_total_parents - 1;
-    lv.child_chunk_hash = curve->to_bytes(layer_reduction.new_last_hash);
-    MDB_val_set(v, lv);
-
-    // We expect to overwrite the existing hash
-    // TODO: make sure the hash already exists and is the existing last hash
-    int result = mdb_cursor_put(m_cur_layers, &k, &v, 0);
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to update chunk hash: ", result).c_str()));
   }
 }
 
@@ -1953,271 +2082,33 @@ uint64_t BlockchainLMDB::get_block_n_leaf_tuples(const uint64_t block_idx) const
   check_open();
 
   TXN_PREFIX_RDONLY();
-  RCURSOR(block_info);
+  RCURSOR(tree_meta);
 
-  if (block_idx >= height())
-    throw1(BLOCK_DNE("Attempting to get n leaf tuples at non-existent block"));
+  MDB_val_set(k_block_id, block_idx);
+  MDB_val v;
+  int result = mdb_cursor_get(m_cur_tree_meta, &k_block_id, &v, MDB_SET);
+  if (result == MDB_NOTFOUND)
+    throw0(BLOCK_DNE(std::string("Attempt to get tree meta from blk idx ").append(boost::lexical_cast<std::string>(block_idx)).append(" failed -- tree meta not in db").c_str()));
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error getting tree meta n leaf tuples: ", result).c_str()));
 
-  MDB_val_copy<uint64_t> k(block_idx);
-  MDB_val h = k;
-  int result = 0;
-  if ((result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &h, MDB_GET_BOTH)))
-    throw1(BLOCK_DNE(lmdb_error("Failed to get top block: ", result).c_str()));
+  uint64_t n_leaf_tuples = ((mdb_tree_meta *)v.mv_data)->n_leaf_tuples;
 
-  const uint64_t n_leaf_tuples = ((mdb_block_info *)h.mv_data)->bi_n_leaf_tuples;
   TXN_POSTFIX_RDONLY();
+
   return n_leaf_tuples;
-}
-
-// TODO: remove this function for cleanup. Can be replaced by having grow_tree return new root
-crypto::ec_point BlockchainLMDB::get_tree_root() const
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
-
-  TXN_PREFIX_RDONLY();
-  RCURSOR(layers)
-
-  crypto::ec_point root{};
-
-  {
-    MDB_val k, v;
-    int result = mdb_cursor_get(m_cur_layers, &k, &v, MDB_LAST);
-    if (result == MDB_SUCCESS)
-    {
-      auto *lv = (layer_val *)v.mv_data;
-      root = std::move(lv->child_chunk_hash);
-    }
-    else if (result != MDB_NOTFOUND)
-      throw0(DB_ERROR(lmdb_error("Failed to get last layer elem (the expected root): ", result).c_str()));
-  }
-
-  TXN_POSTFIX_RDONLY();
-
-  return root;
 }
 
 std::size_t BlockchainLMDB::get_tree_root_at_blk_idx(const uint64_t blk_idx, crypto::ec_point &tree_root_out) const
 {
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
-
-  TXN_PREFIX_RDONLY();
-  RCURSOR(block_info);
-
-  MDB_val_set(result, blk_idx);
-  auto get_result = mdb_cursor_get(m_cur_block_info, (MDB_val *)&zerokval, &result, MDB_GET_BOTH);
-  if (get_result == MDB_NOTFOUND)
-    throw0(BLOCK_DNE(std::string("Attempt to get tree root from blk idx ").append(boost::lexical_cast<std::string>(blk_idx)).append(" failed -- tree root not in db").c_str()));
-  else if (get_result)
-    throw0(DB_ERROR("Error attempting to retrieve a tree root from the db"));
-
-  mdb_block_info *bi = (mdb_block_info *)result.mv_data;
-  tree_root_out = bi->bi_tree_root;
-  const std::size_t n_tree_layers = m_curve_trees->n_layers(bi->bi_n_leaf_tuples);
-  TXN_POSTFIX_RDONLY();
-
-  return n_tree_layers;
-}
-
-fcmp_pp::curve_trees::CurveTreesV1::LastHashes BlockchainLMDB::get_tree_last_hashes() const
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  check_open();
-
-  TXN_PREFIX_RDONLY();
-  RCURSOR(layers)
-
-  fcmp_pp::curve_trees::CurveTreesV1::LastHashes last_hashes;
-  auto &c1_last_hashes = last_hashes.c1_last_hashes;
-  auto &c2_last_hashes = last_hashes.c2_last_hashes;
-
-  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer
-  uint64_t layer_idx = 0;
-  while (1)
+  const std::vector<crypto::ec_point> tree_edge = this->get_tree_edge(blk_idx);
+  if (tree_edge.empty())
   {
-    MDB_val_copy<uint64_t> k(layer_idx);
-    MDB_val v;
-
-    // Get the first record in a layer so we can then get the last record
-    int result = mdb_cursor_get(m_cur_layers, &k, &v, MDB_SET);
-    if (result == MDB_NOTFOUND)
-      break;
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to get first record in layer: ", result).c_str()));
-
-    // Get the last record in a layer
-    result = mdb_cursor_get(m_cur_layers, &k, &v, MDB_LAST_DUP);
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to get last record in layer: ", result).c_str()));
-
-    const auto *lv = (layer_val *)v.mv_data;
-    MDEBUG("Reading last hash at layer_idx: " << layer_idx << " , lv->child_chunk_idx: " << lv->child_chunk_idx);
-
-    const bool parent_is_c1 = (layer_idx % 2) == 0;
-    if (parent_is_c1)
-    {
-      auto point = m_curve_trees->m_c1->from_bytes(lv->child_chunk_hash);
-      c1_last_hashes.emplace_back(std::move(point));
-    }
-    else
-    {
-      auto point = m_curve_trees->m_c2->from_bytes(lv->child_chunk_hash);
-      c2_last_hashes.emplace_back(std::move(point));
-    }
-
-    ++layer_idx;
+    tree_root_out = crypto::ec_point{};
+    return 0;
   }
-
-  TXN_POSTFIX_RDONLY();
-
-  return last_hashes;
-}
-
-fcmp_pp::curve_trees::CurveTreesV1::LastChunkChildrenForTrim BlockchainLMDB::get_last_chunk_children_for_trim(
-  const std::vector<fcmp_pp::curve_trees::TrimLayerInstructions> &trim_instructions) const
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-  if (trim_instructions.empty())
-    return {};
-  check_open();
-
-  CHECK_AND_ASSERT_THROW_MES(m_curve_trees != nullptr, "curve trees must be set");
-
-  TXN_PREFIX_RDONLY();
-
-  RCURSOR(leaves)
-  RCURSOR(layers)
-
-  fcmp_pp::curve_trees::PathBytes last_chunk_children;
-
-  // Get the leaves
-  // TODO: separate function for leaves
-  {
-    CHECK_AND_ASSERT_THROW_MES(!trim_instructions.empty(), "no instructions");
-    const auto &trim_leaf_layer_instructions = trim_instructions[0];
-
-    std::vector<fcmp_pp::curve_trees::Selene::Scalar> leaves_to_trim;
-
-    if (trim_leaf_layer_instructions.end_trim_idx > trim_leaf_layer_instructions.start_trim_idx)
-    {
-      leaves_to_trim.reserve(trim_leaf_layer_instructions.end_trim_idx - trim_leaf_layer_instructions.start_trim_idx);
-
-      uint64_t idx = trim_leaf_layer_instructions.start_trim_idx;
-      CHECK_AND_ASSERT_THROW_MES(idx % fcmp_pp::curve_trees::CurveTreesV1::LEAF_TUPLE_SIZE == 0,
-        "expected divisble by leaf tuple size");
-
-      const uint64_t leaf_tuple_idx = idx / fcmp_pp::curve_trees::CurveTreesV1::LEAF_TUPLE_SIZE;
-      MDB_val k = zerokval;
-      MDB_val_copy<uint64_t> v(leaf_tuple_idx);
-
-      MDB_cursor_op leaf_op = MDB_GET_BOTH;
-      do
-      {
-        int result = mdb_cursor_get(m_cur_leaves, &k, &v, leaf_op);
-        leaf_op = MDB_NEXT;
-        if (result == MDB_NOTFOUND)
-          throw0(DB_ERROR("leaf not found")); // TODO: specific error type instead of DB_ERROR
-        if (result != MDB_SUCCESS)
-          throw0(DB_ERROR(lmdb_error("Failed to get leaf: ", result).c_str()));
-
-        auto *db_leaf = (mdb_leaf *)v.mv_data;
-        last_chunk_children.leaves.emplace_back(std::move(db_leaf->output_context));
-
-        idx += fcmp_pp::curve_trees::CurveTreesV1::LEAF_TUPLE_SIZE;
-      }
-      while (idx < trim_leaf_layer_instructions.end_trim_idx);
-    }
-  }
-
-  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer, getting children for trim
-  // TODO: separate function for layers
-  for (uint64_t i = 1; i < trim_instructions.size(); ++i)
-  {
-    const auto &trim_layer_instructions = trim_instructions[i];
-
-    fcmp_pp::curve_trees::ChunkBytes chunk;
-
-    if (trim_layer_instructions.end_trim_idx > trim_layer_instructions.start_trim_idx)
-    {
-      const uint64_t layer_idx = (i - 1);
-      uint64_t idx = trim_layer_instructions.start_trim_idx;
-
-      MDB_val_set(k, layer_idx);
-      MDB_val_set(v, idx);
-      MDB_cursor_op op = MDB_GET_BOTH;
-      do
-      {
-        MDEBUG("Getting child to trim at layer_idx: " << layer_idx << " , idx: " << idx);
-
-        int result = mdb_cursor_get(m_cur_layers, &k, &v, op);
-        op = MDB_NEXT_DUP;
-        if (result == MDB_NOTFOUND)
-          throw0(DB_ERROR("layer elem not found")); // TODO: specific error type instead of DB_ERROR
-        if (result != MDB_SUCCESS)
-          throw0(DB_ERROR(lmdb_error("Failed to get layer elem: ", result).c_str()));
-
-        auto *lv = (layer_val *)v.mv_data;
-        chunk.chunk_bytes.emplace_back(std::move(lv->child_chunk_hash));
-
-        ++idx;
-      }
-      while (idx < trim_layer_instructions.end_trim_idx);
-    }
-
-    last_chunk_children.layer_chunks.emplace_back(std::move(chunk));
-  }
-
-  return m_curve_trees->last_chunk_children_from_path_bytes(last_chunk_children);
-}
-
-fcmp_pp::curve_trees::CurveTreesV1::LastHashes BlockchainLMDB::get_last_hashes_for_trim(
-  const std::vector<fcmp_pp::curve_trees::TrimLayerInstructions> &trim_instructions) const
-{
-  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
-
-  fcmp_pp::curve_trees::CurveTreesV1::LastHashes last_hashes_out;
-  if (trim_instructions.empty())
-    return last_hashes_out;
-
-  check_open();
-
-  TXN_PREFIX_RDONLY();
-  RCURSOR(layers)
-
-  // Traverse the tree layer-by-layer starting at the layer closest to leaf layer
-  uint64_t layer_idx = 0;
-  for (const auto &trim_layer_instructions : trim_instructions)
-  {
-    const uint64_t new_last_idx = trim_layer_instructions.new_total_parents - 1;
-
-    MDB_val_copy<uint64_t> k(layer_idx);
-    MDB_val_set(v, new_last_idx);
-
-    int result = mdb_cursor_get(m_cur_layers, &k, &v, MDB_GET_BOTH);
-    if (result == MDB_NOTFOUND)
-      throw0(DB_ERROR("layer elem not found")); // TODO: specific error type instead of DB_ERROR
-    if (result != MDB_SUCCESS)
-      throw0(DB_ERROR(lmdb_error("Failed to get layer elem: ", result).c_str()));
-
-    const auto *lv = (layer_val *)v.mv_data;
-    if ((layer_idx % 2) == 0)
-    {
-      auto point = m_curve_trees->m_c1->from_bytes(lv->child_chunk_hash);
-      last_hashes_out.c1_last_hashes.emplace_back(std::move(point));
-    }
-    else
-    {
-      auto point = m_curve_trees->m_c2->from_bytes(lv->child_chunk_hash);
-      last_hashes_out.c2_last_hashes.emplace_back(std::move(point));
-    }
-
-    ++layer_idx;
-  }
-
-  TXN_POSTFIX_RDONLY();
-
-  return last_hashes_out;
+  tree_root_out = tree_edge.back();
+  return tree_edge.size();
 }
 
 bool BlockchainLMDB::audit_tree(const uint64_t expected_n_leaf_tuples) const
@@ -2298,7 +2189,6 @@ bool BlockchainLMDB::audit_tree(const uint64_t expected_n_leaf_tuples) const
         throw0(DB_ERROR(lmdb_error("unexpected leaf chunk parent result found at child_chunk_idx "
           + std::to_string(child_chunk_idx), result).c_str()));
 
-      MDEBUG("Successfully audited leaf layer");
       break;
     }
 
@@ -2312,9 +2202,6 @@ bool BlockchainLMDB::audit_tree(const uint64_t expected_n_leaf_tuples) const
     const fcmp_pp::curve_trees::Selene::Chunk chunk{leaves.data(), leaves.size()};
 
     // Hash the chunk of leaves
-    for (uint64_t i = 0; i < leaves.size(); ++i)
-      MDEBUG("Hashing " << m_curve_trees->m_c1->to_string(leaves[i]));
-
     const auto chunk_hash = fcmp_pp::curve_trees::get_new_parent(m_curve_trees->m_c1, chunk);
     const auto expected_chunk_hash = m_curve_trees->m_c1->to_string(chunk_hash);
     MDEBUG("chunk_hash " << expected_chunk_hash << " , hash init point: "
@@ -2577,7 +2464,29 @@ void BlockchainLMDB::del_locked_outs_at_block_id(uint64_t block_id)
     throw1(DB_ERROR(lmdb_error("Error removing locked outputs: ", result).c_str()));
 }
 
-fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_custom_timelocked_outputs(uint64_t start_block_idx) const
+uint64_t BlockchainLMDB::get_tree_block_idx() const
+{
+  LOG_PRINT_L3("BlockchainLMDB::" << __func__);
+  check_open();
+
+  TXN_PREFIX_RDONLY();
+
+  RCURSOR(tree_meta)
+
+  MDB_val k;
+  MDB_val v;
+  int result = mdb_cursor_get(m_cur_tree_meta, &k, &v, MDB_LAST);
+  if (result != MDB_SUCCESS)
+    throw1(DB_ERROR(lmdb_error("Error finding last tree meta: ", result).c_str()));
+
+  uint64_t block_idx = *(uint64_t *)k.mv_data;
+
+  TXN_POSTFIX_RDONLY();
+
+  return block_idx;
+}
+
+fcmp_pp::curve_trees::OutsByLastLockedBlock BlockchainLMDB::get_custom_timelocked_outputs(uint64_t start_block_idx) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2585,7 +2494,7 @@ fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_custom_timelo
   TXN_PREFIX_RDONLY();
   RCURSOR(timelocked_outputs)
 
-  fcmp_pp::curve_trees::OutputsByLastLockedBlock outs;
+  fcmp_pp::curve_trees::OutsByLastLockedBlock outs;
 
   /*
     We expect the timelocked outputs table to be sorted primarily by key, i.e.
@@ -2682,14 +2591,14 @@ fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_custom_timelo
   return outs;
 }
 
-fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_recent_locked_outputs(uint64_t end_block_idx) const
+fcmp_pp::curve_trees::OutsByLastLockedBlock BlockchainLMDB::get_recent_locked_outputs(uint64_t end_block_idx) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
   TXN_PREFIX_RDONLY();
 
-  fcmp_pp::curve_trees::OutputsByLastLockedBlock outs;
+  fcmp_pp::curve_trees::OutsByLastLockedBlock outs;
 
   const uint64_t height = this->height();
   if (height == 0)
@@ -2968,6 +2877,8 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   lmdb_db_open(txn, LMDB_LOCKED_OUTPUTS, MDB_INTEGERKEY | MDB_DUPSORT | MDB_DUPFIXED | MDB_CREATE, m_locked_outputs, "Failed to open db handle for m_locked_outputs");
   lmdb_db_open(txn, LMDB_LEAVES, MDB_INTEGERKEY | MDB_DUPSORT | MDB_DUPFIXED | MDB_CREATE, m_leaves, "Failed to open db handle for m_leaves");
   lmdb_db_open(txn, LMDB_LAYERS, MDB_INTEGERKEY | MDB_DUPSORT | MDB_DUPFIXED | MDB_CREATE, m_layers, "Failed to open db handle for m_layers");
+  lmdb_db_open(txn, LMDB_TREE_EDGES, MDB_INTEGERKEY | MDB_CREATE, m_tree_edges, "Failed to open db handle for m_tree_edges");
+  lmdb_db_open(txn, LMDB_TREE_META, MDB_INTEGERKEY | MDB_CREATE, m_tree_meta, "Failed to open db handle for m_tree_meta");
 
   lmdb_db_open(txn, LMDB_TIMELOCKED_OUTPUTS, MDB_INTEGERKEY | MDB_DUPSORT | MDB_DUPFIXED | MDB_CREATE, m_timelocked_outputs, "Failed to open db handle for m_timelocked_outputs");
 
@@ -2993,6 +2904,8 @@ void BlockchainLMDB::open(const std::string& filename, const int db_flags)
   mdb_set_dupsort(txn, m_locked_outputs, compare_uint64);
   mdb_set_dupsort(txn, m_leaves, compare_uint64);
   mdb_set_dupsort(txn, m_layers, compare_uint64);
+  mdb_set_compare(txn, m_tree_edges, compare_uint64);
+  mdb_set_compare(txn, m_tree_meta, compare_uint64);
   mdb_set_dupsort(txn, m_timelocked_outputs, compare_uint64);
   mdb_set_dupsort(txn, m_output_txs, compare_uint64);
   mdb_set_dupsort(txn, m_block_info, compare_uint64);
@@ -3180,6 +3093,10 @@ void BlockchainLMDB::reset()
     throw0(DB_ERROR(lmdb_error("Failed to drop m_leaves: ", result).c_str()));
   if (auto result = mdb_drop(txn, m_layers, 0))
     throw0(DB_ERROR(lmdb_error("Failed to drop m_layers: ", result).c_str()));
+  if (auto result = mdb_drop(txn, m_tree_edges, 0))
+    throw0(DB_ERROR(lmdb_error("Failed to drop m_tree_edges: ", result).c_str()));
+  if (auto result = mdb_drop(txn, m_tree_meta, 0))
+    throw0(DB_ERROR(lmdb_error("Failed to drop m_tree_meta: ", result).c_str()));
   if (auto result = mdb_drop(txn, m_timelocked_outputs, 0))
     throw0(DB_ERROR(lmdb_error("Failed to drop m_timelocked_outputs: ", result).c_str()));
   (void)mdb_drop(txn, m_hf_starting_heights, 0); // this one is dropped in new code
@@ -7631,16 +7548,7 @@ void BlockchainLMDB::migrate_5_6()
       batch_start();
       txn.m_txn = m_write_txn->m_txn;
 
-      /* the block_info table name is the same but the old version and new version
-      * have incompatible data. Create a new table. We want the name to be similar
-      * to the old name so that it will occupy the same location in the DB.
-      */
-      MDB_dbi o_block_info = m_block_info;
-      lmdb_db_open(txn, "block_infn", MDB_INTEGERKEY | MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, m_block_info, "Failed to open db handle for block_infn");
-      mdb_set_dupsort(txn, m_block_info, compare_uint64);
-
-      MDB_cursor *c_locked_outputs, *c_new_block_info, *c_old_block_info;
-      MDB_val k_blk, v_blk;
+      MDB_cursor *c_locked_outputs;
 
       i = 0;
       const uint64_t n_blocks = height();
@@ -7665,20 +7573,14 @@ void BlockchainLMDB::migrate_5_6()
           result = mdb_cursor_open(txn, m_locked_outputs, &c_locked_outputs);
           if (result)
             throw0(DB_ERROR(lmdb_error("Failed to open a cursor for locked outputs: ", result).c_str()));
-          result = mdb_cursor_open(txn, m_block_info, &c_new_block_info);
-          if (result)
-            throw0(DB_ERROR(lmdb_error("Failed to open a cursor for block_infn: ", result).c_str()));
-          result = mdb_cursor_open(txn, o_block_info, &c_old_block_info);
-          if (result)
-            throw0(DB_ERROR(lmdb_error("Failed to open a cursor for block_info: ", result).c_str()));
 
           // See what the last block inserted into the new table was
           if (i == 0)
           {
             MDB_stat db_stats;
-            result = mdb_stat(txn, m_block_info, &db_stats);
+            result = mdb_stat(txn, m_tree_meta, &db_stats);
             if (result)
-              throw0(DB_ERROR(lmdb_error("Failed to query m_block_info: ", result).c_str()));
+              throw0(DB_ERROR(lmdb_error("Failed to query m_tree_meta: ", result).c_str()));
             i = db_stats.ms_entries;
             if (i == n_blocks)
               break;
@@ -7687,77 +7589,26 @@ void BlockchainLMDB::migrate_5_6()
 
         // Get leaf tuples of outputs that unlock once i is in the chain, since i is their last locked block
         auto unlocked_outputs = this->get_outs_at_last_locked_block_id(i);
-        this->grow_tree(std::move(unlocked_outputs));
+        this->grow_tree(i, std::move(unlocked_outputs));
 
         // Now that we've used the unlocked leaves to grow the tree, we delete them from the locked outputs table
         this->del_locked_outs_at_block_id(i);
 
-        // Get old block_info and use it to set the new one with new values
-        result = mdb_cursor_get(c_old_block_info, &k_blk, &v_blk, MDB_NEXT);
-        if (result)
-          throw0(DB_ERROR(lmdb_error("Failed to get a record from block_info: ", result).c_str()));
-        const mdb_block_info_4 *bi_old = (const mdb_block_info_4*)v_blk.mv_data;
-        if (i != bi_old->bi_height)
-          throw0(DB_ERROR(std::string("Unexpected block retrieved, retrieved: " + std::to_string(bi_old->bi_height) + " , expected: " + std::to_string(i)).c_str()));
-        mdb_block_info_5 bi;
-        bi.bi_height = bi_old->bi_height;
-        bi.bi_timestamp = bi_old->bi_timestamp;
-        bi.bi_coins = bi_old->bi_coins;
-        bi.bi_weight = bi_old->bi_weight;
-        bi.bi_diff_lo = bi_old->bi_diff_lo;
-        bi.bi_diff_hi = bi_old->bi_diff_hi;
-        bi.bi_hash = bi_old->bi_hash;
-        bi.bi_cum_rct = bi_old->bi_cum_rct;
-        bi.bi_long_term_block_weight = bi_old->bi_long_term_block_weight;
-        bi.bi_n_leaf_tuples = this->get_n_leaf_tuples();
-        bi.bi_tree_root = this->get_tree_root();
-
         LOGIF(el::Level::Info)
         {
-          if ((bi.bi_height % 1000) == 0)
+          if ((i % 1000) == 0)
           {
-            const std::string tree_root = epee::string_tools::pod_to_hex(bi.bi_tree_root);
-            MINFO("Height: " << i << ", block: " << bi.bi_hash << ", tree root: " << tree_root << ", leaves: " << bi.bi_n_leaf_tuples);
+            const uint64_t n_leaf_tuples = this->get_block_n_leaf_tuples(i);
+            crypto::ec_point tree_root;
+            this->get_tree_root_at_blk_idx(i, tree_root);
+            const std::string tree_root_str = epee::string_tools::pod_to_hex(tree_root);
+            MINFO("Block: " << i << ", tree root: " << tree_root_str << ", leaves: " << n_leaf_tuples);
           }
         }
-
-        MDB_val_set(nv, bi);
-        result = mdb_cursor_put(c_new_block_info, (MDB_val *)&zerokval, &nv, MDB_APPENDDUP);
-        if (result)
-          throw0(DB_ERROR(lmdb_error("Failed to put a record into block_infn: ", result).c_str()));
-
-        /* we delete the old records immediately, so the overall DB and mapsize should not be
-        * larger than it needs to be.
-        * This is a little slower than just letting mdb_drop() delete it all at the end, but
-        * it saves a significant amount of disk space.
-        */
-        result = mdb_cursor_del(c_old_block_info, 0);
-        if (result)
-          throw0(DB_ERROR(lmdb_error("Failed to delete a record from block_info: ", result).c_str()));
 
         ++i;
       }
       batch_stop();
-
-      result = mdb_txn_begin(m_env, NULL, 0, txn);
-      if (result)
-        throw0(DB_ERROR(lmdb_error("Failed to create a transaction for the db: ", result).c_str()));
-      /* Delete the old table */
-      result = mdb_drop(txn, o_block_info, 1);
-      if (result)
-        throw0(DB_ERROR(lmdb_error("Failed to delete old block_info table: ", result).c_str()));
-
-      MDB_cursor *c_cur;
-      result = mdb_cursor_open(txn, m_block_info, &c_cur);
-      if (result)
-        throw0(DB_ERROR(lmdb_error("Failed to open a cursor for block_infn: ", result).c_str()));
-      RENAME_DB("block_infn");
-      mdb_dbi_close(m_env, m_block_info);
-
-      lmdb_db_open(txn, "block_info", MDB_INTEGERKEY | MDB_CREATE | MDB_DUPSORT | MDB_DUPFIXED, m_block_info, "Failed to open db handle for block_infn");
-      mdb_set_dupsort(txn, m_block_info, compare_uint64);
-
-      txn.commit();
     }
   } while(0);
 

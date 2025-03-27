@@ -109,6 +109,15 @@ struct pool_supplement
     mutable std::uint8_t nic_verified_hf_version = 0;
 };
 
+// TODO: document the function
+bool batch_ver_fcmp_pp_consensus
+(
+    pool_supplement& ps,
+    const std::unordered_map<uint64_t, std::pair<crypto::ec_point, uint8_t>>& tree_root_by_block_index,
+    rct_ver_cache_t& cache,
+    const std::uint8_t rct_type_to_cache
+);
+
 /**
  * @brief Verify every non-input consensus rule for a group of non-coinbase transactions
  *

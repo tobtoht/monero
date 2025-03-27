@@ -148,7 +148,7 @@ struct AssignedLeafIdx final
     END_SERIALIZE()
 };
 
-using LockedOutputsByLastLockedBlock = std::unordered_map<LastLockedBlockIdx, std::vector<OutputContext>>;
+using LockedOutsByLastLockedBlock = std::unordered_map<LastLockedBlockIdx, std::vector<OutputContext>>;
 using LockedOutputRefs       = std::unordered_map<LastLockedBlockIdx, NumOutputs>;
 using LockedOutputsByCreated = std::unordered_map<CreatedBlockIdx, LockedOutputRefs>;
 
@@ -187,7 +187,7 @@ public:
     void sync_block(const uint64_t block_idx,
         const crypto::hash &block_hash,
         const crypto::hash &prev_block_hash,
-        const OutputsByLastLockedBlock &outs_by_last_locked_block) override;
+        const OutsByLastLockedBlock &outs_by_last_locked_block) override;
 
     bool pop_block() override;
 
@@ -199,14 +199,15 @@ public:
         const crypto::hash &start_block_hash,
         const uint64_t n_leaf_tuples,
         const fcmp_pp::curve_trees::PathBytes &last_path,
-        const OutputsByLastLockedBlock &timelocked_outputs);
+        const OutsByLastLockedBlock &timelocked_outputs);
 
     // TODO: make this part of the TreeSync interface
-    uint64_t get_n_leaf_tuples() const;
+    uint64_t get_n_leaf_tuples() const noexcept;
     bool get_top_block(BlockMeta &top_block_out) const
     {
         CHECK_AND_ASSERT_MES(!m_cached_blocks.empty(), false, "empty cached blocks");
-        memcpy(&top_block_out, &m_cached_blocks.back(), sizeof(BlockMeta));
+        BlockMeta top_block = m_cached_blocks.back();
+        top_block_out = std::move(top_block);
         return true;
     };
 
@@ -218,7 +219,7 @@ public:
     void prepare_to_sync_blocks(const uint64_t start_block_idx,
         const crypto::hash &prev_block_hash,
         const std::vector<crypto::hash> &new_block_hashes,
-        const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> &outs_by_last_locked_blocks,
+        const std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> &outs_by_last_locked_blocks,
         typename fcmp_pp::curve_trees::CurveTrees<C1, C2>::TreeExtension &tree_extension_out,
         std::vector<uint64_t> &n_new_leaf_tuples_per_block_out);
 
@@ -233,20 +234,20 @@ public:
 
 // Internal helper functions
 private:
-    typename CurveTrees<C1, C2>::LastHashes get_last_hashes(const uint64_t n_leaf_tuples) const;
+    typename CurveTrees<C1, C2>::LastHashes get_last_hashes() const;
 
-    typename CurveTrees<C1, C2>::LastChunkChildrenForTrim get_last_chunk_children_to_regrow(
-        const std::vector<TrimLayerInstructions> &trim_instructions) const;
+    bool get_leaf_path(const uint64_t n_leaf_tuples,
+        const LeafIdx leaf_idx,
+        typename CurveTrees<C1, C2>::Path &path_out) const;
 
-    typename CurveTrees<C1, C2>::LastHashes get_last_hashes_for_trim(
-        const std::vector<TrimLayerInstructions> &trim_instructions) const;
+    void deque_block(const uint64_t old_n_leaf_tuples);
 
-    void deque_block(const uint64_t n_leaf_tuples_at_block);
+    std::vector<crypto::ec_point> get_tree_edge(const uint64_t n_leaf_tuples) const;
 
 // State held in memory
 private:
     // Locked outputs in the chain that we use to grow the tree with internally upon unlock
-    LockedOutputsByLastLockedBlock m_locked_outputs;
+    LockedOutsByLastLockedBlock m_locked_outputs;
     LockedOutputsByCreated m_locked_output_refs;
 
     // Keep a global output counter so the caller knows how output id's should be set
@@ -259,9 +260,9 @@ private:
     LeafCache m_leaf_cache;
     TreeElemCache m_tree_elem_cache;
 
-    // Used for getting tree extensions and reductions when growing and trimming respectively
+    // Used for getting tree extensions when growing and for trimming
     // - These are unspecific to the wallet's registered outputs. These are strictly necessary to ensure we can rebuild
-    //   the tree extensions and reductions for each block correctly locally when syncing.
+    //   the tree extensions (and trim backwards) for each block correctly locally when syncing.
     std::deque<BlockMeta> m_cached_blocks;
 
     uint64_t m_getting_unlocked_outs_ms{0};

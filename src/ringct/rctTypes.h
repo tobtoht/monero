@@ -424,8 +424,8 @@ namespace rct {
         std::vector<clsag> CLSAGs;
         keyV pseudoOuts; //C - for simple rct
         // FCMP data
-        uint64_t reference_block; // used to get the tree root as of when this reference block index enters the chain
-        uint8_t n_tree_layers; // number of layers in the tree as of the block when the reference block index enters the chain
+        uint64_t reference_block{0}; // used to get the tree root as of when this reference block index enters the chain
+        uint8_t n_tree_layers{0}; // number of layers in the tree as of the block when the reference block index enters the chain
         fcmp_pp::FcmpPpProof fcmp_pp; // FCMP++ SAL and membership proof
         fcmp_pp::FcmpVerifyHelperData fcmp_ver_helper_data; // used to verify FCMP proofs (not serialized, reconstructed)
 
@@ -507,7 +507,6 @@ namespace rct {
             // tx, we would need a db read (for n_tree_layers as of the block) in order to de-serialize the FCMP++ proof
             VARINT_FIELD(n_tree_layers)
             ar.tag("fcmp_pp");
-            ar.begin_object();
             const std::size_t proof_len = fcmp_pp::proof_len(inputs, n_tree_layers);
             if (!typename Archive<W>::is_saving())
               fcmp_pp.resize(proof_len);
@@ -516,7 +515,6 @@ namespace rct {
             ar.serialize_blob(fcmp_pp.data(), proof_len);
             if (!ar.good())
               return false;
-            ar.end_object();
           }
           else if (type == RCTTypeCLSAG || type == RCTTypeBulletproofPlus)
           {

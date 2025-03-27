@@ -68,6 +68,8 @@ typedef struct mdb_txn_cursors
   MDB_cursor *m_txc_locked_outputs;
   MDB_cursor *m_txc_leaves;
   MDB_cursor *m_txc_layers;
+  MDB_cursor *m_txc_tree_edges;
+  MDB_cursor *m_txc_tree_meta;
 
   MDB_cursor *m_txc_timelocked_outputs;
 
@@ -97,6 +99,8 @@ typedef struct mdb_txn_cursors
 #define m_cur_locked_outputs	m_cursors->m_txc_locked_outputs
 #define m_cur_leaves		m_cursors->m_txc_leaves
 #define m_cur_layers		m_cursors->m_txc_layers
+#define m_cur_tree_edges  m_cursors->m_txc_tree_edges
+#define m_cur_tree_meta   m_cursors->m_txc_tree_meta
 #define m_cur_timelocked_outputs	m_cursors->m_txc_timelocked_outputs
 #define m_cur_txpool_meta	m_cursors->m_txc_txpool_meta
 #define m_cur_txpool_blob	m_cursors->m_txc_txpool_blob
@@ -123,6 +127,8 @@ typedef struct mdb_rflags
   bool m_rf_locked_outputs;
   bool m_rf_leaves;
   bool m_rf_layers;
+  bool m_rf_tree_edges;
+  bool m_rf_tree_meta;
   bool m_rf_timelocked_outputs;
   bool m_rf_txpool_meta;
   bool m_rf_txpool_blob;
@@ -371,11 +377,12 @@ public:
 
   // helper functions
   static int compare_uint64(const MDB_val *a, const MDB_val *b);
+  static int compare_uint8(const MDB_val *a, const MDB_val *b);
   static int compare_hash32(const MDB_val *a, const MDB_val *b);
   static int compare_string(const MDB_val *a, const MDB_val *b);
 
   // make private
-  virtual void grow_tree(std::vector<fcmp_pp::curve_trees::OutputContext> &&new_outputs);
+  virtual void grow_tree(const uint64_t block_idx, std::vector<fcmp_pp::curve_trees::OutputContext> &&new_outputs);
 
   virtual void trim_tree(const uint64_t new_n_leaf_tuples, const uint64_t trim_block_id);
 
@@ -399,7 +406,7 @@ private:
                 , const uint64_t& coins_generated
                 , uint64_t num_rct_outs
                 , const crypto::hash& block_hash
-                , const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block
+                , const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block
                 , const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs
                 );
 
@@ -431,35 +438,26 @@ private:
   virtual void remove_spent_key(const crypto::key_image& k_image);
 
   template<typename C>
-  void grow_layer(const std::unique_ptr<C> &curve,
+  crypto::ec_point grow_layer(const std::unique_ptr<C> &curve,
     const std::vector<fcmp_pp::curve_trees::LayerExtension<C>> &layer_extensions,
     const uint64_t c_idx,
     const uint64_t layer_idx);
 
-  template<typename C>
-  void trim_layer(const std::unique_ptr<C> &curve,
-    const fcmp_pp::curve_trees::LayerReduction<C> &layer_reduction,
-    const uint64_t layer_idx);
+  void save_tree_meta(const uint64_t block_idx, const uint64_t n_leaf_tuples, const std::vector<crypto::ec_point> &tree_edge);
+
+  void del_tree_meta(const uint64_t block_idx);
+
+  void trim_layer(const uint64_t new_n_elems_in_layer, const uint64_t layer_idx);
 
   virtual void trim_block();
-
-  virtual fcmp_pp::curve_trees::CurveTreesV1::TreeReduction get_tree_reduction(
-    const uint64_t new_n_leaf_tuples) const;
 
   virtual uint64_t get_n_leaf_tuples() const;
 
   uint64_t get_block_n_leaf_tuples(uint64_t block_idx) const;
 
-  virtual crypto::ec_point get_tree_root() const;
   virtual std::size_t get_tree_root_at_blk_idx(const uint64_t blk_idx, crypto::ec_point &tree_root_out) const;
 
-  fcmp_pp::curve_trees::CurveTreesV1::LastHashes get_tree_last_hashes() const;
-
-  fcmp_pp::curve_trees::CurveTreesV1::LastChunkChildrenForTrim get_last_chunk_children_for_trim(
-    const std::vector<fcmp_pp::curve_trees::TrimLayerInstructions> &trim_instructions) const;
-
-  fcmp_pp::curve_trees::CurveTreesV1::LastHashes get_last_hashes_for_trim(
-    const std::vector<fcmp_pp::curve_trees::TrimLayerInstructions> &trim_instructions) const;
+  std::vector<crypto::ec_point> get_tree_edge(uint64_t block_id) const;
 
   template<typename C_CHILD, typename C_PARENT>
   bool audit_layer(const std::unique_ptr<C_CHILD> &c_child,
@@ -471,13 +469,15 @@ private:
 
   void del_locked_outs_at_block_id(uint64_t block_id);
 
-  virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const;
+  uint64_t get_tree_block_idx() const;
+
+  virtual fcmp_pp::curve_trees::OutsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const;
 
   // Returns:
   // - coinbase outputs created between [end_block_idx - CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW]
   // - normal outputs created between [end_block_idx - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE]
   // - the outputs are grouped by last locked block idx
-  virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_recent_locked_outputs(uint64_t end_block_idx) const;
+  virtual fcmp_pp::curve_trees::OutsByLastLockedBlock get_recent_locked_outputs(uint64_t end_block_idx) const;
 
   // Hard fork
   virtual void set_hard_fork_version(uint64_t height, uint8_t version);
@@ -547,6 +547,8 @@ private:
   MDB_dbi m_locked_outputs;
   MDB_dbi m_leaves;
   MDB_dbi m_layers;
+  MDB_dbi m_tree_edges;
+  MDB_dbi m_tree_meta;
 
   MDB_dbi m_timelocked_outputs;
 

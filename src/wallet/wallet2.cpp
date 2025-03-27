@@ -3355,7 +3355,7 @@ static void tree_sync_blocks_async(const TreeSyncStartParams &tree_sync_start_pa
 
   // Collect all outs from all blocks by last locked block
   TIME_MEASURE_START(collecting_outs_by_last_locked_block);
-  std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> outs_by_last_locked_blocks;
+  std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> outs_by_last_locked_blocks;
 
   new_block_hashes_out.reserve(n_new_blocks);
   outs_by_last_locked_blocks.reserve(n_new_blocks);
@@ -3788,7 +3788,7 @@ void wallet2::pull_and_parse_next_blocks(bool first, bool try_incremental, uint6
       const crypto::hash &init_block_hash = init_tree_sync_data->init_block_hash;
       MINFO("Initializing wallet tree at block " << init_block_idx << " with block hash " << init_block_hash);
 
-      fcmp_pp::curve_trees::OutputsByLastLockedBlock locked_outputs;
+      fcmp_pp::curve_trees::OutsByLastLockedBlock locked_outputs;
       for (auto &lo : init_tree_sync_data->locked_outputs)
         locked_outputs[lo.last_locked_block] = std::move(lo.outputs);
 
@@ -7565,8 +7565,6 @@ bool wallet2::is_transfer_unlocked(const transfer_details& td)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height)
 {
-  // FIXME: At FCMP++ fork, use the new logic
-
   if(!is_tx_spendtime_unlocked(unlock_time, block_height))
     return false;
 
@@ -7578,6 +7576,9 @@ bool wallet2::is_transfer_unlocked(uint64_t unlock_time, uint64_t block_height)
 //----------------------------------------------------------------------------------------------------
 bool wallet2::is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height)
 {
+  if (use_fork_rules(HF_VERSION_FCMP_PLUS_PLUS, 0))
+    return get_blockchain_current_height() >= (cryptonote::get_last_locked_block_index(unlock_time, block_height)+1);
+
   if(unlock_time < CRYPTONOTE_MAX_BLOCK_NUMBER)
   {
     //interpret as block index
@@ -8093,7 +8094,8 @@ bool wallet2::sign_tx(unsigned_tx_set &exported_txs, std::vector<wallet2::pendin
     rct::RCTConfig rct_config = sd.rct_config;
     crypto::secret_key tx_key;
     std::vector<crypto::secret_key> additional_tx_keys;
-    bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sd.sources, sd.splitted_dsts, sd.change_dts.addr, sd.extra, ptx.tx, tx_key, additional_tx_keys, {}, sd.use_rct, rct_config, sd.use_view_tags);
+    fcmp_pp::ProofParams fcmp_pp_params = {};
+    bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sd.sources, sd.splitted_dsts, sd.change_dts.addr, sd.extra, ptx.tx, tx_key, additional_tx_keys, fcmp_pp_params, sd.use_rct, rct_config, sd.use_view_tags);
     THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sd.sources, sd.splitted_dsts, m_nettype);
     // we don't test tx size, because we don't know the current limit, due to not having a blockchain,
     // and it's a bit pointless to fail there anyway, since it'd be a (good) guess only. We sign anyway,
@@ -10178,7 +10180,8 @@ void wallet2::transfer_selected(const std::vector<cryptonote::tx_destination_ent
   crypto::secret_key tx_key;
   std::vector<crypto::secret_key> additional_tx_keys;
   LOG_PRINT_L2("constructing tx");
-  bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts.addr, extra, tx, tx_key, additional_tx_keys, {}, false, {}, use_view_tags);
+  fcmp_pp::ProofParams fcmp_pp_params = {};
+  bool r = cryptonote::construct_tx_and_get_tx_key(m_account.get_keys(), m_subaddresses, sources, splitted_dsts, change_dts.addr, extra, tx, tx_key, additional_tx_keys, fcmp_pp_params, false, {}, use_view_tags);
   LOG_PRINT_L2("constructed tx, r="<<r);
   THROW_WALLET_EXCEPTION_IF(!r, error::tx_not_constructed, sources, splitted_dsts, m_nettype);
   THROW_WALLET_EXCEPTION_IF(upper_transaction_weight_limit <= get_transaction_weight(tx), error::tx_too_big, tx, upper_transaction_weight_limit);
@@ -11157,13 +11160,15 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
     }
     else
     {
+      const size_t max_dsts = (use_fcmp ? FCMP_PLUS_PLUS_MAX_OUTPUTS : BULLETPROOF_MAX_OUTPUTS) - 1;
+
       while (!dsts.empty() && dsts[0].amount <= available_amount && estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size()+1, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags) < TX_WEIGHT_TARGET(upper_transaction_weight_limit))
       {
         // we can fully pay that destination
         LOG_PRINT_L2("We can fully pay " << get_account_address_as_str(m_nettype, dsts[0].is_subaddress, dsts[0].addr) <<
           " for " << print_money(dsts[0].amount));
         const bool subtract_fee_from_this_dest = subtract_fee_from_outputs.count(destination_index);
-        if (!tx.add(dsts[0], dsts[0].amount, original_output_index, m_merge_destinations, BULLETPROOF_MAX_OUTPUTS-1, subtract_fee_from_this_dest))
+        if (!tx.add(dsts[0], dsts[0].amount, original_output_index, m_merge_destinations, max_dsts, subtract_fee_from_this_dest))
         {
           LOG_PRINT_L2("Didn't pay: ran out of output slots");
           out_slots_exhausted = true;
@@ -11182,7 +11187,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         LOG_PRINT_L2("We can partially pay " << get_account_address_as_str(m_nettype, dsts[0].is_subaddress, dsts[0].addr) <<
           " for " << print_money(available_amount) << "/" << print_money(dsts[0].amount));
         const bool subtract_fee_from_this_dest = subtract_fee_from_outputs.count(destination_index);
-        if (tx.add(dsts[0], available_amount, original_output_index, m_merge_destinations, BULLETPROOF_MAX_OUTPUTS-1, subtract_fee_from_this_dest))
+        if (tx.add(dsts[0], available_amount, original_output_index, m_merge_destinations, max_dsts, subtract_fee_from_this_dest))
         {
           dsts[0].amount -= available_amount;
           available_amount = 0;
@@ -11221,6 +11226,8 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_2(std::vector<cryp
         THROW_WALLET_EXCEPTION_IF(try_tx && tx.dsts.empty(), error::tx_too_big, estimated_rct_tx_weight, upper_transaction_weight_limit);
       }
     }
+
+    try_tx |= (use_fcmp && tx.selected_transfers.size() == FCMP_PLUS_PLUS_MAX_INPUTS);
 
     if (try_tx) {
       cryptonote::transaction test_tx;
@@ -11721,6 +11728,7 @@ std::vector<wallet2::pending_tx> wallet2::create_transactions_from(const crypton
     // TODO: fees for FCMP++
     const size_t estimated_rct_tx_weight = estimate_tx_weight(use_rct, tx.selected_transfers.size(), fake_outs_count, tx.dsts.size() + 2, extra.size(), bulletproof, clsag, bulletproof_plus, use_view_tags);
     bool try_tx = (unused_dust_indices.empty() && unused_transfers_indices.empty()) || ( estimated_rct_tx_weight >= TX_WEIGHT_TARGET(upper_transaction_weight_limit));
+    try_tx |= (use_fcmp && tx.selected_transfers.size() == FCMP_PLUS_PLUS_MAX_INPUTS);
 
     if (try_tx) {
       cryptonote::transaction test_tx;

@@ -79,30 +79,6 @@ Selene::Point Selene::hash_grow(
     return res;
 }
 //----------------------------------------------------------------------------------------------------------------------
-Selene::Point Selene::hash_trim(
-    const Selene::Point &existing_hash,
-    const std::size_t offset,
-    const Selene::Chunk &children,
-    const Selene::Scalar &child_to_grow_back) const
-{
-    auto result = ::hash_trim_selene(
-        existing_hash,
-        offset,
-        children,
-        child_to_grow_back);
-
-    if (result.err != nullptr)
-    {
-        free(result.err);
-        throw std::runtime_error("failed to hash trim");
-    }
-
-    typename Selene::Point res;
-    memcpy(&res, result.value, sizeof(typename Selene::Point));
-    free(result.value);
-    return res;
-}
-//----------------------------------------------------------------------------------------------------------------------
 Helios::Point Helios::hash_grow(
     const Helios::Point &existing_hash,
     const std::size_t offset,
@@ -119,30 +95,6 @@ Helios::Point Helios::hash_grow(
     {
         free(result.err);
         throw std::runtime_error("failed to hash grow");
-    }
-
-    typename Helios::Point res;
-    memcpy(&res, result.value, sizeof(typename Helios::Point));
-    free(result.value);
-    return res;
-}
-//----------------------------------------------------------------------------------------------------------------------
-Helios::Point Helios::hash_trim(
-    const Helios::Point &existing_hash,
-    const std::size_t offset,
-    const Helios::Chunk &children,
-    const Helios::Scalar &child_to_grow_back) const
-{
-    auto result = ::hash_trim_helios(
-        existing_hash,
-        offset,
-        children,
-        child_to_grow_back);
-
-    if (result.err != nullptr)
-    {
-        free(result.err);
-        throw std::runtime_error("failed to hash trim");
     }
 
     typename Helios::Point res;

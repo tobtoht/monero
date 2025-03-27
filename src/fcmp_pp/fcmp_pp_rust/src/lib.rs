@@ -13,7 +13,7 @@ use helioselene::{
 };
 
 use ec_divisors::{DivisorCurve, ScalarDecomposition};
-use full_chain_membership_proofs::tree::{hash_grow, hash_trim};
+use full_chain_membership_proofs::tree::hash_grow;
 
 use monero_fcmp_plus_plus::{
     fcmps,
@@ -239,29 +239,6 @@ pub extern "C" fn hash_grow_helios(
 }
 
 #[no_mangle]
-pub extern "C" fn hash_trim_helios(
-    existing_hash: HeliosPoint,
-    offset: usize,
-    children: HeliosScalarSlice,
-    child_to_grow_back: HeliosScalar,
-) -> CResult<HeliosPoint, ()> {
-    let hash = hash_trim(
-        HELIOS_GENERATORS(),
-        existing_hash,
-        offset,
-        children.into(),
-        child_to_grow_back,
-    );
-
-    if let Some(hash) = hash {
-        CResult::ok(hash)
-    } else {
-        // TODO: return defined error here: https://github.com/monero-project/monero/pull/9436#discussion_r1720477391
-        CResult::err(())
-    }
-}
-
-#[no_mangle]
 pub extern "C" fn hash_grow_selene(
     existing_hash: SelenePoint,
     offset: usize,
@@ -274,29 +251,6 @@ pub extern "C" fn hash_grow_selene(
         offset,
         existing_child_at_offset,
         new_children.into(),
-    );
-
-    if let Some(hash) = hash {
-        CResult::ok(hash)
-    } else {
-        // TODO: return defined error here: https://github.com/monero-project/monero/pull/9436#discussion_r1720477391
-        CResult::err(())
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn hash_trim_selene(
-    existing_hash: SelenePoint,
-    offset: usize,
-    children: SeleneScalarSlice,
-    child_to_grow_back: SeleneScalar,
-) -> CResult<SelenePoint, ()> {
-    let hash = hash_trim(
-        SELENE_GENERATORS(),
-        existing_hash,
-        offset,
-        children.into(),
-        child_to_grow_back,
     );
 
     if let Some(hash) = hash {
@@ -568,6 +522,7 @@ pub extern "C" fn selene_branch_blind() -> CResult<BranchBlind<<Selene as Cipher
 
 //-------------------------------------------------------------------------------------- Fcmp
 
+#[derive(Clone)]
 pub struct FcmpPpProveInput {
     rerandomized_output: RerandomizedOutput,
 
@@ -671,6 +626,11 @@ pub unsafe extern "C" fn fcmp_pp_prove_input_new(
     let path = unsafe { path.read() };
     let output_blinds = unsafe { output_blinds.read() };
 
+    assert_eq!(
+        path.output.O(),
+        EdwardsPoint((*x * *EdwardsPoint::generator()) + (*y * *EdwardsPoint(T())))
+    );
+
     // Collect branch blinds
     let c1_branch_blinds: &[*const BranchBlind<<Selene as Ciphersuite>::G>] =
         selene_branch_blinds.into();
@@ -696,6 +656,61 @@ pub unsafe extern "C" fn fcmp_pp_prove_input_new(
         y
     };
     CResult::ok(fcmp_prove_input)
+}
+
+/// # Safety
+///
+/// This function assumes that the sum_input_masks and sum_output_masks are 32 byte Ed25519 scalars,
+/// and that the inputs are a slice of inputs returned from fcmp_prove_input_new.
+#[no_mangle]
+pub unsafe extern "C" fn balance_last_pseudo_out(
+    sum_input_masks: *const u8,
+    sum_output_masks: *const u8,
+    inputs: FcmpPpProveInputSlice,
+) -> CResult<FcmpPpProveInput, ()> {
+    let mut sum_input_masks = ed25519_scalar_from_bytes(sum_input_masks);
+    let sum_output_masks = ed25519_scalar_from_bytes(sum_output_masks);
+
+    let inputs: &[*const FcmpPpProveInput] = inputs.into();
+
+    if inputs.len() == 0 {
+        return CResult::err(());
+    }
+
+    // Get the sum of the input commitment masks excluding the last one
+    for i in 0..inputs.len() - 1 {
+        // Read the input without consuming it
+        let input: &FcmpPpProveInput = unsafe { &*inputs[i] };
+        sum_input_masks += input.rerandomized_output.r_c();
+    }
+
+    // Re-calculate the last scalar so that the sum of inputs == sum of outputs
+    let new_last_r_c = sum_output_masks - sum_input_masks;
+
+    // Update the last r_c on the last reandomized output, which also updates its C_tilde
+    // TODO: modify the inputs slice directly
+    let mut last_input = inputs.last().unwrap().read();
+    let last_commitment = last_input.path.output.C();
+    last_input.rerandomized_output.set_r_c(last_commitment, new_last_r_c);
+
+    // Blind the updated C blind (this is expensive)
+    let new_c_blind = ScalarDecomposition::new(last_input.rerandomized_output.c_blind()).unwrap();
+    let new_blinded_c_blind = CBlind::new(EdwardsPoint::generator(), new_c_blind);
+    last_input.output_blinds.set_c_blind(new_blinded_c_blind);
+
+    CResult::ok(last_input)
+}
+
+/// # Safety
+///
+/// This function assumes that the inputs are a slice of inputs returned from fcmp_prove_input_new.
+#[no_mangle]
+pub unsafe extern "C" fn read_input_pseudo_out(
+    input: *const FcmpPpProveInput,
+) -> *const u8 {
+    // Read the input without consuming it
+    let input: &FcmpPpProveInput = unsafe { &*input };
+    c_u8_32(input.rerandomized_output.input().C_tilde().to_bytes())
 }
 
 /// # Safety
@@ -836,12 +851,16 @@ pub extern "C" fn fcmp_pp_proof_size(n_inputs: usize, n_tree_layers: usize) -> u
     FcmpPlusPlus::proof_size(n_inputs, n_tree_layers)
 }
 
-/// # Safety
-///
-/// This function assumes that the signable tx hash is 32 bytes, the tree root is heap
-/// allocated via a CResult, and pseudo outs and key images are 32 bytes each
-#[no_mangle]
-pub unsafe extern "C" fn verify(
+pub struct FcmpPpVerifyInput
+{
+    fcmp_pp: FcmpPlusPlus,
+    tree_root: TreeRoot<Selene, Helios>,
+    n_tree_layers: usize,
+    signable_tx_hash: [u8; 32],
+    key_images: Vec<EdwardsPoint>,
+}
+
+unsafe fn fcmp_pp_verify_input_new_inner(
     signable_tx_hash: *const u8,
     proof: *const u8,
     proof_len: usize,
@@ -849,14 +868,17 @@ pub unsafe extern "C" fn verify(
     tree_root: *const TreeRoot<Selene, Helios>,
     pseudo_outs: Slice<*const u8>,
     key_images: Slice<*const u8>,
-) -> bool {
+) -> std::io::Result<FcmpPpVerifyInput> {
     // Early checks
     let n_inputs = pseudo_outs.len;
-    if n_inputs == 0 || n_inputs != key_images.len {
-        return false;
+    if n_inputs == 0 {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "passed in 0 inputs"));
+    }
+    if n_inputs != key_images.len {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "passed invalid number of inputs"));
     }
     if proof_len != fcmp_pp_proof_size(n_inputs, n_tree_layers) {
-        return false;
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid proof len"));
     }
 
     let signable_tx_hash = unsafe { core::slice::from_raw_parts(signable_tx_hash, 32) };
@@ -888,20 +910,58 @@ pub unsafe extern "C" fn verify(
         .map(|&x| ed25519_point_from_bytes(x))
         .collect();
 
+    let fcmp_pp_verify_input = FcmpPpVerifyInput {
+        fcmp_pp: fcmp_plus_plus,
+        tree_root,
+        n_tree_layers,
+        signable_tx_hash,
+        key_images,
+    };
+    Ok(fcmp_pp_verify_input)
+}
+
+/// # Safety
+///
+/// This function assumes that the signable tx hash is 32 bytes, the tree root is heap
+/// allocated via a CResult, and pseudo outs and key images are 32 bytes each
+#[no_mangle]
+pub unsafe extern "C" fn verify(
+    signable_tx_hash: *const u8,
+    proof: *const u8,
+    proof_len: usize,
+    n_tree_layers: usize,
+    tree_root: *const TreeRoot<Selene, Helios>,
+    pseudo_outs: Slice<*const u8>,
+    key_images: Slice<*const u8>,
+) -> bool {
+    let Ok(fcmp_pp_verify_input) = fcmp_pp_verify_input_new_inner(
+        signable_tx_hash,
+        proof,
+        proof_len,
+        n_tree_layers,
+        tree_root,
+        pseudo_outs,
+        key_images
+    ) else {
+        return false;
+    };
+
+    let n_inputs = fcmp_pp_verify_input.key_images.len();
+
     let mut ed_verifier = multiexp::BatchVerifier::new(n_inputs);
     let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
     let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
 
-    match fcmp_plus_plus
+    match fcmp_pp_verify_input.fcmp_pp
         .verify(
             &mut OsRng,
             &mut ed_verifier,
             &mut c1_verifier,
             &mut c2_verifier,
-            tree_root,
-            n_tree_layers,
-            signable_tx_hash,
-            key_images,
+            fcmp_pp_verify_input.tree_root,
+            fcmp_pp_verify_input.n_tree_layers,
+            fcmp_pp_verify_input.signable_tx_hash,
+            fcmp_pp_verify_input.key_images,
         )
     {
         Ok(()) => ed_verifier.verify_vartime()
@@ -909,6 +969,35 @@ pub unsafe extern "C" fn verify(
             && HELIOS_GENERATORS().verify(c2_verifier),
         Err(_) => false
     }    
+}
+
+/// # Safety
+///
+/// This function assumes that the signable tx hash is 32 bytes, the tree root is heap
+/// allocated via a CResult, and pseudo outs and key images are 32 bytes each
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_verify_input_new(
+    signable_tx_hash: *const u8,
+    proof: *const u8,
+    proof_len: usize,
+    n_tree_layers: usize,
+    tree_root: *const TreeRoot<Selene, Helios>,
+    pseudo_outs: Slice<*const u8>,
+    key_images: Slice<*const u8>,
+) -> CResult<FcmpPpVerifyInput, ()> {
+    match fcmp_pp_verify_input_new_inner(
+        signable_tx_hash,
+        proof,
+        proof_len,
+        n_tree_layers,
+        tree_root,
+        pseudo_outs,
+        key_images
+    )
+    {
+        Ok(res) => CResult::ok(res),
+        Err(_) => CResult::err(())
+    }
 }
 
 /// # Safety
@@ -982,6 +1071,42 @@ pub unsafe extern "C" fn fcmp_pp_verify_membership(inputs: Slice<[u8; 4 * 32]>,
             && HELIOS_GENERATORS().verify(c2_verifier),
         Err(_) => false
     }
+}
+
+/// # Safety
+///
+/// This function assumes that the inputs are from fcmp_pp_verify_input_new
+#[no_mangle]
+pub unsafe extern "C" fn fcmp_pp_batch_verify(inputs: Slice<*const FcmpPpVerifyInput>) -> bool {
+    let inputs: &[*const FcmpPpVerifyInput] = inputs.into();
+    let inputs: Vec<FcmpPpVerifyInput> = inputs.iter().map(|x| unsafe { x.read() }).collect();
+
+    let mut ed_verifier = multiexp::BatchVerifier::new(inputs.len());
+    let mut c1_verifier = generalized_bulletproofs::Generators::batch_verifier();
+    let mut c2_verifier = generalized_bulletproofs::Generators::batch_verifier();
+
+    // TODO: consider multithreading verify individual proofs, needs internal re-work
+    for i in 0..inputs.len() {
+        let fcmp_pp_verify_input = &inputs[i];
+
+        let Ok(_) = fcmp_pp_verify_input.fcmp_pp.verify(
+            &mut OsRng,
+            &mut ed_verifier,
+            &mut c1_verifier,
+            &mut c2_verifier,
+            fcmp_pp_verify_input.tree_root,
+            fcmp_pp_verify_input.n_tree_layers,
+            fcmp_pp_verify_input.signable_tx_hash,
+            fcmp_pp_verify_input.key_images.clone(),
+        ) else {
+            return false;
+        };
+    }
+
+    // TODO: consider multithreading
+    ed_verifier.verify_vartime()
+        && SELENE_GENERATORS().verify(c1_verifier)
+        && HELIOS_GENERATORS().verify(c2_verifier)
 }
 
 // https://github.com/rust-lang/rust/issues/79609

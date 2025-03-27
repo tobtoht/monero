@@ -8,23 +8,27 @@ name = "fcmp_pp_rust"
 crate-type = ["staticlib"]
 
 [dependencies]
-std-shims = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
+
+# TODO: replace j-berman with kayabaNerve once one of https://github.com/kayabaNerve/fcmp-plus-plus/pull/21
+# or https://github.com/kayabaNerve/fcmp-plus-plus/pull/24 is merged
+
+std-shims = { git = "https://github.com/j-berman/fcmp-plus-plus" }
 rand_core = { version = "0.6", default-features = false }
 
-helioselene = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
-dalek-ff-group = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
-ciphersuite = { git = "https://github.com/kayabaNerve/fcmp-plus-plus", features = ["ed25519", "helioselene"] }
+helioselene = { git = "https://github.com/j-berman/fcmp-plus-plus" }
+dalek-ff-group = { git = "https://github.com/j-berman/fcmp-plus-plus" }
+ciphersuite = { git = "https://github.com/j-berman/fcmp-plus-plus", features = ["ed25519", "helioselene"] }
 
-generalized-bulletproofs = { git = "https://github.com/kayabaNerve/fcmp-plus-plus", features = ["tests"] }
+generalized-bulletproofs = { git = "https://github.com/j-berman/fcmp-plus-plus", features = ["tests"] }
 
-ec-divisors = { git = "https://github.com/kayabaNerve/fcmp-plus-plus", features = ["ed25519"] }
-full-chain-membership-proofs = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
+ec-divisors = { git = "https://github.com/j-berman/fcmp-plus-plus", features = ["ed25519"] }
+full-chain-membership-proofs = { git = "https://github.com/j-berman/fcmp-plus-plus" }
 
-monero-fcmp-plus-plus = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
+monero-fcmp-plus-plus = { git = "https://github.com/j-berman/fcmp-plus-plus" }
 
-monero-generators = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
+monero-generators = { git = "https://github.com/j-berman/fcmp-plus-plus" }
 
-multiexp = { git = "https://github.com/kayabaNerve/fcmp-plus-plus" }
+multiexp = { git = "https://github.com/j-berman/fcmp-plus-plus" }
 
 [patch.crates-io]
 crypto-bigint = { git = "https://github.com/kayabaNerve/crypto-bigint", branch = "c-repr" }

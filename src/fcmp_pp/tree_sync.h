@@ -84,7 +84,7 @@ public:
     virtual void sync_block(const uint64_t block_idx,
         const crypto::hash &block_hash,
         const crypto::hash &prev_block_hash,
-        const fcmp_pp::curve_trees::OutputsByLastLockedBlock &outs_by_last_locked_block) = 0;
+        const fcmp_pp::curve_trees::OutsByLastLockedBlock &outs_by_last_locked_block) = 0;
 
     // Trim from the locally synced tree and update any paths as necesary
     // - Returns false if we cannot pop any more blocks (if the max reorg depth is reached, or no more blocks to pop)

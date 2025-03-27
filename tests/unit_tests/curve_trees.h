@@ -80,9 +80,6 @@ public:
         const std::size_t new_n_leaf_tuples,
         const std::vector<fcmp_pp::curve_trees::OutputContext> &new_outputs);
 
-    // Trim the provided number of leaf tuples from the tree
-    bool trim_tree(const std::size_t expected_old_n_leaf_tuples, const std::size_t trim_n_leaf_tuples);
-
     // Validate the in-memory tree by re-hashing every layer, starting from root and working down to leaf layer
     bool audit_tree(const std::size_t expected_n_leaf_tuples) const;
 
@@ -95,21 +92,8 @@ private:
     // Use the tree extension to extend the in-memory tree
     void extend_tree(const CurveTreesV1::TreeExtension &tree_extension);
 
-    // Use the tree reduction to reduce the in-memory tree
-    void reduce_tree(const CurveTreesV1::TreeReduction &tree_reduction);
-
     // Read the in-memory tree and get the last hashes from each layer in the tree
     CurveTreesV1::LastHashes get_last_hashes() const;
-
-    // Read the in-memory tree and get data from what will be the last chunks after trimming the tree to the provided
-    // number of leaves
-    // - This function is useful to collect all tree data necessary to perform the actual trim operation
-    // - This function can return elems from each last chunk that will need to be trimmed
-    CurveTreesV1::LastHashes get_last_hashes_for_trim(
-        const std::vector<fcmp_pp::curve_trees::TrimLayerInstructions> &trim_instructions) const;
-
-    CurveTreesV1::LastChunkChildrenForTrim get_last_chunk_children_for_trim(
-        const std::vector<fcmp_pp::curve_trees::TrimLayerInstructions> &trim_instructions);
 
     // logging helpers
     void log_last_hashes(const CurveTreesV1::LastHashes &last_hashes);

@@ -179,6 +179,35 @@ void make_balanced_rerandomized_output_set(
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
+void balance_last_pseudo_out(const uint8_t *sum_input_masks,
+    const uint8_t *sum_output_masks,
+    std::vector<const uint8_t *> &fcmp_prove_inputs_inout)
+{
+    auto res = ::balance_last_pseudo_out(
+        sum_input_masks,
+        sum_output_masks,
+        {fcmp_prove_inputs_inout.data(), fcmp_prove_inputs_inout.size()});
+
+    if (res.err != nullptr)
+    {
+        free(res.err);
+        throw std::runtime_error("failed to update last pseudo out");
+    }
+
+    fcmp_prove_inputs_inout.pop_back();
+    fcmp_prove_inputs_inout.emplace_back((uint8_t *)res.value);
+}
+
+crypto::ec_point read_input_pseudo_out(const uint8_t *fcmp_prove_input)
+{
+    uint8_t * res_ptr = ::read_input_pseudo_out(fcmp_prove_input);
+    crypto::ec_point res;
+    static_assert(sizeof(crypto::ec_point) == 32, "unexpected size of crypto::ec_point");
+    memcpy(&res, res_ptr, sizeof(crypto::ec_point));
+    free(res_ptr);
+    return res;
+}
+//----------------------------------------------------------------------------------------------------------------------
 SeleneScalar o_blind(const FcmpRerandomizedOutputCompressed &rerandomized_output)
 {
     HANDLE_RES_CODE(SeleneScalar, ::o_blind, &rerandomized_output);
@@ -358,6 +387,36 @@ FcmpMembershipProof prove_membership(const std::vector<const uint8_t *> &fcmp_pr
     return p;
 }
 //----------------------------------------------------------------------------------------------------------------------
+uint8_t *fcmp_pp_verify_input_new(const crypto::hash &signable_tx_hash,
+    const FcmpPpProof &fcmp_pp_proof,
+    const std::size_t n_tree_layers,
+    const uint8_t *tree_root,
+    const std::vector<crypto::ec_point> &pseudo_outs,
+    const std::vector<crypto::key_image> &key_images)
+{
+    std::vector<const uint8_t *> pseudo_outs_ptrs;
+    pseudo_outs_ptrs.reserve(pseudo_outs.size());
+    for (const auto &po : pseudo_outs)
+        pseudo_outs_ptrs.emplace_back((const uint8_t *)&po);
+
+    std::vector<const uint8_t *> key_images_ptrs;
+    key_images_ptrs.reserve(key_images.size());
+    for (const auto &ki : key_images)
+        key_images_ptrs.emplace_back((const uint8_t *)&ki.data);
+
+    auto res = ::fcmp_pp_verify_input_new(
+            reinterpret_cast<const uint8_t*>(&signable_tx_hash),
+            fcmp_pp_proof.data(),
+            fcmp_pp_proof.size(),
+            n_tree_layers,
+            tree_root,
+            {pseudo_outs_ptrs.data(), pseudo_outs_ptrs.size()},
+            {key_images_ptrs.data(), key_images_ptrs.size()}
+        );
+
+    return handle_res_ptr(__func__, res);
+}
+//----------------------------------------------------------------------------------------------------------------------
 bool verify(const crypto::hash &signable_tx_hash,
     const FcmpPpProof &fcmp_pp_proof,
     const std::size_t n_tree_layers,
@@ -411,6 +470,11 @@ bool verify_membership(const FcmpMembershipProof &fcmp_proof,
         n_tree_layers,
         fcmp_proof.data(),
         fcmp_proof.size());
+}
+//----------------------------------------------------------------------------------------------------------------------
+bool batch_verify(const std::vector<const uint8_t *> &fcmp_pp_verify_inputs)
+{
+    return ::fcmp_pp_batch_verify({fcmp_pp_verify_inputs.data(), fcmp_pp_verify_inputs.size()});
 }
 //----------------------------------------------------------------------------------------------------------------------
 std::size_t proof_len(const std::size_t n_inputs, const uint8_t n_tree_layers)

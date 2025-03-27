@@ -58,12 +58,6 @@ public:
         const typename C::Scalar &existing_child_at_offset,
         const typename C::Chunk &new_children) const = 0;
 
-    virtual typename C::Point hash_trim(
-        const typename C::Point &existing_hash,
-        const std::size_t offset,
-        const typename C::Chunk &children,
-        const typename C::Scalar &child_to_grow_back) const = 0;
-
     virtual typename C::Scalar zero_scalar() const = 0;
 
     virtual crypto::ec_scalar to_bytes(const typename C::Scalar &scalar) const = 0;
@@ -97,12 +91,6 @@ public:
         const Scalar &existing_child_at_offset,
         const Chunk &new_children) const override;
 
-    Point hash_trim(
-        const Point &existing_hash,
-        const std::size_t offset,
-        const Chunk &children,
-        const Scalar &child_to_grow_back) const override;
-
     Scalar zero_scalar() const override;
 
     crypto::ec_scalar to_bytes(const Scalar &scalar) const override;
@@ -135,12 +123,6 @@ public:
         const std::size_t offset,
         const Scalar &existing_child_at_offset,
         const Chunk &new_children) const override;
-
-    Point hash_trim(
-        const Point &existing_hash,
-        const std::size_t offset,
-        const Chunk &children,
-        const Scalar &child_to_grow_back) const override;
 
     Scalar zero_scalar() const override;
 

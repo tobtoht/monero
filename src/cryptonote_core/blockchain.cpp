@@ -68,6 +68,8 @@
 
 using namespace crypto;
 
+static constexpr const std::uint8_t RCT_CACHE_TYPE = rct::RCTTypeFcmpPlusPlus;
+
 //#include "serialization/json_archive.h"
 
 /* TODO:
@@ -2547,7 +2549,7 @@ static bool fill(BlockchainDB *db, const crypto::hash &tx_hash, tx_blob_entry &t
   return true;
 }
 //------------------------------------------------------------------
-static bool get_fcmp_tx_tree_root(BlockchainDB *db, const cryptonote::transaction &tx, crypto::ec_point &tree_root_out)
+static bool get_fcmp_tx_tree_root(const BlockchainDB *db, const cryptonote::transaction &tx, crypto::ec_point &tree_root_out)
 {
   tree_root_out = crypto::ec_point{};
   if (!rct::is_rct_fcmp(tx.rct_signatures.type))
@@ -2565,6 +2567,63 @@ static bool get_fcmp_tx_tree_root(BlockchainDB *db, const cryptonote::transactio
   static_assert(sizeof(std::size_t) >= sizeof(uint8_t), "unexpected size of size_t");
   CHECK_AND_ASSERT_MES((std::size_t)tx.rct_signatures.p.n_tree_layers == n_tree_layers, false,
       "tx included incorrect number of tree layers");
+
+  return true;
+}
+//------------------------------------------------------------------
+static bool set_fcmp_tx_tree_root(const BlockchainDB *db,
+  const cryptonote::transaction &tx,
+  std::unordered_map<uint64_t, std::pair<crypto::ec_point, uint8_t>> &tree_root_by_block_idx_inout)
+{
+  if (!rct::is_rct_fcmp(tx.rct_signatures.type))
+    return true;
+
+  const uint64_t ref_block_index = tx.rct_signatures.p.reference_block;
+
+  // See if we already have this block's tree root
+  auto tree_root_it = tree_root_by_block_idx_inout.find(ref_block_index);
+  if (tree_root_it != tree_root_by_block_idx_inout.end())
+  {
+    // cache hit
+    if (tree_root_it->second.second == tx.rct_signatures.p.n_tree_layers)
+      return true;
+
+    MERROR_VER("Tx included incorrect n tree layers");
+    return false;
+  }
+
+  // Get ref block's tree root from the db
+  crypto::ec_point tree_root;
+  if (!get_fcmp_tx_tree_root(db, tx, tree_root))
+  {
+    MERROR_VER("Failed to get referenced tree root");
+    return false;
+  }
+
+  tree_root_by_block_idx_inout[ref_block_index] = {std::move(tree_root), tx.rct_signatures.p.n_tree_layers};
+  return true;
+}
+//------------------------------------------------------------------
+static bool batch_verify_fcmp_pp_txs(const BlockchainDB *db, pool_supplement &extra_block_txs, rct_ver_cache_t &cache_inout)
+{
+  // 1. Collect referenced tree roots
+  std::unordered_map<uint64_t, std::pair<crypto::ec_point, uint8_t>> tree_root_by_block_idx;
+  for (const auto &extra_tx : extra_block_txs.txs_by_txid)
+  {
+    const cryptonote::transaction &tx = extra_tx.second.first;
+    if (!set_fcmp_tx_tree_root(db, tx, tree_root_by_block_idx))
+    {
+      MERROR_VER("Failed to set FCMP tx tree root");
+      return false;
+    }
+  }
+
+  // 2. Batch verify FCMP++'s, caching verified txs
+  if (!batch_ver_fcmp_pp_consensus(extra_block_txs, tree_root_by_block_idx, cache_inout, RCT_CACHE_TYPE))
+  {
+    MERROR_VER("Failed to batch verify FCMP++ txs");
+    return false;
+  }
 
   return true;
 }
@@ -3611,7 +3670,6 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
   CHECK_AND_ASSERT_MES(get_fcmp_tx_tree_root(m_db, tx, ref_tree_root), false, "failed to get tree root");
 
   // Warn that new RCT types are present, and thus the cache is not being used effectively
-  static constexpr const std::uint8_t RCT_CACHE_TYPE = rct::RCTTypeFcmpPlusPlus;
   if (tx.rct_signatures.type > RCT_CACHE_TYPE)
   {
     MWARNING("RCT cache is not caching new verification results. Please update RCT_CACHE_TYPE!");
@@ -4263,6 +4321,19 @@ leave:
     if (!ver_non_input_consensus(extra_block_txs, tvc, hf_version))
     {
       MERROR_VER("Pool supplement provided for block with id: " << id << " failed to pass validation");
+      bvc.m_verifivation_failed = true;
+      goto leave;
+    }
+  }
+
+  // Batch verify FCMP++'s, they'll be cached
+#if defined(PER_BLOCK_CHECKPOINT)
+  if (!fast_check)
+#endif
+  {
+    if (!batch_verify_fcmp_pp_txs(m_db, extra_block_txs, m_rct_ver_cache))
+    {
+      MERROR_VER("Failed to batch verify FCMP++ txs");
       bvc.m_verifivation_failed = true;
       goto leave;
     }

@@ -88,7 +88,7 @@ namespace
         , const uint64_t& coins_generated
         , uint64_t num_rct_outs
         , const crypto::hash& blk_hash
-        , const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block
+        , const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block
         , const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs
     ) override
     {
@@ -1094,7 +1094,8 @@ bool construct_tx_rct(const cryptonote::account_keys& sender_account_keys, std::
   std::vector<crypto::secret_key> additional_tx_keys;
   std::vector<tx_destination_entry> destinations_copy = destinations;
   rct::RCTConfig rct_config = {range_proof_type, bp_version};
-  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, tx_key, additional_tx_keys, {}, rct, rct_config);
+  fcmp_pp::ProofParams fcmp_pp_params = {};
+  return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, tx_key, additional_tx_keys, fcmp_pp_params, rct, rct_config);
 }
 
 transaction construct_tx_with_fee(std::vector<test_event_entry>& events, const block& blk_head,

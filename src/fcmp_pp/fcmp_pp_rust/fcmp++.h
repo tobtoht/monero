@@ -182,20 +182,10 @@ CResult hash_grow_helios(struct HeliosPoint existing_hash,
                                              struct HeliosScalar existing_child_at_offset,
                                              struct HeliosScalarSlice new_children);
 
-CResult hash_trim_helios(struct HeliosPoint existing_hash,
-                                             uintptr_t offset,
-                                             struct HeliosScalarSlice children,
-                                             struct HeliosScalar child_to_grow_back);
-
 CResult hash_grow_selene(struct SelenePoint existing_hash,
                                              uintptr_t offset,
                                              struct SeleneScalar existing_child_at_offset,
                                              struct SeleneScalarSlice new_children);
-
-CResult hash_trim_selene(struct SelenePoint existing_hash,
-                                             uintptr_t offset,
-                                             struct SeleneScalarSlice children,
-                                             struct SeleneScalar child_to_grow_back);
 
 CResult path_new(struct OutputSlice leaves,
                                              uintptr_t output_idx,
@@ -241,6 +231,12 @@ CResult fcmp_pp_prove_input_new(const uint8_t *x,
                                              struct ObjectSlice selene_branch_blinds,
                                              struct ObjectSlice helios_branch_blinds);
 
+CResult balance_last_pseudo_out(const uint8_t *sum_input_masks,
+                                             const uint8_t *sum_output_masks,
+                                             struct ObjectSlice fcmp_prove_inputs);
+
+uint8_t *read_input_pseudo_out(const uint8_t *fcmp_prove_input);
+
 CResult prove(const uint8_t *signable_tx_hash,
                                              struct ObjectSlice fcmp_prove_inputs,
                                              uintptr_t n_tree_layers);
@@ -283,6 +279,14 @@ uintptr_t fcmp_proof_size(uintptr_t n_inputs, uintptr_t n_tree_layers);
 
 uintptr_t fcmp_pp_proof_size(uintptr_t n_inputs, uintptr_t n_tree_layers);
 
+CResult fcmp_pp_verify_input_new(const uint8_t *signable_tx_hash,
+                                             const uint8_t *fcmp_pp_proof,
+                                             uintptr_t fcmp_pp_proof_len,
+                                             uintptr_t n_tree_layers,
+                                             const uint8_t *tree_root,
+                                             struct ObjectSlice pseudo_outs,
+                                             struct ObjectSlice key_images);
+
 bool verify(const uint8_t *signable_tx_hash,
                                              const uint8_t *fcmp_pp_proof,
                                              uintptr_t fcmp_pp_proof_len,
@@ -316,6 +320,8 @@ bool fcmp_pp_verify_membership(struct InputSlice inputs,
   const uintptr_t n_tree_layers,
   const uint8_t fcmp_proof[],
   const uintptr_t fcmp_proof_len);
+
+bool fcmp_pp_batch_verify(struct ObjectSlice fcmp_pp_verify_inputs);
 
 #ifdef __cplusplus
 } //extern "C"
