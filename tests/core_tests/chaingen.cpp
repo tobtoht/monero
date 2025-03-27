@@ -88,7 +88,7 @@ namespace
         , const uint64_t& coins_generated
         , uint64_t num_rct_outs
         , const crypto::hash& blk_hash
-        , const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block
+        , const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block
         , const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs
     ) override
     {

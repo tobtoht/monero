@@ -791,7 +791,7 @@ estim:
 }
 
 void BlockchainLMDB::add_block(const block& blk, size_t block_weight, uint64_t long_term_block_weight, const difficulty_type& cumulative_difficulty, const uint64_t& coins_generated,
-    uint64_t num_rct_outs, const crypto::hash& blk_hash, const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block, const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs)
+    uint64_t num_rct_outs, const crypto::hash& blk_hash, const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block, const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs)
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2486,7 +2486,7 @@ uint64_t BlockchainLMDB::get_tree_block_idx() const
   return block_idx;
 }
 
-fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_custom_timelocked_outputs(uint64_t start_block_idx) const
+fcmp_pp::curve_trees::OutsByLastLockedBlock BlockchainLMDB::get_custom_timelocked_outputs(uint64_t start_block_idx) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
@@ -2494,7 +2494,7 @@ fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_custom_timelo
   TXN_PREFIX_RDONLY();
   RCURSOR(timelocked_outputs)
 
-  fcmp_pp::curve_trees::OutputsByLastLockedBlock outs;
+  fcmp_pp::curve_trees::OutsByLastLockedBlock outs;
 
   /*
     We expect the timelocked outputs table to be sorted primarily by key, i.e.
@@ -2591,14 +2591,14 @@ fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_custom_timelo
   return outs;
 }
 
-fcmp_pp::curve_trees::OutputsByLastLockedBlock BlockchainLMDB::get_recent_locked_outputs(uint64_t end_block_idx) const
+fcmp_pp::curve_trees::OutsByLastLockedBlock BlockchainLMDB::get_recent_locked_outputs(uint64_t end_block_idx) const
 {
   LOG_PRINT_L3("BlockchainLMDB::" << __func__);
   check_open();
 
   TXN_PREFIX_RDONLY();
 
-  fcmp_pp::curve_trees::OutputsByLastLockedBlock outs;
+  fcmp_pp::curve_trees::OutsByLastLockedBlock outs;
 
   const uint64_t height = this->height();
   if (height == 0)

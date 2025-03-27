@@ -406,7 +406,7 @@ private:
                 , const uint64_t& coins_generated
                 , uint64_t num_rct_outs
                 , const crypto::hash& block_hash
-                , const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block
+                , const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block
                 , const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs
                 );
 
@@ -471,13 +471,13 @@ private:
 
   uint64_t get_tree_block_idx() const;
 
-  virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const;
+  virtual fcmp_pp::curve_trees::OutsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const;
 
   // Returns:
   // - coinbase outputs created between [end_block_idx - CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW]
   // - normal outputs created between [end_block_idx - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE]
   // - the outputs are grouped by last locked block idx
-  virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_recent_locked_outputs(uint64_t end_block_idx) const;
+  virtual fcmp_pp::curve_trees::OutsByLastLockedBlock get_recent_locked_outputs(uint64_t end_block_idx) const;
 
   // Hard fork
   virtual void set_hard_fork_version(uint64_t height, uint8_t version);

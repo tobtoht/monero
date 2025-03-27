@@ -147,7 +147,7 @@ struct OutputContext final
 static_assert(sizeof(OutputPair)    == (32+32),   "db expects 64 bytes for output pairs");
 static_assert(sizeof(OutputContext) == (8+32+32), "db expects 72 bytes for output context");
 
-using OutputsByLastLockedBlock = std::unordered_map<uint64_t, std::vector<OutputContext>>;
+using OutsByLastLockedBlock = std::unordered_map<uint64_t, std::vector<OutputContext>>;
 
 // Ed25519 points (can go from OutputTuple -> LeafTuple)
 struct OutputTuple final

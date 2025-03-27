@@ -40,7 +40,7 @@ namespace cryptonote
 
 struct OutsByLastLockedBlockMeta
 {
-    fcmp_pp::curve_trees::OutputsByLastLockedBlock outs_by_last_locked_block;
+    fcmp_pp::curve_trees::OutsByLastLockedBlock outs_by_last_locked_block;
     std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/> timelocked_outputs;
     uint64_t next_output_id;
 };

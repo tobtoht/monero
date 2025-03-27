@@ -3357,7 +3357,7 @@ static void tree_sync_blocks_async(const TreeSyncStartParams &tree_sync_start_pa
 
   // Collect all outs from all blocks by last locked block
   TIME_MEASURE_START(collecting_outs_by_last_locked_block);
-  std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> outs_by_last_locked_blocks;
+  std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> outs_by_last_locked_blocks;
 
   new_block_hashes_out.reserve(n_new_blocks);
   outs_by_last_locked_blocks.reserve(n_new_blocks);
@@ -3790,7 +3790,7 @@ void wallet2::pull_and_parse_next_blocks(bool first, bool try_incremental, uint6
       const crypto::hash &init_block_hash = init_tree_sync_data->init_block_hash;
       MINFO("Initializing wallet tree at block " << init_block_idx << " with block hash " << init_block_hash);
 
-      fcmp_pp::curve_trees::OutputsByLastLockedBlock locked_outputs;
+      fcmp_pp::curve_trees::OutsByLastLockedBlock locked_outputs;
       for (auto &lo : init_tree_sync_data->locked_outputs)
         locked_outputs[lo.last_locked_block] = std::move(lo.outputs);
 

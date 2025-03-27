@@ -76,9 +76,9 @@ static void assign_new_output(const OutputPair &output_pair,
     return;
 }
 //----------------------------------------------------------------------------------------------------------------------
-static uint64_t add_to_locked_outputs_cache(const fcmp_pp::curve_trees::OutputsByLastLockedBlock &outs_by_last_locked_block,
+static uint64_t add_to_locked_outputs_cache(const OutsByLastLockedBlock &outs_by_last_locked_block,
     const CreatedBlockIdx created_block_idx,
-    LockedOutputsByLastLockedBlock &locked_outputs_inout,
+    LockedOutsByLastLockedBlock &locked_outputs_inout,
     LockedOutputsByCreated &locked_outputs_refs_inout)
 {
     uint64_t n_outputs_added = 0;
@@ -125,7 +125,7 @@ static uint64_t add_to_locked_outputs_cache(const fcmp_pp::curve_trees::OutputsB
 }
 //----------------------------------------------------------------------------------------------------------------------
 static uint64_t remove_outputs_created_at_block(const CreatedBlockIdx &created_block_idx,
-    LockedOutputsByLastLockedBlock &locked_outputs_inout,
+    LockedOutsByLastLockedBlock &locked_outputs_inout,
     LockedOutputsByCreated &locked_outputs_refs_inout)
 {
     uint64_t n_outputs_removed = 0;
@@ -763,10 +763,10 @@ template<typename C1, typename C2>
 void TreeCache<C1, C2>::sync_block(const uint64_t block_idx,
     const crypto::hash &block_hash,
     const crypto::hash &prev_block_hash,
-    const fcmp_pp::curve_trees::OutputsByLastLockedBlock &outs_by_last_locked_block)
+    const fcmp_pp::curve_trees::OutsByLastLockedBlock &outs_by_last_locked_block)
 {
     const std::vector<crypto::hash> new_block_hashes{block_hash};
-    const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> outs{outs_by_last_locked_block};
+    const std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> outs{outs_by_last_locked_block};
 
     typename fcmp_pp::curve_trees::CurveTrees<C1, C2>::TreeExtension tree_extension;
     std::vector<uint64_t> n_new_leaf_tuples_per_block;
@@ -785,13 +785,13 @@ void TreeCache<C1, C2>::sync_block(const uint64_t block_idx,
 template void TreeCache<Selene, Helios>::sync_block(const uint64_t block_idx,
     const crypto::hash &block_hash,
     const crypto::hash &prev_block_hash,
-    const fcmp_pp::curve_trees::OutputsByLastLockedBlock &outs_by_last_locked_block);
+    const fcmp_pp::curve_trees::OutsByLastLockedBlock &outs_by_last_locked_block);
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
 void TreeCache<C1, C2>::prepare_to_sync_blocks(const uint64_t start_block_idx,
     const crypto::hash &prev_block_hash,
     const std::vector<crypto::hash> &new_block_hashes,
-    const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> &outs_by_last_locked_blocks,
+    const std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> &outs_by_last_locked_blocks,
     typename fcmp_pp::curve_trees::CurveTrees<C1, C2>::TreeExtension &tree_extension_out,
     std::vector<uint64_t> &n_new_leaf_tuples_per_block_out)
 {
@@ -906,7 +906,7 @@ void TreeCache<C1, C2>::prepare_to_sync_blocks(const uint64_t start_block_idx,
 template void TreeCache<Selene, Helios>::prepare_to_sync_blocks(const uint64_t start_block_idx,
     const crypto::hash &prev_block_hash,
     const std::vector<crypto::hash> &new_block_hashes,
-    const std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> &outs_by_last_locked_blocks,
+    const std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> &outs_by_last_locked_blocks,
     typename fcmp_pp::curve_trees::CurveTrees<Selene, Helios>::TreeExtension &tree_extension_out,
     std::vector<uint64_t> &n_new_leaf_tuples_per_block_out);
 //----------------------------------------------------------------------------------------------------------------------
@@ -1168,7 +1168,7 @@ void TreeCache<C1, C2>::init(const uint64_t start_block_idx,
     const crypto::hash &start_block_hash,
     const uint64_t n_leaf_tuples,
     const fcmp_pp::curve_trees::PathBytes &last_path,
-    const OutputsByLastLockedBlock &timelocked_outputs)
+    const OutsByLastLockedBlock &timelocked_outputs)
 {
     CHECK_AND_ASSERT_THROW_MES(m_cached_blocks.empty(), "expected empty tree cache");
     CHECK_AND_ASSERT_THROW_MES(n_leaf_tuples >= last_path.leaves.size(), "n_leaf_tuples too small");
@@ -1267,7 +1267,7 @@ template void TreeCache<Selene, Helios>::init(const uint64_t start_block_idx,
     const crypto::hash &start_block_hash,
     const uint64_t n_leaf_tuples,
     const fcmp_pp::curve_trees::PathBytes &last_hashes,
-    const OutputsByLastLockedBlock &timelocked_outputs);
+    const OutsByLastLockedBlock &timelocked_outputs);
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
 uint64_t TreeCache<C1, C2>::get_n_leaf_tuples() const noexcept

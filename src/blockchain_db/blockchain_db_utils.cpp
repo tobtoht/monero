@@ -40,7 +40,7 @@ static uint64_t set_tx_outs_by_last_locked_block(const cryptonote::transaction &
     const uint64_t &first_output_id,
     const uint64_t block_idx,
     const bool miner_tx,
-    fcmp_pp::curve_trees::OutputsByLastLockedBlock &outs_by_last_locked_block_inout,
+    fcmp_pp::curve_trees::OutsByLastLockedBlock &outs_by_last_locked_block_inout,
     std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/> &timelocked_outputs_inout)
 {
     const uint64_t last_locked_block = cryptonote::get_last_locked_block_index(tx.unlock_time, block_idx);

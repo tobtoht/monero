@@ -99,7 +99,7 @@ bool gen_fcmp_pp_tx_validation_base::generate_with(std::vector<test_event_entry>
   // Build the FCMP++ curve tree
   TreeCacheV1 tree_cache(fcmp_pp::curve_trees::curve_trees_v1());
   std::vector<crypto::hash> new_block_hashes;
-  std::vector<fcmp_pp::curve_trees::OutputsByLastLockedBlock> outs_by_last_locked_blocks;
+  std::vector<fcmp_pp::curve_trees::OutsByLastLockedBlock> outs_by_last_locked_blocks;
   uint64_t first_output_id = 0;
   for (uint64_t blk_idx = 0; blk_idx < (1 + n_manual_blocks); ++blk_idx)
   {

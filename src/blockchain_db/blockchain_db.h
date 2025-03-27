@@ -432,7 +432,7 @@ private:
                 , const uint64_t& coins_generated
                 , uint64_t num_rct_outs
                 , const crypto::hash& blk_hash
-                , const fcmp_pp::curve_trees::OutputsByLastLockedBlock& outs_by_last_locked_block
+                , const fcmp_pp::curve_trees::OutsByLastLockedBlock& outs_by_last_locked_block
                 , const std::unordered_map<uint64_t/*output_id*/, uint64_t/*last locked block_id*/>& timelocked_outputs
                 ) = 0;
 
@@ -1825,7 +1825,7 @@ public:
    *
    * @return custom timelocked outputs grouped by last locked block
    */
-  virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const = 0;
+  virtual fcmp_pp::curve_trees::OutsByLastLockedBlock get_custom_timelocked_outputs(uint64_t start_block_idx) const = 0;
 
   /**
    * @brief return recent timelocked outputs after the provided end_block_idx
@@ -1837,7 +1837,7 @@ public:
    *  - normal outputs created between [end_block_idx - CRYPTONOTE_DEFAULT_TX_SPENDABLE_AGE]
    *  - the outputs are grouped by last locked block idx
    */
-  virtual fcmp_pp::curve_trees::OutputsByLastLockedBlock get_recent_locked_outputs(uint64_t end_block_idx) const = 0;
+  virtual fcmp_pp::curve_trees::OutsByLastLockedBlock get_recent_locked_outputs(uint64_t end_block_idx) const = 0;
 
   //
   // Hard fork related storage
