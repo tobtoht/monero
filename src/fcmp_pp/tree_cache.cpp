@@ -349,6 +349,38 @@ static void cache_path_chunk(const std::unique_ptr<C> &curve,
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
+static ChildChunkCache::const_iterator read_child_chunk(const std::size_t layer_idx,
+    const ChildChunkIdx child_chunk_idx,
+    const TreeElemCache &tree_elem_cache)
+{
+    MDEBUG("Reading cached layer " << layer_idx << " and child chunk idx " << child_chunk_idx);
+
+    const auto layer_it = tree_elem_cache.find(layer_idx);
+    CHECK_AND_ASSERT_THROW_MES(layer_it != tree_elem_cache.end(), "missing cached layer");
+
+    const auto child_chunk_it = layer_it->second.find(child_chunk_idx);
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_it != layer_it->second.end(), "missing cached child chunk");
+
+    CHECK_AND_ASSERT_THROW_MES(!child_chunk_it->second.tree_elems.empty(), "empty child chunk cache");
+    return child_chunk_it;
+}
+//----------------------------------------------------------------------------------------------------------------------
+static ChildChunkCache::iterator get_child_chunk_it(const std::size_t layer_idx,
+    const ChildChunkIdx child_chunk_idx,
+    TreeElemCache &tree_elem_cache)
+{
+    MDEBUG("Reading cached layer " << layer_idx << " and child chunk idx " << child_chunk_idx);
+
+    auto layer_it = tree_elem_cache.find(layer_idx);
+    CHECK_AND_ASSERT_THROW_MES(layer_it != tree_elem_cache.end(), "missing cached layer");
+
+    auto child_chunk_it = layer_it->second.find(child_chunk_idx);
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_it != layer_it->second.end(), "missing cached child chunk");
+
+    CHECK_AND_ASSERT_THROW_MES(!child_chunk_it->second.tree_elems.empty(), "empty child chunk cache");
+    return child_chunk_it;
+}
+//----------------------------------------------------------------------------------------------------------------------
 template<typename C>
 static void update_last_hash(const std::unique_ptr<C> &curve,
     const std::vector<LayerExtension<C>> &layer_exts,
@@ -362,17 +394,9 @@ static void update_last_hash(const std::unique_ptr<C> &curve,
 
     if (!layer_ext.update_existing_last_hash)
         return;
-
     CHECK_AND_ASSERT_THROW_MES(!layer_ext.hashes.empty(), "empty layer ext");
 
-    // Make sure the layer is already cached
-    auto cached_layer_it = cached_tree_elems_inout.find(layer_idx);
-    CHECK_AND_ASSERT_THROW_MES(cached_layer_it != cached_tree_elems_inout.end(), "missing cached last layer");
-
-    // Make sure the chunk is cached
-    auto cached_chunk_it = cached_layer_it->second.find(last_parent_idx);
-    CHECK_AND_ASSERT_THROW_MES(cached_chunk_it != cached_layer_it->second.end(), "missing cached last chunk");
-
+    auto cached_chunk_it = get_child_chunk_it(layer_idx, last_parent_idx, cached_tree_elems_inout);
     cached_chunk_it->second.tree_elems.back() = curve->to_bytes(layer_ext.hashes.front());
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -393,21 +417,19 @@ static void cache_path_chunks(const LeafIdx leaf_idx,
 
     CHECK_AND_ASSERT_THROW_MES(n_leaf_tuples > leaf_idx, "high leaf_idx");
 
-    const ChildChunkIdx child_chunk_idx = leaf_idx / curve_trees->m_c1_width;
-    ChildChunkIdx parent_idx = child_chunk_idx / curve_trees->m_c2_width;
-
-    const LeafIdx last_leaf_idx = n_leaf_tuples - 1;
-    const ChildChunkIdx last_chunk_idx = last_leaf_idx / curve_trees->m_c1_width;
-    uint64_t n_layer_elems = last_chunk_idx + 1;
-    ChildChunkIdx last_parent_idx = last_chunk_idx / curve_trees->m_c2_width;
+    // Get the child chunk indexes of the leaf for each layer
+    const auto child_chunk_idxs = curve_trees->get_child_chunk_indexes(n_leaf_tuples, leaf_idx);
+    const auto n_elems_per_layer = curve_trees->n_elems_per_layer(n_leaf_tuples);
+    const std::size_t n_layers = n_elems_per_layer.size();
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_idxs.size() == (n_layers + 1), "unexpected n child chunk idxs");
 
     std::size_t c1_idx = 0, c2_idx = 0;
-    bool parent_is_c2 = true;
-    const std::size_t n_layers = curve_trees->n_layers(n_leaf_tuples);
     for (LayerIdx layer_idx = 0; layer_idx < n_layers; ++layer_idx)
     {
+        const ChildChunkIdx parent_idx = child_chunk_idxs[layer_idx + 1];
         MDEBUG("Caching tree elems from layer_idx " << layer_idx << " parent_idx " << parent_idx);
-        if (parent_is_c2)
+
+        if (c1_idx == c2_idx /*c2 parent*/)
         {
             cache_path_chunk(curve_trees->m_c1,
                     curve_trees->m_c2_width,
@@ -416,13 +438,10 @@ static void cache_path_chunks(const LeafIdx leaf_idx,
                     layer_idx,
                     bump_ref_count,
                     parent_idx,
-                    n_layer_elems,
+                    n_elems_per_layer[layer_idx],
                     tree_elem_cache_inout
                 );
 
-            parent_idx /= curve_trees->m_c1_width;
-            n_layer_elems = last_parent_idx + 1;
-            last_parent_idx /= curve_trees->m_c1_width;
             ++c1_idx;
         }
         else
@@ -434,17 +453,12 @@ static void cache_path_chunks(const LeafIdx leaf_idx,
                     layer_idx,
                     bump_ref_count,
                     parent_idx,
-                    n_layer_elems,
+                    n_elems_per_layer[layer_idx],
                     tree_elem_cache_inout
                 );
 
-            parent_idx /= curve_trees->m_c2_width;
-            n_layer_elems = last_parent_idx + 1;
-            last_parent_idx /= curve_trees->m_c2_width;
             ++c2_idx;
         }
-
-        parent_is_c2 = !parent_is_c2;
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -460,16 +474,19 @@ static void update_existing_last_hashes(const std::shared_ptr<CurveTrees<C1, C2>
     const auto &c1_layer_exts = tree_extension.c1_layer_extensions;
     const auto &c2_layer_exts = tree_extension.c2_layer_extensions;
 
-    const ChildChunkIdx child_chunk_idx = old_n_leaf_tuples / curve_trees->m_c1_width;
-    ChildChunkIdx last_parent_idx = child_chunk_idx / curve_trees->m_c2_width;
+    // Get the child chunk indexes of the last leaf for each layer
+    const uint64_t last_leaf_idx = old_n_leaf_tuples - 1;
+    const auto child_chunk_idxs = curve_trees->get_child_chunk_indexes(old_n_leaf_tuples, last_leaf_idx);
+    const std::size_t n_layers = curve_trees->n_layers(old_n_leaf_tuples);
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_idxs.size() == (n_layers + 1), "unexpected n child chunk idxs");
 
     std::size_t c1_idx = 0, c2_idx = 0;
-    bool parent_is_c2 = true;
-    const std::size_t n_layers = curve_trees->n_layers(old_n_leaf_tuples);
     for (LayerIdx layer_idx = 0; layer_idx < n_layers; ++layer_idx)
     {
+        const ChildChunkIdx last_parent_idx = child_chunk_idxs[layer_idx + 1];
         MDEBUG("Updating existing last hash from layer_idx " << layer_idx << " last_parent_idx " << last_parent_idx);
-        if (parent_is_c2)
+
+        if (c1_idx == c2_idx /*c2 parent*/)
         {
             update_last_hash(curve_trees->m_c1,
                     c1_layer_exts,
@@ -479,7 +496,6 @@ static void update_existing_last_hashes(const std::shared_ptr<CurveTrees<C1, C2>
                     tree_elem_cache_inout
                 );
 
-            last_parent_idx /= curve_trees->m_c1_width;
             ++c1_idx;
         }
         else
@@ -492,11 +508,8 @@ static void update_existing_last_hashes(const std::shared_ptr<CurveTrees<C1, C2>
                     tree_elem_cache_inout
                 );
 
-            last_parent_idx /= curve_trees->m_c2_width;
             ++c2_idx;
         }
-
-        parent_is_c2 = !parent_is_c2;
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -549,17 +562,14 @@ static void remove_path_chunks_refs(const LeafIdx leaf_idx,
     if (n_leaf_tuples == 0)
         return;
 
-    const ChildChunkIdx child_chunk_idx = leaf_idx / curve_trees->m_c1_width;
-    ChildChunkIdx parent_idx = child_chunk_idx / curve_trees->m_c2_width;
-
+    const auto child_chunk_idxs = curve_trees->get_child_chunk_indexes(n_leaf_tuples, leaf_idx);
     const std::size_t n_layers = curve_trees->n_layers(n_leaf_tuples);
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_idxs.size() == (n_layers + 1), "unexpected n child chunk idxs");
 
-    bool parent_is_c2 = true;
     for (LayerIdx layer_idx = 0; layer_idx < n_layers; ++layer_idx)
     {
+        const ChildChunkIdx parent_idx = child_chunk_idxs[layer_idx + 1];
         remove_path_chunk_ref(layer_idx, parent_idx, tree_elem_cache_inout);
-        parent_is_c2 = !parent_is_c2;
-        parent_idx /= parent_is_c2 ? curve_trees->m_c2_width : curve_trees->m_c1_width;
     }
 }
 //----------------------------------------------------------------------------------------------------------------------
@@ -594,32 +604,30 @@ static void reduce_cached_last_chunks(const uint64_t new_n_leaf_tuples,
     if (new_n_leaf_tuples == 0)
         return;
 
+    // Get child chunk indexes and layer meta
     const LeafIdx last_leaf_idx = new_n_leaf_tuples - 1;
-    ChildChunkIdx last_chunk_idx = last_leaf_idx / curve_trees->m_c1_width;
+    const auto child_chunk_idxs = curve_trees->get_child_chunk_indexes(new_n_leaf_tuples, last_leaf_idx);
+    const auto n_elems_per_layer = curve_trees->n_elems_per_layer(new_n_leaf_tuples);
+    const std::size_t n_layers = n_elems_per_layer.size();
+    CHECK_AND_ASSERT_THROW_MES(child_chunk_idxs.size() == (n_layers + 1), "unexpected n child chunk idxs");
+    CHECK_AND_ASSERT_THROW_MES(new_tree_edge.size() == n_layers, "unexpected tree edge size");
 
     bool parent_is_c2 = true;
-    for (LayerIdx layer_idx = 0; layer_idx < new_tree_edge.size(); ++layer_idx)
+    for (LayerIdx layer_idx = 0; layer_idx < n_layers; ++layer_idx)
     {
-        // TODO: separate templated function
-        const std::size_t parent_width = parent_is_c2 ? curve_trees->m_c2_width : curve_trees->m_c1_width;
-        const ChildChunkIdx parent_idx = last_chunk_idx / parent_width;
-
-        // Get the layer
-        auto cached_layer_it = tree_elem_cache_inout.find(layer_idx);
-        CHECK_AND_ASSERT_THROW_MES(cached_layer_it != tree_elem_cache_inout.end(), "missing cached layer");
-
-        // Get the chunk
-        auto cached_chunk_it = cached_layer_it->second.find(parent_idx);
-        CHECK_AND_ASSERT_THROW_MES(cached_chunk_it != cached_layer_it->second.end(), "missing cached last chunk");
+        const ChildChunkIdx parent_idx = child_chunk_idxs[layer_idx + 1];
+        auto cached_chunk_it = get_child_chunk_it(layer_idx, parent_idx, tree_elem_cache_inout);
 
         // Shrink the chunk to the expected size
-        const uint64_t n_layer_elems = last_chunk_idx + 1;
+        const uint64_t n_layer_elems = n_elems_per_layer[layer_idx];
+        const std::size_t parent_width = parent_is_c2 ? curve_trees->m_c2_width : curve_trees->m_c1_width;
         const std::size_t chunk_offset = n_layer_elems % parent_width;
         const std::size_t new_chunk_size = chunk_offset == 0 ? parent_width : chunk_offset;
+        CHECK_AND_ASSERT_THROW_MES(new_chunk_size > 0, "new_chunk_size is too small");
 
         MDEBUG("Reducing cached last chunk in layer_idx: " << layer_idx
             << " , parent_idx: "                           << parent_idx
-            << " , last_chunk_idx: "                       << last_chunk_idx
+            << " , n_layer_elems: "                        << n_layer_elems
             << " , new_chunk_size: "                       << new_chunk_size);
 
         CHECK_AND_ASSERT_THROW_MES(cached_chunk_it->second.tree_elems.size() >= new_chunk_size, "chunk is too small");
@@ -628,7 +636,6 @@ static void reduce_cached_last_chunks(const uint64_t new_n_leaf_tuples,
         // Update the last hash in the chunk
         cached_chunk_it->second.tree_elems.back() = new_tree_edge[layer_idx];
 
-        last_chunk_idx = parent_idx;
         parent_is_c2 = !parent_is_c2;
     }
 }
@@ -722,22 +729,6 @@ static void cache_last_chunks(const std::shared_ptr<CurveTrees<C1, C2>> &curve_t
         n_leaf_tuples,
         bump_ref_count,
         tree_elem_cache_inout);
-}
-//----------------------------------------------------------------------------------------------------------------------
-static const std::vector<crypto::ec_point>& read_child_chunk(const std::size_t layer_idx,
-    const ChildChunkIdx child_chunk_idx,
-    const TreeElemCache &tree_elem_cache)
-{
-    MDEBUG("Reading cached layer " << layer_idx << " and child chunk idx " << child_chunk_idx);
-
-    const auto layer_it = tree_elem_cache.find(layer_idx);
-    CHECK_AND_ASSERT_THROW_MES(layer_it != tree_elem_cache.end(), "missing cached layer");
-
-    const auto child_chunk_it = layer_it->second.find(child_chunk_idx);
-    CHECK_AND_ASSERT_THROW_MES(child_chunk_it != layer_it->second.end(), "missing cached child chunk");
-
-    CHECK_AND_ASSERT_THROW_MES(!child_chunk_it->second.tree_elems.empty(), "empty child chunk cache");
-    return child_chunk_it->second.tree_elems;
 }
 //----------------------------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------------------------
@@ -1086,10 +1077,8 @@ bool TreeCache<C1, C2>::pop_block()
         new_n_leaf_tuples = new_top_block.n_leaf_tuples;
     }
     CHECK_AND_ASSERT_THROW_MES(old_n_leaf_tuples >= new_n_leaf_tuples, "expected old_n_leaf_tuples >= new_n_leaf_tuples");
-    const uint64_t trim_n_leaf_tuples = old_n_leaf_tuples - new_n_leaf_tuples;
-
     // No leaves to trim, safe return
-    if (trim_n_leaf_tuples == 0)
+    if (old_n_leaf_tuples == new_n_leaf_tuples)
         return true;
 
     // Shrink the current last chunk if some of the leaves in it got cut off
@@ -1325,8 +1314,8 @@ typename CurveTrees<C1, C2>::LastHashes TreeCache<C1, C2>::get_last_hashes() con
     tree_edge.reserve(n_layers);
     for (LayerIdx i = 0; i < n_layers; ++i)
     {
-        const auto &tree_elems = read_child_chunk(i, child_chunk_idxs[i + 1], m_tree_elem_cache);
-        tree_edge.push_back(tree_elems.back());
+        const auto child_chunk_it = read_child_chunk(i, child_chunk_idxs[i + 1], m_tree_elem_cache);
+        tree_edge.push_back(child_chunk_it->second.tree_elems.back());
     }
 
     return TreeSync<C1, C2>::m_curve_trees->tree_edge_to_last_hashes(tree_edge);
@@ -1336,18 +1325,18 @@ typename CurveTrees<C1, C2>::LastHashes TreeCache<C1, C2>::get_last_hashes() con
 template CurveTrees<Selene, Helios>::LastHashes TreeCache<Selene, Helios>::get_last_hashes() const;
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
-void TreeCache<C1, C2>::deque_block(const uint64_t n_leaf_tuples_at_block)
+void TreeCache<C1, C2>::deque_block(const uint64_t old_n_leaf_tuples)
 {
-    if (n_leaf_tuples_at_block == 0)
+    if (old_n_leaf_tuples == 0)
         return;
 
     // Remove ref to last chunk leaves from the cache
-    const LeafIdx old_last_leaf_idx = n_leaf_tuples_at_block - 1;
+    const LeafIdx old_last_leaf_idx = old_n_leaf_tuples - 1;
     const ChildChunkIdx leaf_chunk_idx = old_last_leaf_idx / TreeSync<C1, C2>::m_curve_trees->m_c1_width;
     remove_leaf_chunk_ref(leaf_chunk_idx, m_leaf_cache);
 
     // Remove refs to last chunk in every layer
-    remove_path_chunks_refs(old_last_leaf_idx, TreeSync<C1, C2>::m_curve_trees, n_leaf_tuples_at_block, m_tree_elem_cache);
+    remove_path_chunks_refs(old_last_leaf_idx, TreeSync<C1, C2>::m_curve_trees, old_n_leaf_tuples, m_tree_elem_cache);
 }
 //----------------------------------------------------------------------------------------------------------------------
 template<typename C1, typename C2>
@@ -1387,7 +1376,8 @@ bool TreeCache<C1, C2>::get_leaf_path(const uint64_t n_leaf_tuples,
     bool parent_is_c2 = true;
     for (LayerIdx i = 0; i < path_indexes.layers.size(); ++i)
     {
-        const auto &tree_elems = read_child_chunk(i, child_chunk_idxs[i + 1], m_tree_elem_cache);
+        const auto child_chunk_it = read_child_chunk(i, child_chunk_idxs[i + 1], m_tree_elem_cache);
+        const auto &tree_elems = child_chunk_it->second.tree_elems;
 
         const auto &layer_range = path_indexes.layers[i];
         CHECK_AND_ASSERT_THROW_MES(layer_range.second > layer_range.first, "bad layer range");

@@ -240,7 +240,7 @@ private:
         const LeafIdx leaf_idx,
         typename CurveTrees<C1, C2>::Path &path_out) const;
 
-    void deque_block(const uint64_t n_leaf_tuples_at_block);
+    void deque_block(const uint64_t old_n_leaf_tuples);
 
     std::vector<crypto::ec_point> get_tree_edge(const uint64_t n_leaf_tuples) const;
 
