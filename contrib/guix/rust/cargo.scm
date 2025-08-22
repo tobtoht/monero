@@ -1,6 +1,6 @@
 (use-modules (gnu packages)
              ((gnu packages bash) #:select (bash-minimal))
-             ((gnu packages certs) #:select (nss-certs))
+             ((gnu packages nss) #:select (nss-certs))
              (gnu packages compression)
              (gnu packages curl)
              (gnu packages moreutils)
