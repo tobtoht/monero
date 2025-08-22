@@ -55,6 +55,8 @@ export SOURCE_DATE_EPOCH=1397818193
 # Environment Setup #
 #####################
 
+sha256sum /rust-deps
+
 # Collect some information about the build environment to help debug potential reproducibility issues
 mkdir -p "${LOGDIR}"
 ls -1 /gnu/store | sort > ${LOGDIR}/guix-hashes.txt
@@ -373,9 +375,9 @@ mkdir -p "$DISTSRC"
     CMAKEFLAGS+=" -DMANUAL_SUBMODULES=1"
 
     # Make sure cargo knows where to find the vendored sources.
-    mkdir -p /home/user/.cargo
-    cp contrib/guix/rust/config.toml /home/user/.cargo/
-    sed -i "s/TARGET/${HOST}/g" /home/user/.cargo/config.toml
+    mkdir -p "${HOME}/.cargo"
+    cp contrib/guix/rust/config.toml "${HOME}/.cargo/"
+    sed -i "s/TARGET/${HOST}/g" "${HOME}/.cargo/config.toml"
 
     # Unpack rust dependencies
     mkdir -p /rust
