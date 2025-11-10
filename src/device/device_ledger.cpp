@@ -409,7 +409,7 @@ namespace hw {
       this->length_send = set_command_header_noopt(ins, p1);
       if (ins == INS_GET_KEY && p1 == IO_SECRET_KEY) {
         // export view key user input
-        this->exchange_wait_on_input();
+        CHECK_AND_ASSERT_THROW_MES(this->exchange_wait_on_input() == 0, "Key export rejected on device.");
       } else {
         this->exchange();
       }
@@ -619,13 +619,9 @@ namespace hw {
 
         //View key is retrievied, if allowed, to speed up blockchain parsing
         memmove(this->viewkey.data,  this->buffer_recv+0,  32);
-        if (is_fake_view_key(this->viewkey)) {
-          MDEBUG("Have Not view key");
-          this->has_view_key = false;
-        } else {
-          MDEBUG("Have view key");
-          this->has_view_key = true;
-        }
+
+        CHECK_AND_ASSERT_THROW_MES(!is_fake_view_key(this->viewkey), "Key export rejected on device.");
+        this->has_view_key = true;
       
         #ifdef DEBUG_HWDEVICE
         send_simple(INS_GET_KEY, 0x04);
