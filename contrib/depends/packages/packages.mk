@@ -1,13 +1,16 @@
-native_packages := native_protobuf
-packages := boost openssl zeromq unbound sodium protobuf
+native_packages :=
+packages := boost openssl zeromq unbound sodium
+
+wallet_native_packages := native_protobuf
+wallet_packages = protobuf
 
 ifneq ($(host_os),android)
-packages += libusb
+wallet_packages += libusb
 endif
 
 ifneq ($(host_os),freebsd)
 ifneq ($(host_os),android)
-packages += hidapi
+wallet_packages += hidapi
 endif
 endif
 
