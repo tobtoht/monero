@@ -116,4 +116,11 @@ clean-all:
 	[ $$CONTINUE = "y" ] || [ $$CONTINUE = "Y" ] || (echo "Exiting."; exit 1;)
 	rm -rf ./build
 
-.PHONY: all cmake-debug debug debug-test debug-test-asan debug-asan debug-all cmake-release release release-test release-all fuzz clean
+stagex-build:
+	@./contrib/stagex/stagex-build
+
+stagex-hashes:
+	@cd stagex/builds ; \
+    find $$(git rev-parse --short=12 HEAD)/output/ -type f -print0 | env LC_ALL=C sort -z | xargs -r0 sha256sum
+
+.PHONY: all cmake-debug debug debug-test debug-test-asan debug-asan debug-all cmake-release release release-test release-all fuzz clean stagex-build stagex-hashes

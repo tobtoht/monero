@@ -98,6 +98,7 @@ include builders/default.mk
 include packages/packages.mk
 
 ifeq ($(GUIX_ENVIRONMENT),)
+ifeq ($(STAGEX_ENVIRONMENT),)
 build_id_string:=$(BUILD_ID_SALT)
 build_id_string+=$(shell $(build_CC) --version 2>/dev/null)
 build_id_string+=$(shell $(build_AR) --version 2>/dev/null)
@@ -111,6 +112,12 @@ $(host_arch)_$(host_os)_id_string+=$(shell $(host_AR) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_CXX) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_RANLIB) --version 2>/dev/null)
 $(host_arch)_$(host_os)_id_string+=$(shell $(host_STRIP) --version 2>/dev/null)
+endif
+endif
+
+ifneq ($(STAGEX_ENVIRONMENT),)
+build_id_string:=$(STAGEX_ENVIRONMENT)
+$(host_arch)_$(host_os)_id_string:=$(STAGEX_ENVIRONMENT)
 else
 build_id_string:=$(realpath $(GUIX_ENVIRONMENT))
 $(host_arch)_$(host_os)_id_string:=$(realpath $(GUIX_ENVIRONMENT))
