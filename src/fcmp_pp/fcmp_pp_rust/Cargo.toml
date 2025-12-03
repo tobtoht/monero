@@ -8,6 +8,7 @@ name = "fcmp_pp_rust"
 crate-type = ["staticlib"]
 
 [dependencies]
+base64ct = "=1.6.0"
 rand_core = { version = "0.6", default-features = false }
 
 multiexp = "0.4"
