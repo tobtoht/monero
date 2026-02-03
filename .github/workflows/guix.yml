@@ -66,21 +66,12 @@ jobs:
           path: contrib/depends/sources
           key: sources-${{ hashFiles('contrib/depends/packages/*') }}
       - name: install dependencies
-        run: sudo apt update; sudo apt -y install guix git ca-certificates
-      - name: apparmor workaround
-        # https://bugs.launchpad.net/ubuntu/+source/guix/+bug/2064115
+        run: sudo apt update; sudo apt -y install curl git ca-certificates
+      - name: install guix
         run: |
-          sudo tee /etc/apparmor.d/guix << EOF
-          abi <abi/4.0>,
-          include <tunables/global>
-          profile guix /usr/bin/guix flags=(unconfined) {
-            userns,
-            include if exists <local/guix>
-          }
-          EOF
-          sudo /etc/init.d/apparmor reload
-          sudo aa-enforce guix || true
-          sudo apt purge apparmor
+          curl -O https://guix.gnu.org/guix-install.sh
+          chmod +x guix-install.sh
+          yes '' | sudo ./guix-install.sh
       - name: build
         run: ADDITIONAL_GUIX_TIMEMACHINE_FLAGS="--disable-authentication" SUBSTITUTE_URLS='http://bordeaux.guix.gnu.org' HOSTS="${{ matrix.toolchain.target }}" ./contrib/guix/guix-build
       - uses: actions/upload-artifact@v4
