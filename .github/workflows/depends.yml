@@ -47,6 +47,11 @@ jobs:
             host: "i686-pc-linux-gnu"
             rust_host: "i686-unknown-linux-gnu"
             packages: "g++-multilib"
+          - name: "loongarch64 Linux"
+            host: "loongarch64-linux-gnu"
+            rust_host: "loongarch64-unknown-linux-gnu"
+            packages: "g++-loongarch64-linux-gnu"
+            container: "ubuntu:26.04" # Prebuilt loongarch64 toolchain was first introduced in 26.04
           - name: "Win64"
             host: "x86_64-w64-mingw32"
             rust_host: "x86_64-pc-windows-gnu"
