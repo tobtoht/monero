@@ -967,6 +967,11 @@ elseif(Boost_FOUND)
 
   # Find required Boost libraries
   find_package(Boost ${BOOST_MIN_VER} QUIET REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+
+  if(WIN32)
+    list(APPEND Boost_SYSTEM_LIBRARY mswsock)
+  endif()
+
   set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 endif()
 
