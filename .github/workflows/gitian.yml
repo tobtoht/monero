@@ -2,8 +2,18 @@ name: ci/gh-actions/gitian
 
 on:
   push:
-    tags:
-      - '*'
+    paths:
+      - 'contrib/depends/**'
+      - 'contrib/gitian/**'
+      - '!contrib/**.md'
+      - '.github/workflows/gitian.yml'
+  pull_request:
+    paths:
+      - 'contrib/depends/**'
+      - 'contrib/gitian/**'
+      - '!contrib/**.md'
+      - '.github/workflows/gitian.yml'
+
 
 jobs:
   build-gitian:
