@@ -237,7 +237,8 @@ jobs:
         run: |
           ${{env.CCACHE_SETTINGS}}
           ${{env.BUILD_DEFAULT}}
-          cmake --build build --target test
+          env GTEST_FILTER="-node_server.race_condition" cmake --build build --target test
+          cd build && env GTEST_FILTER="node_server.race_condition" ctest --output-on-failure -R unit_tests
 
   source-archive:
     name: "source archive"
