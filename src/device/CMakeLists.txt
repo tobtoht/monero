@@ -32,7 +32,7 @@ set(device_sources
   log.cpp
   )
 
-if(HIDAPI_FOUND)
+if(hidapi_FOUND)
   set(device_sources 
     ${device_sources} 
     device_ledger.cpp
@@ -48,7 +48,7 @@ set(device_headers
   log.hpp
  )
 
-if(HIDAPI_FOUND)
+if(hidapi_FOUND)
   set(device_headers 
     ${device_headers} 
     device_ledger.hpp
@@ -69,7 +69,7 @@ monero_add_library(device
 
 target_link_libraries(device
   PUBLIC
-    ${HIDAPI_LIBRARIES}
+    $<TARGET_NAME_IF_EXISTS:hidapi::hidapi>
     cncrypto
     cryptonote_format_utils_basic
     ringct_basic
