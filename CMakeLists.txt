@@ -944,7 +944,7 @@ if(NOT Boost_FOUND)
 elseif(Boost_FOUND)
   message(STATUS "Found Boost Version: ${Boost_VERSION_STRING}")
 
-  set(BOOST_COMPONENTS filesystem thread date_time chrono serialization program_options)
+  set(BOOST_COMPONENTS filesystem thread chrono serialization program_options)
   if (WIN32)
     list(APPEND BOOST_COMPONENTS locale)
   endif()
@@ -956,7 +956,7 @@ elseif(Boost_FOUND)
 
   # Boost Regex is header-only since 1.77
   if (Boost_VERSION_STRING VERSION_LESS 1.77.0)
-    list(APPEND BOOST_COMPONENTS regex)
+    list(APPEND BOOST_COMPONENTS regex date_time)
   endif()
 
   message(STATUS "Boost components: ${BOOST_COMPONENTS}")
