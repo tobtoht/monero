@@ -956,7 +956,7 @@ elseif(Boost_FOUND)
 
   # Boost Regex is header-only since 1.77
   if (Boost_VERSION_STRING VERSION_LESS 1.77.0)
-    list(APPEND BOOST_COMPONENTS regex date_time)
+    list(APPEND BOOST_COMPONENTS regex)
   endif()
 
   message(STATUS "Boost components: ${BOOST_COMPONENTS}")
