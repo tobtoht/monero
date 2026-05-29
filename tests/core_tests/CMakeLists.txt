@@ -26,6 +26,8 @@
 # STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+option(REDUCE_CI_RUN_TIME "Reduce run time of core_tests in CI environments" OFF)
+
 set(core_tests_sources
   block_reward.cpp
   block_validation.cpp
@@ -93,3 +95,7 @@ set_property(TARGET core_tests
 add_test(
   NAME    core_tests
   COMMAND core_tests --generate_and_play_test_data)
+
+if(REDUCE_CI_RUN_TIME)
+  target_compile_definitions(core_tests PRIVATE MONERO_CRYPTO_SLOW_HASH_ITER=20)
+endif()
