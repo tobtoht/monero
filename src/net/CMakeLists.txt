@@ -27,8 +27,14 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 set(net_sources dandelionpp.cpp error.cpp http.cpp i2p_address.cpp parse.cpp resolve.cpp
-    socks.cpp socks_connect.cpp tor_address.cpp zmq.cpp)
+    socks.cpp socks_connect.cpp tor_address.cpp)
+if(WITH_ZMQ)
+  list(APPEND net_sources zmq.cpp)
+endif()
 monero_find_all_headers(net_headers "${CMAKE_CURRENT_SOURCE_DIR}")
 
 monero_add_library(net ${net_sources} ${net_headers})
-target_link_libraries(net common epee cncrypto PkgConfig::libzmq ${Boost_ASIO_LIBRARY})
+target_link_libraries(net common epee cncrypto ${Boost_ASIO_LIBRARY})
+if(WITH_ZMQ)
+  target_link_libraries(net PkgConfig::libzmq)
+endif()

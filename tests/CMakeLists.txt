@@ -68,7 +68,7 @@ if (BUILD_GUI_DEPS)
   add_subdirectory(libwallet_api_tests)
 endif()
 
-if (TREZOR_DEBUG)
+if (TREZOR_DEBUG AND WITH_ZMQ)
   add_subdirectory(trezor)
 endif()
 

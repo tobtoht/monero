@@ -412,6 +412,7 @@ enable_testing()
 
 option(BUILD_DOCUMENTATION "Build the Doxygen documentation." ON)
 option(BUILD_TESTS "Build tests." OFF)
+option(WITH_ZMQ "Build ZeroMQ RPC/pub support (required for monerod)" ON)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEFAULT_BUILD_DEBUG_UTILITIES ON)
 else()
@@ -485,7 +486,9 @@ set(PIC_FLAG "-fPIC")
 
 if(STATIC)
   set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DZMQ_STATIC")
+  if(WITH_ZMQ)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DZMQ_STATIC")
+  endif()
 endif()
 
 option(SANITIZE "Use ASAN memory sanitizer" OFF)
@@ -1022,8 +1025,10 @@ if(STATIC)
 endif()
 find_package(Sodium REQUIRED)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(libzmq REQUIRED IMPORTED_TARGET libzmq)
+if(WITH_ZMQ)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(libzmq REQUIRED IMPORTED_TARGET libzmq)
+endif()
 
 include(external/supercop/functions.cmake) # place after setting flags and before src directory inclusion
 add_subdirectory(contrib)

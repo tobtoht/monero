@@ -104,8 +104,10 @@ set(unit_tests_sources
   wipeable_string.cpp
   is_hdd.cpp
   aligned.cpp
-  rpc_version_str.cpp
-  zmq_rpc.cpp)
+  rpc_version_str.cpp)
+if(WITH_ZMQ)
+  list(APPEND unit_tests_sources zmq_rpc.cpp net_zmq.cpp)
+endif()
 
 set(unit_tests_headers
   unit_tests_utils.h)
@@ -119,7 +121,6 @@ target_link_libraries(unit_tests
     cryptonote_protocol
     cryptonote_core
     daemon_messages
-    daemon_rpc_server
     blockchain_db
     lmdb_lib
     rpc
@@ -132,8 +133,13 @@ target_link_libraries(unit_tests
     ${Boost_THREAD_LIBRARY}
     ${GTEST_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES}
-    PkgConfig::libzmq)
+    ${EXTRA_LIBRARIES})
+if(WITH_ZMQ)
+  target_link_libraries(unit_tests
+    PRIVATE
+      daemon_rpc_server
+      PkgConfig::libzmq)
+endif()
 set_property(TARGET unit_tests
   PROPERTY
     FOLDER "tests")

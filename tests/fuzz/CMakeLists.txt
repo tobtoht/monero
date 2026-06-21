@@ -83,18 +83,20 @@ set_property(TARGET fuzz_rpc_full_no_exceptions
   PROPERTY
     FOLDER "tests")
 
-monero_add_minimal_executable(fuzz_zmq
-  fuzz_rpc/zmq_endpoints.cpp
-  fuzz_rpc/fuzz_zmq.cpp)
-target_link_libraries(fuzz_zmq
-  PRIVATE
-    rpc_pub
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${EXTRA_LIBRARIES}
-    $ENV{LIB_FUZZING_ENGINE})
-set_property(TARGET fuzz_zmq
-  PROPERTY
-    FOLDER "tests")
+if(WITH_ZMQ)
+  monero_add_minimal_executable(fuzz_zmq
+    fuzz_rpc/zmq_endpoints.cpp
+    fuzz_rpc/fuzz_zmq.cpp)
+  target_link_libraries(fuzz_zmq
+    PRIVATE
+      rpc_pub
+      ${CMAKE_THREAD_LIBS_INIT}
+      ${EXTRA_LIBRARIES}
+      $ENV{LIB_FUZZING_ENGINE})
+  set_property(TARGET fuzz_zmq
+    PROPERTY
+      FOLDER "tests")
+endif()
 endif()
 
 monero_add_minimal_executable(block_fuzz_tests block.cpp fuzzer.cpp)

@@ -99,21 +99,24 @@ monero_add_library(rpc
   ${rpc_headers}
   ${rpc_private_headers})
 
-monero_add_library(rpc_pub
-  ${rpc_pub_sources}
-  ${rpc_pub_headers}
-  ${rpc_pub_private_headers})
+if(WITH_ZMQ)
+  monero_add_library(rpc_pub
+    ${rpc_pub_sources}
+    ${rpc_pub_headers}
+    ${rpc_pub_private_headers})
+endif()
 
 monero_add_library(daemon_messages
   ${daemon_messages_sources}
   ${daemon_messages_headers}
   ${daemon_messages_private_headers})
 
-monero_add_library(daemon_rpc_server
-  ${daemon_rpc_server_sources}
-  ${daemon_rpc_server_headers}
-  ${daemon_rpc_server_private_headers})
-
+if(WITH_ZMQ)
+  monero_add_library(daemon_rpc_server
+    ${daemon_rpc_server_sources}
+    ${daemon_rpc_server_headers}
+    ${daemon_rpc_server_private_headers})
+endif()
 
 target_link_libraries(rpc_base
   PUBLIC
@@ -138,15 +141,17 @@ target_link_libraries(rpc
   PRIVATE
     ${EXTRA_LIBRARIES})
 
-target_link_libraries(rpc_pub
-  PUBLIC
-    epee
-    net
-    cryptonote_basic
-    cryptonote_core
-    serialization
-    wire-json
-    ${Boost_THREAD_LIBRARY})
+if(WITH_ZMQ)
+  target_link_libraries(rpc_pub
+    PUBLIC
+      epee
+      net
+      cryptonote_basic
+      cryptonote_core
+      serialization
+      wire-json
+      ${Boost_THREAD_LIBRARY})
+endif()
 
 target_link_libraries(daemon_messages
   LINK_PRIVATE
@@ -156,18 +161,20 @@ target_link_libraries(daemon_messages
     serialization
     ${EXTRA_LIBRARIES})
 
-target_link_libraries(daemon_rpc_server
-  LINK_PRIVATE
-    rpc
-    rpc_pub
-    cryptonote_core
-    cryptonote_protocol
-    version
-    daemon_messages
-    serialization
-    wire-json
-    ${Boost_REGEX_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
-    ${Boost_THREAD_LIBRARY}
-    PkgConfig::libzmq
-    ${EXTRA_LIBRARIES})
+if(WITH_ZMQ)
+  target_link_libraries(daemon_rpc_server
+    LINK_PRIVATE
+      rpc
+      rpc_pub
+      cryptonote_core
+      cryptonote_protocol
+      version
+      daemon_messages
+      serialization
+      wire-json
+      ${Boost_REGEX_LIBRARY}
+      ${Boost_SYSTEM_LIBRARY}
+      ${Boost_THREAD_LIBRARY}
+      PkgConfig::libzmq
+      ${EXTRA_LIBRARIES})
+endif()
