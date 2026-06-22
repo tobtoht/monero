@@ -40,6 +40,7 @@ include(CheckCXXCompilerFlag)
 include(CheckLinkerFlag)
 include(CheckLibraryExists)
 include(CheckFunctionExists)
+include(CMakeDependentOption)
 if (POLICY CMP0077)
     cmake_policy(SET CMP0077 NEW)
 endif()
@@ -410,8 +411,16 @@ endif()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 enable_testing()
 
+option(BUILD_DAEMON "Build the Monero daemon." ON)
+
+option(ENABLE_WALLET "Enable wallet" ON)
+cmake_dependent_option(BUILD_WALLET_CLI "Build CLI Monero wallet." ON "ENABLE_WALLET" OFF)
+cmake_dependent_option(BUILD_WALLET_RPC "Build RPC Monero wallet." ON "ENABLE_WALLET" OFF)
+
+option(BUILD_UTILS "Build utilities." ON)
 option(BUILD_DOCUMENTATION "Build the Doxygen documentation." ON)
 option(BUILD_TESTS "Build tests." OFF)
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEFAULT_BUILD_DEBUG_UTILITIES ON)
 else()
@@ -568,8 +577,6 @@ endif()
 
 find_package(Unbound REQUIRED)
 
-find_package(HIDAPI)
-
 add_definition_if_library_exists(c memset_s "string.h" HAVE_MEMSET_S)
 add_definition_if_library_exists(c explicit_bzero "strings.h" HAVE_EXPLICIT_BZERO)
 add_definition_if_function_found(strptime HAVE_STRPTIME)
@@ -659,18 +666,20 @@ include_directories(${LMDB_INCLUDE})
 include_directories(${LIBUNWIND_INCLUDE})
 link_directories(${LIBUNWIND_LIBRARY_DIRS})
 
-# Final setup for hid
-if (HIDAPI_FOUND) 
-  message(STATUS "Using HIDAPI include dir at ${HIDAPI_INCLUDE_DIR}")
-  add_definitions(-DHAVE_HIDAPI)
-  include_directories(${HIDAPI_INCLUDE_DIR})
-  link_directories(${LIBHIDAPI_LIBRARY_DIRS})
-else()
-  message(STATUS "Could not find HIDAPI")
-endif()
+if(ENABLE_WALLET)
+  find_package(HIDAPI)
 
-# Trezor support check
-include(CheckTrezor)
+  if (HIDAPI_FOUND)
+    message(STATUS "Using HIDAPI include dir at ${HIDAPI_INCLUDE_DIR}")
+    add_definitions(-DHAVE_HIDAPI)
+    include_directories(${HIDAPI_INCLUDE_DIR})
+    link_directories(${LIBHIDAPI_LIBRARY_DIRS})
+  else()
+    message(STATUS "Could not find HIDAPI")
+  endif()
+
+  include(CheckTrezor)
+endif()
 
   include(TestCXXAcceptsFlag)
   message(STATUS "Building on ${CMAKE_SYSTEM_PROCESSOR} for ${ARCH}")

@@ -64,7 +64,7 @@ target_link_libraries(wallet
   PRIVATE
     ${EXTRA_LIBRARIES})
 
-if(NOT IOS)
+if(BUILD_WALLET_RPC AND NOT IOS)
   set(wallet_rpc_sources
     wallet_rpc_server.cpp)
 
