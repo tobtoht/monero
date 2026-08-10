@@ -84,7 +84,7 @@ else()
     # Rust does support non-HF, yet Monero assumes HF for armv7
     set(RUST_TOOLCHAIN "-gnueabihf")
   else()
-    set(RUST_TOOLCHAIN "-gnu")
+    set(RUST_TOOLCHAIN "-musl")
   endif()
 endif()
 
