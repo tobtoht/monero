@@ -1,11 +1,11 @@
-FROM stagex/pallet-gcc-gnu-gnu:sx2026.06.0@sha256:c06b4e5e490d7fdc77951510b5256f889a8bd51c6fa9d6c41c7f6c4cea88f35c AS builder
-COPY --from=stagex/core-curl:sx2026.06.0@sha256:7a95abfe88eea0a7afd614d219e0b0f11fd77ce257046489baa0fbbf2fc6c088 . /
-COPY --from=stagex/core-openssl:sx2026.06.0@sha256:5fbecea19913b8c9bb2e5976b03833d44f99c98290b17ee5ef9b469470b7bbff . /
-COPY --from=stagex/core-ca-certificates:sx2026.06.0@sha256:ea7076d1bb83693fa4766c9cbd8132e59ac0981799fd8b58961c245cd360b66d . /
-COPY --from=stagex/user-patch:sx2026.06.0@sha256:1d4428893f0ea9abfabc1fb5e365c5593fe10c6ed8ffc592d6528157a4299942 . /
-COPY --from=stagex/core-cmake:sx2026.06.0@sha256:626a3fdf157efacd00c3ceb0529ae80dde1072d64fa1925aafe9819bebc92047 . /
-COPY --from=stagex/core-ncurses:sx2026.06.0@sha256:90cc5d029c5073405f9db39c88b9509b8959bbd8f19d8cd02c20e9350cc40254 . /
-COPY --from=stagex/pallet-rust:sx2026.06.0@sha256:59d4d0c9e232a05ecb99348f7216b521af1b914a430059dbdb9130018f2afde1 . /
+FROM stagex/pallet-gcc-gnu-gnu:sx2026.09.0@sha256:7c3726b921c4478d6eb95ab73edca3e185bc710e61005f4cf661267816fda0da AS builder
+COPY --from=stagex/core-curl:sx2026.09.0@sha256:c6da68f9257b13f640f8970c93e0363f1608f7d90b59a967177483a857e31044 . /
+COPY --from=stagex/core-openssl:sx2026.09.0@sha256:f97827b11a98c010113e0d6acc464c77cbf6ea47a67867cfd1baff093bc5399a . /
+COPY --from=stagex/core-ca-certificates:sx2026.09.0@sha256:90c35859632385f5db503e2f67bbc792da1676a70b6ec0d176df9215b3111187 . /
+COPY --from=stagex/user-patch:sx2026.09.0@sha256:3ee30f7804a7531803b2f5f51dc224202f6cee6f1cda221c1693b7a389a423b6 . /
+COPY --from=stagex/core-cmake:sx2026.09.0@sha256:5e18aebcf2e2fe80b2854e16034da0f2e45878087da68735d3270a9707d37c92 . /
+COPY --from=stagex/core-ncurses:sx2026.09.0@sha256:a5875ef06637624ead593724c43ab27be5fc7dbec5d292022bfe234896f584c1 . /
+COPY --from=stagex/pallet-rust:sx2026.09.0@sha256:6033fb215dd7c87c885dd7b1c12de42464606dcc0323fc57339318d61f010a30 . /
 
 ENV TARGET="x86_64-pc-linux-musl"
 WORKDIR /monero
